@@ -1,0 +1,33 @@
+.user-feedback-container {
+  background: linear-gradient(180deg, rgba(18,27,61,0.9), rgba(13,20,44,0.9));
+  border: 1px solid rgba(59, 230, 255, 0.06);
+  border-radius: 14px;
+  box-shadow: var(--card-shadow);
+  padding: 24px;
+  margin: 20px 0;
+}
+
+.user-feedback-header {
+  margin-bottom: 20px;
+}
+
+.user-feedback-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.user-feedback-title::before {
+  content: "📊";
+  font-size: 18px;
+}
+
+.user-feedback-content {
+  min-height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+} 
