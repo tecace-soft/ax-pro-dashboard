@@ -7,7 +7,7 @@ interface RequestParams {
 	startDate: string
 	timeUnit: string
 	passed?: string
-	validationKeyId?: string
+	validationKeyId?: number
 	sessionIds: string
 }
 
@@ -35,7 +35,7 @@ export async function fetchSessionRequests(
 		startDate,
 		timeUnit: 'day',
 		passed: '',
-		validationKeyId: '',
+		validationKeyId: 4,
 		sessionIds: sessionId
 	}
 

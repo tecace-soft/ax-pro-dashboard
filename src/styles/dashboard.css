@@ -10,7 +10,23 @@
 .section{ margin-top: 20px; }
 .section + .section{ margin-top: 16px; }
 .section-header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
-.section-title{ font-weight:700; letter-spacing:0.2px; }
+.section-title{ 
+  font-size: 20px;
+  font-weight: 700; 
+  letter-spacing:0.2px; 
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.section-title::before {
+  font-size: 18px;
+}
+
+.conversations-title::before {
+  content: "💬";
+}
 .date-controls{ display:flex; gap:12px; }
 .date-field{ display:flex; align-items:center; gap:8px; color: var(--text-muted); font-size: 13px; }
 .date-input{ height:36px; padding:0 10px; }
@@ -43,6 +59,7 @@
 
 .session-left{ flex:1; }
 .session-id{ font-weight:600; font-size:14px; color: var(--text); font-family: 'Courier New', monospace; }
+.session-messages{ font-size:12px; color: var(--text-muted); margin-top:2px; }
 
 .session-right{ display:flex; flex-direction:column; align-items:flex-end; gap:2px; }
 .session-date{ color: var(--text); font-size:13px; font-weight:500; }
@@ -51,8 +68,25 @@
 .requests-container{ margin-top:8px; padding-left:16px; border-left: 2px solid rgba(59,230,255,0.1); }
 .request-item{ padding:12px; margin-bottom:12px; background: rgba(9,14,34,0.3); border:1px solid rgba(59,230,255,0.05); border-radius:6px; }
 .request-header{ display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; padding-bottom:8px; border-bottom:1px solid rgba(59,230,255,0.1); }
-.request-id{ font-weight:600; font-size:12px; color: var(--text-muted); font-family: 'Courier New', monospace; }
-.request-time{ font-size:11px; color: var(--text-muted); }
+.request-datetime{ display:flex; flex-direction:column; gap:2px; }
+.request-date{ font-weight:600; color: var(--text); font-size:13px; }
+.request-time{ color: var(--text-muted); font-size:12px; }
+.request-actions{ display:flex; gap:8px; align-items:center; }
+.thumbs-btn{ background:transparent; border:none; cursor:pointer; padding:2px; border-radius:4px; transition: all 0.2s ease; color: var(--text-muted); width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; }
+.thumbs-btn svg{ width: 100%; height: 100%; }
+.thumbs-btn:hover{ transform: scale(1.1); color: #3be6ff; }
+.thumbs-up.submitted{ color: #22c55e; }
+.thumbs-down.submitted{ color: #ef4444; }
+.thumbs-btn.submitted:hover{ color: inherit; }
+
+/* Feedback Modal */
+.feedback-prompt{ margin-top: 16px; margin-bottom: 16px; color: var(--text); font-size: 14px; line-height: 1.5; }
+.feedback-textarea{ width: 100%; min-height: 100px; padding: 12px; background: rgba(9,14,34,0.6); border: 1px solid rgba(59,230,255,0.2); border-radius: 8px; color: var(--text); font-family: inherit; font-size: 14px; resize: vertical; margin-bottom: 0; }
+.feedback-textarea:focus{ outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px rgba(59,230,255,0.2); }
+.feedback-textarea::placeholder{ color: var(--text-muted); }
+.submit-feedback-btn{ width: 120px; background: var(--primary); color: var(--bg); border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s ease; margin-top: 30px; float: right; }
+.submit-feedback-btn:hover:not(:disabled){ background: #2dd4e7; transform: translateY(-1px); }
+.submit-feedback-btn:disabled{ background: var(--text-muted); cursor: not-allowed; opacity: 0.5; }
 
 .conversation-item{ margin-bottom:8px; }
 .conversation-item.user{ }

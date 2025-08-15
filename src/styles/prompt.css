@@ -1,0 +1,146 @@
+.prompt-control-container {
+  background: linear-gradient(180deg, rgba(18,27,61,0.9), rgba(13,20,44,0.9));
+  border: 1px solid rgba(59, 230, 255, 0.06);
+  border-radius: 14px;
+  box-shadow: var(--card-shadow);
+  padding: 24px;
+  margin: 20px 0;
+}
+
+.prompt-header {
+  margin-bottom: 20px;
+}
+
+.prompt-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.prompt-title::before {
+  content: "📝";
+  font-size: 18px;
+}
+
+.prompt-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.textarea-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.prompt-textarea {
+  width: 100%;
+  min-height: 200px;
+  padding: 16px;
+  background: rgba(9, 14, 34, 0.6);
+  border: 1px solid rgba(59, 230, 255, 0.12);
+  border-radius: 10px;
+  color: var(--text);
+  font-family: ui-monospace, 'Cascadia Code', 'Consolas', monospace;
+  font-size: 14px;
+  line-height: 1.5;
+  resize: none;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  display: block;
+}
+
+.resize-handle {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 8px;
+  cursor: ns-resize;
+  background: transparent;
+  border-bottom: 2px solid transparent;
+  transition: border-color 0.2s ease;
+  border-radius: 0 0 10px 10px;
+}
+
+.resize-handle:hover {
+  border-bottom-color: rgba(59, 230, 255, 0.5);
+  background: rgba(59, 230, 255, 0.1);
+}
+
+.prompt-textarea::-webkit-scrollbar {
+  width: 6px;
+}
+
+.prompt-textarea::-webkit-scrollbar-track {
+  background: rgba(9,14,34,0.3);
+  border-radius: 3px;
+}
+
+.prompt-textarea::-webkit-scrollbar-thumb {
+  background: rgba(59,230,255,0.3);
+  border-radius: 3px;
+}
+
+.prompt-textarea::-webkit-scrollbar-thumb:hover {
+  background: rgba(59,230,255,0.5);
+}
+
+.prompt-textarea:focus {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px rgba(59,230,255,0.18);
+}
+
+.prompt-textarea::placeholder {
+  color: var(--text-muted);
+}
+
+.prompt-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.update-btn {
+  min-width: 120px;
+  height: 44px;
+}
+
+.confirmation-modal {
+  max-width: 380px;
+  width: 85%;
+  background: linear-gradient(180deg, rgba(18,27,61,0.95), rgba(13,20,44,0.95));
+  border: 1px solid rgba(59, 230, 255, 0.12);
+  border-radius: 14px;
+  padding: 24px;
+  position: relative;
+}
+
+.confirmation-content {
+  margin-bottom: 80px;
+}
+
+.confirmation-content p {
+  color: var(--text);
+  line-height: 1.5;
+  margin: 0;
+  font-size: 16px;
+}
+
+.confirmation-no-btn {
+  position: absolute;
+  bottom: 16px;
+  left: 16px;
+  min-width: 80px;
+  height: 40px;
+}
+
+.confirmation-yes-btn {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  min-width: 80px;
+  height: 40px;
+} 

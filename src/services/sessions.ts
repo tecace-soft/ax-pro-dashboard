@@ -7,7 +7,7 @@ interface SessionParams {
 	startDate: string
 	timeUnit: string
 	passed?: string
-	validationKeyId?: string
+	validationKeyId?: number
 	validationType?: string
 }
 
@@ -41,7 +41,7 @@ export async function fetchSessions(
 		startDate,
 		timeUnit: 'day',
 		passed: '',
-		validationKeyId: '',
+		validationKeyId: 4,
 		validationType: ''
 	}
 
