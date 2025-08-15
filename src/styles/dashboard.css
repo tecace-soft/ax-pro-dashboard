@@ -1686,3 +1686,473 @@ input:checked + .toggle-slider:before {
   background: rgba(239,68,68,0.3) !important;
   border-color: rgba(239,68,68,0.6) !important;
 } 
+
+/* ConversationsBox 스타일 */
+.conversations-section {
+  margin-top: 24px;
+}
+
+.conversations-box {
+  background: linear-gradient(135deg, rgba(18,27,61,0.8), rgba(13,20,44,0.8));
+  border: 1px solid rgba(59,230,255,0.1);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+}
+
+.box-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.box-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.box-title h3 {
+  color: white;
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.date-filters {
+  display: flex;
+  gap: 16px;
+}
+
+.date-input {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.date-input label {
+  color: rgba(255,255,255,0.7);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.date-input input {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(59,230,255,0.2);
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: white;
+  font-size: 14px;
+  min-width: 140px;
+}
+
+.date-input input:focus {
+  outline: none;
+  border-color: #3be6ff;
+  box-shadow: 0 0 0 2px rgba(59,230,255,0.2);
+}
+
+.conversations-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.conversation-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  background: rgba(255,255,255,0.02);
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.05);
+  transition: all 0.2s ease;
+}
+
+.conversation-item:hover {
+  background: rgba(255,255,255,0.05);
+  border-color: rgba(59,230,255,0.3);
+}
+
+.conversation-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.session-id {
+  color: white;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: 'Courier New', monospace;
+}
+
+.message-count {
+  color: rgba(255,255,255,0.6);
+  font-size: 12px;
+}
+
+.conversation-date {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.date {
+  color: white;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.time {
+  color: rgba(255,255,255,0.6);
+  font-size: 12px;
+} 
+
+/* Recent Conversations Module - 대시보드 아래쪽에 모듈처럼 배치 */
+.conversations-module {
+  margin-top: 32px;
+  width: 100%;
+}
+
+.conversations-module .card.section {
+  background: linear-gradient(135deg, rgba(18,27,61,0.8), rgba(13,20,44,0.8));
+  border: 1px solid rgba(59,230,255,0.1);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.section-title {
+  color: white;
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.date-controls {
+  display: flex;
+  gap: 16px;
+}
+
+.date-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.date-field span {
+  color: rgba(255,255,255,0.7);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.date-input {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(59,230,255,0.2);
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: white;
+  font-size: 14px;
+  min-width: 140px;
+}
+
+.date-input:focus {
+  outline: none;
+  border-color: #3be6ff;
+  box-shadow: 0 0 0 2px rgba(59,230,255,0.2);
+}
+
+.sessions-content {
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+.sessions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.session-container {
+  border: 1px solid rgba(255,255,255,0.05);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.session-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  background: rgba(255,255,255,0.02);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.session-row:hover {
+  background: rgba(255,255,255,0.05);
+}
+
+.session-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.session-id {
+  color: white;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: 'Courier New', monospace;
+}
+
+.session-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.session-date {
+  color: white;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.session-time {
+  color: rgba(255,255,255,0.6);
+  font-size: 12px;
+}
+
+.requests-container {
+  background: rgba(0,0,0,0.2);
+  padding: 16px;
+  border-top: 1px solid rgba(255,255,255,0.05);
+}
+
+.request-item {
+  margin-bottom: 16px;
+  padding: 16px;
+  background: rgba(255,255,255,0.02);
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.05);
+}
+
+.request-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.request-id {
+  color: rgba(255,255,255,0.8);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.request-time {
+  color: rgba(255,255,255,0.6);
+  font-size: 12px;
+}
+
+.conversation-item {
+  margin-bottom: 12px;
+  padding: 12px;
+  border-radius: 8px;
+}
+
+.conversation-item.user {
+  background: rgba(59,230,255,0.1);
+  border-left: 3px solid #3be6ff;
+}
+
+.conversation-item.assistant {
+  background: rgba(124,140,255,0.1);
+  border-left: 3px solid #7c8cff;
+}
+
+.conversation-text {
+  color: white;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.muted {
+  color: rgba(255,255,255,0.5);
+  font-style: italic;
+  text-align: center;
+  padding: 20px;
+} 
+
+/* Feedback Modal Styles */
+.modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal.card {
+  background: linear-gradient(135deg, rgba(18,27,61,0.95), rgba(13,20,44,0.95));
+  border: 1px solid rgba(59,230,255,0.2);
+  border-radius: 16px;
+  padding: 24px;
+  max-width: 500px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.modal-title {
+  color: white;
+  font-size: 24px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.icon-btn {
+  background: transparent;
+  border: none;
+  color: rgba(255,255,255,0.6);
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.icon-btn:hover {
+  color: white;
+  background: rgba(255,255,255,0.1);
+}
+
+.feedback-content {
+  color: white;
+}
+
+.feedback-prompt {
+  margin-bottom: 16px;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.feedback-textarea {
+  width: 100%;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(59,230,255,0.2);
+  border-radius: 8px;
+  padding: 12px;
+  color: white;
+  font-size: 14px;
+  resize: vertical;
+  min-height: 100px;
+  margin-bottom: 16px;
+}
+
+.feedback-textarea:focus {
+  outline: none;
+  border-color: #3be6ff;
+  box-shadow: 0 0 0 2px rgba(59,230,255,0.2);
+}
+
+.submit-feedback-btn {
+  background: linear-gradient(135deg, #3be6ff, #7c8cff);
+  border: none;
+  color: white;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.submit-feedback-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(59,230,255,0.3);
+}
+
+.submit-feedback-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Thumbs up/down buttons */
+.thumbs-btn {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 6px;
+  padding: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: rgba(255,255,255,0.6);
+}
+
+.thumbs-btn:hover {
+  border-color: rgba(255,255,255,0.4);
+  color: rgba(255,255,255,0.8);
+}
+
+.thumbs-btn.submitted {
+  border-color: #3be6ff;
+  color: #3be6ff;
+}
+
+.thumbs-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Session messages count */
+.session-messages {
+  color: rgba(255,255,255,0.6);
+  font-size: 12px;
+}
+
+/* Request datetime */
+.request-datetime {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.request-date, .request-time {
+  color: rgba(255,255,255,0.7);
+  font-size: 12px;
+}
+
+/* Request ID */
+.request-id {
+  color: rgba(255,255,255,0.8);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* Request actions */
+.request-actions {
+  display: flex;
+  gap: 8px;
+} 
