@@ -5,6 +5,13 @@ import { getAuthToken } from '../services/auth'
 import { fetchSessions } from '../services/sessions'
 import { fetchSessionRequests } from '../services/requests'
 import { fetchRequestDetail } from '../services/requestDetails'
+
+// New components
+import Header from '../components/Header'
+import Sidebar from '../components/Sidebar'
+import PerformanceRadar from '../components/PerformanceRadar'
+import PerformanceTimeline from '../components/PerformanceTimeline'
+
 import '../styles/dashboard.css'
 
 function formatDate(d: Date): string {
@@ -24,12 +31,24 @@ export default function Dashboard() {
 	const [requestDetails, setRequestDetails] = useState<Record<string, any>>({})
 	const [expandedSessions, setExpandedSessions] = useState<Set<string>>(new Set())
 
+	// New state for enhanced dashboard
+	const [activeFilters, setActiveFilters] = useState<string[]>(['all'])
+	const [selectedPeriod, setSelectedPeriod] = useState('1개월')
+	const [searchQuery, setSearchQuery] = useState('')
+	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+
 	// Date filters: default to [today-7, today]
 	const today = new Date()
 	const sevenDaysAgo = new Date()
 	sevenDaysAgo.setDate(today.getDate() - 7)
 	const [startDate, setStartDate] = useState<string>(formatDate(sevenDaysAgo))
 	const [endDate, setEndDate] = useState<string>(formatDate(today))
+
+	// Mock data for new components
+	const performanceData = Array.from({ length: 30 }, (_, i) => ({
+		date: `월${13 + i}일`,
+		score: Math.floor(Math.random() * 20) + 70
+	}))
 
 	// Fetch auth token on mount
 	useEffect(() => {
@@ -152,109 +171,164 @@ export default function Dashboard() {
 		setExpandedSessions(newExpanded)
 	}
 
-	return (
-		<div className="screen">
-			<header className="topbar">
-				<div className="brand">TecAce Ax Pro</div>
-				<div className="header-actions">
-					<button className="icon-btn" aria-label="Open settings" title="Settings" onClick={() => setIsSettingsOpen(true)}>
-						<IconGear />
-					</button>
-					<button className="icon-btn" aria-label="Sign out" title="Sign out" onClick={signOut}>
-						<IconLogout />
-					</button>
-				</div>
-			</header>
-			<main className="content">
-				<div className="card">
-					<h1 className="h1">Dashboard</h1>
-					<p className="muted">This is a placeholder. We will build HR insights here.</p>
-				</div>
+	const handleFilterChange = (filter: string) => {
+		setActiveFilters(prev => 
+			filter === 'all' ? ['all'] : 
+			prev.includes(filter) ? prev.filter(f => f !== filter) : 
+			[...prev.filter(f => f !== 'all'), filter]
+		)
+	}
 
-				<div className="card section" aria-labelledby="recent-conv-title">
-					<div className="section-header">
-						<div id="recent-conv-title" className="section-title">Recent Conversations</div>
-						<div className="date-controls">
-							<label className="date-field">
-								<span>Start Date</span>
-								<input type="date" className="input date-input" value={startDate} onChange={(e)=>setStartDate(e.target.value)} />
-							</label>
-							<label className="date-field">
-								<span>End Date</span>
-								<input type="date" className="input date-input" value={endDate} onChange={(e)=>setEndDate(e.target.value)} />
-							</label>
+	const handleSearch = (query: string) => {
+		setSearchQuery(query)
+	}
+
+	const toggleSidebar = () => {
+		setIsSidebarCollapsed(!isSidebarCollapsed)
+	}
+
+	// Format time in English format
+	const currentTime = new Date().toLocaleString('en-US', { 
+		weekday: 'short',
+		month: 'short',
+		day: 'numeric',
+		hour: 'numeric',
+		minute: '2-digit',
+		hour12: true
+	})
+
+	return (
+		<div className="dashboard-layout">
+			<Header 
+				performanceScore={85} 
+				currentTime={currentTime} 
+				onSignOut={signOut}
+			/>
+			
+			<div className="dashboard-content">
+				<Sidebar
+					conversations={2847}
+					satisfaction={94.5}
+					documents={156}
+					activeFilters={activeFilters}
+					onFilterChange={handleFilterChange}
+					onSearch={handleSearch}
+					isCollapsed={isSidebarCollapsed}
+					onToggleCollapse={toggleSidebar}
+				/>
+				
+				<main className="dashboard-main">
+					<div className="dashboard-grid">
+						<div className="grid-left">
+							<div className="performance-section">
+								<h2>Vector Style Performance Radar & Timeline</h2>
+								<p className="section-subtitle">
+									깔끔한 벡터 스타일 레이더 차트 및 성능 타임라인 - TecAce Ax Pro 성능 분석 및 최적화
+								</p>
+								
+								<PerformanceRadar
+									expertise={79}
+									accuracy={75}
+									efficiency={76}
+									helpfulness={76}
+									clarity={68}
+								/>
+							</div>
+
+							<PerformanceTimeline
+								sessions={sessions}
+								startDate={startDate}
+								endDate={endDate}
+							/>
 						</div>
 					</div>
-					<div className="sessions-content">
-						{isLoadingSessions ? (
-							<p className="muted">Loading conversations...</p>
-						) : sessions.length > 0 ? (
-							<div className="sessions-list">
-								{sessions.map((session, index) => {
-									const sessionId = session.sessionId || session.id || `Session ${index + 1}`
-									const isExpanded = expandedSessions.has(sessionId)
-									const requests = sessionRequests[sessionId] || []
-									
-									return (
-										<div key={sessionId} className="session-container">
-											<div className="session-row" onClick={() => toggleSessionExpansion(sessionId)}>
-												<div className="session-left">
-													<div className="session-id">{sessionId}</div>
-												</div>
-												<div className="session-right">
-													<div className="session-date">
-														{session.createdAt ? new Date(session.createdAt).toLocaleDateString() : 'No date'}
-													</div>
-													<div className="session-time">
-														{session.createdAt ? new Date(session.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}
-													</div>
-												</div>
-											</div>
-											
-											{isExpanded && (
-												<div className="requests-container">
-													{requests.length > 0 ? (
-														requests.map((request, reqIndex) => {
-															const requestId = request.requestId || request.id
-															const detail = requestDetails[requestId]
-															
-															return (
-																<div key={requestId || reqIndex} className="request-item">
-																	<div className="request-header">
-																		<div className="request-id">Request: {requestId}</div>
-																		<div className="request-time">
-																			{request.createdAt ? new Date(request.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}
-																		</div>
-																	</div>
-																	
-																	{detail && (
-																		<>
-																			<div className="conversation-item user">
-																				<div className="conversation-text">{detail.inputText}</div>
-																			</div>
-																			<div className="conversation-item assistant">
-																				<div className="conversation-text">{detail.outputText}</div>
-																			</div>
-																		</>
-																	)}
-																</div>
-															)
-														})
-													) : (
-														<div className="muted">No requests found for this session.</div>
-													)}
-												</div>
-											)}
-										</div>
-									)
-								})}
+
+					{/* Recent Conversations - Original design restored */}
+					<div className="card section full-width" aria-labelledby="recent-conv-title">
+						<div className="section-header">
+							<div id="recent-conv-title" className="section-title">Recent Conversations</div>
+							<div className="date-controls">
+								<label className="date-field">
+									<span>Start Date</span>
+									<input type="date" className="input date-input" value={startDate} onChange={(e)=>setStartDate(e.target.value)} />
+								</label>
+								<label className="date-field">
+									<span>End Date</span>
+									<input type="date" className="input date-input" value={endDate} onChange={(e)=>setEndDate(e.target.value)} />
+								</label>
 							</div>
-						) : (
-							<p className="muted">No conversations found for the selected date range.</p>
-						)}
+						</div>
+						<div className="sessions-content">
+							{isLoadingSessions ? (
+								<p className="muted">Loading conversations...</p>
+							) : sessions.length > 0 ? (
+								<div className="sessions-list">
+									{sessions.map((session, index) => {
+										const sessionId = session.sessionId || session.id || `Session ${index + 1}`
+										const isExpanded = expandedSessions.has(sessionId)
+										const requests = sessionRequests[sessionId] || []
+										
+										return (
+											<div key={sessionId} className="session-container">
+												<div className="session-row" onClick={() => toggleSessionExpansion(sessionId)}>
+													<div className="session-left">
+														<div className="session-id">{sessionId}</div>
+													</div>
+													<div className="session-right">
+														<div className="session-date">
+															{session.createdAt ? new Date(session.createdAt).toLocaleDateString() : 'No date'}
+														</div>
+														<div className="session-time">
+															{session.createdAt ? new Date(session.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}
+														</div>
+													</div>
+												</div>
+												
+												{isExpanded && (
+													<div className="requests-container">
+														{requests.length > 0 ? (
+															requests.map((request, reqIndex) => {
+																const requestId = request.requestId || request.id
+																const detail = requestDetails[requestId]
+																
+																return (
+																	<div key={requestId || reqIndex} className="request-item">
+																		<div className="request-header">
+																			<div className="request-id">Request: {requestId}</div>
+																			<div className="request-time">
+																				{request.createdAt ? new Date(request.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}
+																			</div>
+																		</div>
+														
+																		{detail && (
+																			<>
+																				<div className="conversation-item user">
+																					<div className="conversation-text">{detail.inputText}</div>
+																				</div>
+																				<div className="conversation-item assistant">
+																					<div className="conversation-text">{detail.outputText}</div>
+																				</div>
+																			</>
+																		)}
+																	</div>
+																)
+															})
+														) : (
+															<div className="muted">No requests found for this session.</div>
+														)}
+													</div>
+												)}
+											</div>
+										)
+									})}
+								</div>
+							) : (
+								<p className="muted">No conversations found for the selected date range.</p>
+							)}
+						</div>
 					</div>
-				</div>
-			</main>
+				</main>
+			</div>
 
 			{isSettingsOpen && (
 				<div className="modal-backdrop" role="dialog" aria-modal="true">
