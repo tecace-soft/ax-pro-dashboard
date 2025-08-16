@@ -1,15 +1,14 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { IconGear, IconLogout, IconX } from '../ui/icons'
+import { IconLogout, IconX } from '../ui/icons'
 import { getAuthToken } from '../services/auth'
 import { fetchSessions } from '../services/sessions'
 import { fetchSessionRequests } from '../services/requests'
 import { fetchRequestDetail } from '../services/requestDetails'
 
-// New components
+// Components - MetricsCards 제거
 import Header from '../components/Header'
 import Sidebar from '../components/Sidebar'
-import MetricsCards from '../components/MetricsCards'
 import PerformanceRadar from '../components/PerformanceRadar'
 import PerformanceTimeline from '../components/PerformanceTimeline'
 import SystemStatus from '../components/SystemStatus'
@@ -43,6 +42,9 @@ export default function Dashboard() {
 	const [feedbackText, setFeedbackText] = useState<string>('')
 	const [submittedFeedback, setSubmittedFeedback] = useState<Record<string, 'positive' | 'negative'>>({})
 
+	// Prompt Control state
+	const [promptText, setPromptText] = useState<string>('')
+
 	// New state for enhanced dashboard
 	const [activeFilters, setActiveFilters] = useState<string[]>(['all'])
 	const [selectedPeriod, setSelectedPeriod] = useState('1개월')
@@ -61,6 +63,9 @@ export default function Dashboard() {
 		score: Math.floor(Math.random() * 20) + 70
 	}))
 
+	// 사이드바 collapse 상태 추가
+	const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+	
 	// Fetch auth token on mount
 	useEffect(() => {
 		let cancelled = false
@@ -167,8 +172,13 @@ export default function Dashboard() {
 		}
 	}, [authToken, startDate, endDate])
 
-	function signOut() {
+	// Sign out function
+	const signOut = () => {
+		// Clear auth token
+		localStorage.removeItem('authToken')
 		sessionStorage.removeItem('axAccess')
+		
+		// Navigate to login page
 		navigate('/', { replace: true })
 	}
 
@@ -232,14 +242,23 @@ export default function Dashboard() {
 		setSearchQuery(query)
 	}
 
-	const currentTime = new Date().toLocaleTimeString('ko-KR', { 
-		hour: '2-digit', 
-		minute: '2-digit' 
+	const currentTime = new Date().toLocaleString('en-US', {
+		weekday: 'short',
+		month: 'short',
+		day: 'numeric',
+		hour: 'numeric',
+		minute: '2-digit',
+		hour12: true
 	})
+
+	// 사이드바 toggle 함수 추가
+	const toggleSidebar = () => {
+		setSidebarCollapsed(!sidebarCollapsed)
+	}
 
 	return (
 		<div className="dashboard-layout">
-			<Header performanceScore={91} currentTime={currentTime} />
+			<Header performanceScore={91} currentTime={currentTime} onSignOut={signOut} />
 			
 			<div className="dashboard-content">
 				<Sidebar
@@ -249,15 +268,13 @@ export default function Dashboard() {
 					activeFilters={activeFilters}
 					onFilterChange={handleFilterChange}
 					onSearch={handleSearch}
+					isCollapsed={sidebarCollapsed}
+					onToggleCollapse={toggleSidebar}
 				/>
 				
 				<main className="dashboard-main">
-					<MetricsCards
-						activeSessions={24}
-						documents={156}
-						openTickets={12}
-					/>
-
+					{/* MetricsCards 컴포넌트 완전 제거 */}
+					
 					<div className="dashboard-grid">
 						<div className="grid-left">
 							<div className="performance-section">
@@ -293,7 +310,7 @@ export default function Dashboard() {
 						</div>
 					</div>
 
-					{/* Recent Conversations Module - gene-branch와 완전히 동일한 기능 */}
+					{/* Recent Conversations Module */}
 					<div className="conversations-module">
 						<div className="card section" aria-labelledby="recent-conv-title">
 							<div className="section-header">
@@ -355,7 +372,7 @@ export default function Dashboard() {
 																								{new Date(request.createdAt).toLocaleDateString()}
 																							</div>
 																							<div className="request-time">
-																								{new Date(request.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+																								{request.createdAt ? new Date(request.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}
 																							</div>
 																						</>
 																					) : (

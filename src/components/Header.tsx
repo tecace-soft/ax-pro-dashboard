@@ -33,15 +33,20 @@ export default function Header({ performanceScore, currentTime, onSignOut }: Hea
         
         <div className="header-actions">
           <button className="icon-btn" aria-label="Notifications">
-            
+            <IconBell size={18} />
           </button>
           <button className="icon-btn" aria-label="Toggle theme">
-            
+            <IconMoon size={18} />
           </button>
           <button className="icon-btn" aria-label="User profile">
-            
+            <IconUser size={18} />
           </button>
-          <button className="icon-btn signout-btn" aria-label="Sign out" onClick={onSignOut}>
+          <button 
+            className="icon-btn signout-btn" 
+            aria-label="Sign out" 
+            onClick={onSignOut}
+            title="Sign Out"
+          >
             <IconLogout size={18} />
           </button>
         </div>
