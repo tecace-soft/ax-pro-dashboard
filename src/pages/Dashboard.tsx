@@ -13,6 +13,7 @@ import PerformanceRadar from '../components/PerformanceRadar'
 import PerformanceTimeline from '../components/PerformanceTimeline'
 import SystemStatus from '../components/SystemStatus'
 import EnvironmentControls from '../components/EnvironmentControls'
+import Content from './Content' // Content.tsx import 추가
 
 import '../styles/dashboard.css'
 
@@ -311,7 +312,7 @@ export default function Dashboard() {
 					</div>
 
 					{/* Recent Conversations Module */}
-					<div className="conversations-module">
+					{/* <div className="conversations-module">
 						<div className="card section" aria-labelledby="recent-conv-title">
 							<div className="section-header">
 								<div id="recent-conv-title" className="section-title conversations-title">Recent Conversations</div>
@@ -428,7 +429,10 @@ export default function Dashboard() {
 								)}
 							</div>
 						</div>
-					</div>
+					</div> */}
+
+					{/* Content 모듈 추가 */}
+					<Content />
 				</main>
 			</div>
 
