@@ -23,6 +23,7 @@ interface SidebarProps {
   onSearch: (query: string) => void
   isCollapsed: boolean
   onToggleCollapse: () => void
+  onScrollToConversations?: () => void // 새로운 prop 추가
 }
 
 export default function Sidebar({ 
@@ -33,7 +34,8 @@ export default function Sidebar({
   onFilterChange, 
   onSearch,
   isCollapsed,
-  onToggleCollapse
+  onToggleCollapse,
+  onScrollToConversations
 }: SidebarProps) {
   const [searchValue, setSearchValue] = useState('')
   const [isEditingProfile, setIsEditingProfile] = useState(false)
@@ -110,6 +112,13 @@ export default function Sidebar({
       ...prev,
       [field]: value
     }))
+  }
+
+  const handleConversationsClick = () => {
+    console.log('Conversations clicked!') // 디버깅용
+    if (onScrollToConversations) {
+      onScrollToConversations()
+    }
   }
 
   return (
@@ -205,7 +214,7 @@ export default function Sidebar({
 
           {/* Quick Stats */}
           <div className="quick-stats">
-            <div className="stat-item">
+            <div className="stat-item" onClick={handleConversationsClick}>
               <span className="stat-value">{conversations.toLocaleString()}</span>
               <span className="stat-label">Conversations</span>
             </div>

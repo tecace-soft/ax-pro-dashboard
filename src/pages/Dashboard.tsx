@@ -48,7 +48,7 @@ export default function Dashboard() {
 
 	// New state for enhanced dashboard
 	const [activeFilters, setActiveFilters] = useState<string[]>(['all'])
-	const [selectedPeriod, setSelectedPeriod] = useState('1개월')
+	const [selectedPeriod, setSelectedPeriod] = useState(7)
 	const [searchQuery, setSearchQuery] = useState('')
 
 	// Date filters: default to [today-7, today]
@@ -257,13 +257,83 @@ export default function Dashboard() {
 		setSidebarCollapsed(!sidebarCollapsed)
 	}
 
+	// 실제 메시지 수 계산
+	const totalMessages = sessions.reduce((total, session) => {
+		const sessionId = session.sessionId || session.id || `session-${Math.random()}`
+		const requests = sessionRequests[sessionId] || []
+		return total + requests.length
+	}, 0)
+
+	// Recent Conversations로 스크롤하는 함수
+	const scrollToConversations = () => {
+		const conversationsElement = document.querySelector('.conversations-module')
+		if (conversationsElement) {
+			conversationsElement.scrollIntoView({ 
+				behavior: 'smooth', 
+				block: 'start' 
+			})
+		}
+	}
+
+	// 필터링된 세션 데이터를 가져오는 함수
+	const getFilteredSessions = () => {
+		// Content 모듈의 필터링 로직과 동일하게 적용
+		if (!startDate || !endDate) return sessions
+		
+		const start = new Date(startDate)
+		const end = new Date(endDate)
+		
+		return sessions.filter(session => {
+			const sessionDate = new Date(session.createdAt || Date.now())
+			return sessionDate >= start && sessionDate <= end
+		})
+	}
+
+	// 실제 메시지 활동 데이터 계산 - 필터링된 데이터 활용
+	const getMessageActivityData = (days: number) => {
+		const now = new Date()
+		const filteredSessions = getFilteredSessions()
+		
+		// 각 날짜별 메시지 수 계산
+		const dailyMessages = Array.from({ length: days }, (_, i) => {
+			const targetDate = new Date(now.getTime() - (i * 24 * 60 * 60 * 1000))
+			const targetDateStr = targetDate.toDateString()
+			
+			return filteredSessions.reduce((total, session) => {
+				const sessionId = session.sessionId || session.id || `session-${Math.random()}`
+				const requests = sessionRequests[sessionId] || []
+				
+				const dayMessages = requests.filter(request => {
+					const requestDate = new Date(request.createdAt || Date.now())
+					return requestDate.toDateString() === targetDateStr
+				}).length
+				
+				return total + dayMessages
+			}, 0)
+		}).reverse() // 최신 날짜가 오른쪽에 오도록
+		
+		return dailyMessages
+	}
+
+	const periods = [3, 7, 14, 30]
+
+	// 선택된 기간의 메시지 데이터 (필터링 반영)
+	const messageData = getMessageActivityData(selectedPeriod)
+	const periodTotalMessages = messageData.reduce((sum, count) => sum + count, 0)
+	const avgMessages = Math.round(periodTotalMessages / selectedPeriod)
+
+	// startDate, endDate가 변경될 때마다 차트 업데이트
+	useEffect(() => {
+		// startDate나 endDate가 변경되면 차트가 자동으로 업데이트됩니다
+	}, [startDate, endDate])
+
 	return (
 		<div className="dashboard-layout">
 			<Header performanceScore={91} currentTime={currentTime} onSignOut={signOut} />
 			
 			<div className="dashboard-content">
 				<Sidebar
-					conversations={2847}
+					conversations={totalMessages} // 실제 데이터로 변경
 					satisfaction={94.5}
 					documents={156}
 					activeFilters={activeFilters}
@@ -271,6 +341,7 @@ export default function Dashboard() {
 					onSearch={handleSearch}
 					isCollapsed={sidebarCollapsed}
 					onToggleCollapse={toggleSidebar}
+					onScrollToConversations={scrollToConversations} // 새로운 prop 전달
 				/>
 				
 				<main className="dashboard-main">
@@ -293,11 +364,64 @@ export default function Dashboard() {
 								/>
 							</div>
 
-							<PerformanceTimeline
-								data={performanceData}
-								selectedPeriod={selectedPeriod}
-								onPeriodChange={setSelectedPeriod}
-							/>
+							{/* PerformanceTimeline 컴포넌트만 제거 - 이것이 class="performance-timeline" */}
+
+							{/* Daily Message Activity - 필터링된 데이터 반영 */}
+							<div className="message-activity-section">
+								<div className="section-header">
+									<h2>Daily Message Activity</h2>
+									<div className="activity-summary">
+										Total: {periodTotalMessages} messages | Avg: {avgMessages}/day
+										{startDate && endDate && (
+											<span className="filter-info">
+												<br />Filtered: {startDate} to {endDate}
+											</span>
+										)}
+									</div>
+								</div>
+								
+								<div className="period-filters">
+									{periods.map(period => (
+										<button
+											key={period}
+											className={`period-btn ${selectedPeriod === period ? 'active' : ''}`}
+											onClick={() => setSelectedPeriod(period)}
+										>
+											Last {period} Days
+										</button>
+									))}
+									<button className="period-btn">
+										Custom Range
+									</button>
+								</div>
+								
+								<div className="activity-chart">
+									{periodTotalMessages > 0 ? (
+										<div className="bar-chart">
+											{messageData.map((dayData, i) => {
+												const maxValue = Math.max(...messageData)
+												const height = maxValue > 0 ? (dayData / maxValue) * 100 : 0
+												const date = new Date(Date.now() - ((selectedPeriod - 1 - i) * 24 * 60 * 60 * 1000))
+												const dayLabel = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+												
+												return (
+													<div key={i} className="bar-item">
+														<div className="bar" style={{ height: `${height}%` }}>
+															<span className="bar-value">{dayData}</span>
+														</div>
+														<span className="bar-label">{dayLabel}</span>
+													</div>
+												)
+											})}
+										</div>
+									) : (
+										<div className="no-data">
+											<div className="no-data-icon">📈</div>
+											<p>No message data available for selected period</p>
+										</div>
+									)}
+								</div>
+							</div>
 						</div>
 
 						<div className="grid-right">
@@ -428,8 +552,7 @@ export default function Dashboard() {
 									<p className="muted">No conversations found for the selected date range.</p>
 								)}
 							</div>
-						</div>
-					</div> */}
+						</div> */}
 
 					{/* Content 모듈 추가 */}
 					<Content />

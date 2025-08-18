@@ -18,7 +18,14 @@ export default function Header({ performanceScore, currentTime, onSignOut }: Hea
     <header className="dashboard-header">
       <div className="header-left">
         <div className="logo">
-          <div className="logo-icon">TAP</div>
+          {/* 새로운 육각형 로고 */}
+          <div className="logo-hexagon">
+            <div className="hexagon-outer">
+              <div className="hexagon-inner">
+                {/* 'T' 글자 제거 */}
+              </div>
+            </div>
+          </div>
           <span className="logo-text">TecAce Ax Pro</span>
         </div>
       </div>

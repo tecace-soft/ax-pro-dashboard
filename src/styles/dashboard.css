@@ -587,34 +587,52 @@
   z-index: 10;
 }
 
+/* Quick Stats - 원본 디자인에 맞춰 가로 배열, 작은 크기로 */
 .quick-stats {
+  gap: 12px;
+  margin-bottom: 24px;
   display: flex;
-  gap: 16px;
-  margin-bottom: 32px;
+  flex-direction: row;  /* 가로 배열 */
+}
+
+.quick-stats h4 {
+  display: none;  /* 제목 숨김 (원본에는 없음) */
 }
 
 .stat-item {
   flex: 1;
   text-align: center;
-  padding: 16px;
+  padding: 12px 8px;  /* 패딩 줄임 */
   background: rgba(9,14,34,0.3);
   border: 1px solid rgba(59,230,255,0.1);
   border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-height: 60px;  /* 높이 줄임 */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.stat-item:hover {
+  background: rgba(9,14,34,0.5);
+  border-color: rgba(59,230,255,0.2);
 }
 
 .stat-value {
   display: block;
-  font-size: 20px;
+  font-size: 18px;  /* 크기 줄임 */
   font-weight: 700;
   color: #3be6ff;
-  margin-bottom: 4px;
+  margin-bottom: 3px;
 }
 
 .stat-label {
-  font-size: 11px;
+  font-size: 10px;  /* 크기 줄임 */
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  text-align: center;
 }
 
 .search-section {
@@ -1489,17 +1507,17 @@ input:checked + .toggle-slider:before {
   word-wrap: break-word;
 }
 
-.conversation-item.user .conversation-text {
-  background: rgba(59,230,255,0.1);
-  border: 1px solid rgba(59,230,255,0.2);
+.conversation-item.user .conversation-text{ 
+  background: rgba(59,230,255,0.1); 
+  border:1px solid rgba(59,230,255,0.2);
   color: var(--text);
 }
 
-.conversation-item.assistant .conversation-text {
-  background: rgba(124,140,255,0.1);
-  border: 1px solid rgba(124,140,255,0.2);
+.conversation-item.assistant .conversation-text{ 
+  background: rgba(124,140,255,0.1); 
+  border:1px solid rgba(124,140,255,0.2);
   color: var(--text);
-}
+} 
 
 /* Responsive Design */
 @media (max-width: 1200px) {
@@ -2576,3 +2594,242 @@ input:checked + .toggle-slider:before {
     padding: 0.25rem 0.5rem;
   }
 } 
+
+/* 새로운 육각형 로고 디자인 - 원래 디자인에 더 가깝게 */
+.logo-hexagon {
+  position: relative;
+  width: 32px;
+  height: 30px;  /* 28px에서 30px로 살짝만 늘림 */
+  margin-right: 0.2rem;
+}
+
+.hexagon-outer {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #3be6ff, #29c3ff);
+  clip-path: polygon(50% 0%, 90% 22%, 90% 78%, 50% 100%, 10% 78%, 10% 22%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 8px rgba(59, 230, 255, 0.2);
+}
+
+.hexagon-inner {
+  width: 80%;
+  height: 80%;
+  background: linear-gradient(135deg, #1a2332, #0f1419);
+  clip-path: polygon(50% 0%, 90% 22%, 90% 78%, 50% 100%, 10% 78%, 10% 22%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hexagon-core {
+  color: #3be6ff;
+  font-weight: 700;
+  font-size: 14px;
+  text-shadow: 0 0 4px rgba(59, 230, 255, 0.4);
+}
+
+/* 로고 텍스트도 약간 더 크게 */
+.logo-text {
+  font-size: 22px;  /* 20px에서 22px로 증가 */
+  font-weight: 700;
+  background: linear-gradient(135deg, #3be6ff, #29c3ff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-shadow: 0 0 10px rgba(59, 230, 255, 0.2);
+}
+
+/* Quick Stats - 원본 디자인에 맞춰 가로 배열, 작은 크기로 */
+.quick-stats {
+  gap: 12px;
+  margin-bottom: 24px;
+  display: flex;
+  flex-direction: row;  /* 가로 배열 */
+}
+
+.quick-stats h4 {
+  display: none;  /* 제목 숨김 (원본에는 없음) */
+}
+
+.stat-item {
+  flex: 1;
+  text-align: center;
+  padding: 12px 8px;  /* 패딩 줄임 */
+  background: rgba(9,14,34,0.3);
+  border: 1px solid rgba(59,230,255,0.1);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-height: 60px;  /* 높이 줄임 */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.stat-item:hover {
+  background: rgba(9,14,34,0.5);
+  border-color: rgba(59,230,255,0.2);
+}
+
+.stat-value {
+  display: block;
+  font-size: 18px;  /* 크기 줄임 */
+  font-weight: 700;
+  color: #3be6ff;
+  margin-bottom: 3px;
+}
+
+.stat-label {
+  font-size: 10px;  /* 크기 줄임 */
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-align: center;
+}
+
+/* Daily Message Activity */
+.message-activity-section {
+  background: rgba(18, 27, 61, 0.6);
+  border: 1px solid rgba(59, 230, 255, 0.15);
+  border-radius: 12px;
+  padding: 24px;
+  margin: 24px 0;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.section-header h2 {
+  font-size: 20px;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0;
+}
+
+.activity-summary {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.7);
+  background: rgba(59, 230, 255, 0.1);
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(59, 230, 255, 0.2);
+}
+
+.period-filters {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.period-btn {
+  padding: 8px 16px;
+  background: rgba(18, 27, 61, 0.8);
+  border: 1px solid rgba(59, 230, 255, 0.2);
+  border-radius: 6px;
+  color: #ffffff;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.period-btn:hover {
+  background: rgba(59, 230, 255, 0.1);
+  border-color: rgba(59, 230, 255, 0.4);
+}
+
+.period-btn.active {
+  background: #3be6ff;
+  color: #041220;
+  border-color: #3be6ff;
+}
+
+.activity-chart {
+  min-height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bar-chart {
+  display: flex;
+  align-items: flex-end;  /* 아래쪽 정렬로 변경 */
+  gap: 12px;
+  height: 200px;
+  width: 100%;
+  padding: 20px 0;
+  position: relative;
+}
+
+.bar-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  height: 100%;
+  justify-content: flex-end;  /* 아래쪽 정렬 */
+}
+
+.bar {
+  background: linear-gradient(135deg, #3be6ff, #29c3ff);
+  width: 100%;
+  min-height: 8px;
+  border-radius: 4px;
+  position: relative;
+  transition: all 0.3s ease;
+  box-shadow: 0 0 10px rgba(59, 230, 255, 0.3);
+  align-self: flex-end;  /* bar를 아래쪽에 정렬 */
+}
+
+.bar:hover {
+  background: linear-gradient(135deg, #4ade80, #22c55e);
+  transform: scaleY(1.05);
+}
+
+.bar-value {
+  position: absolute;
+  top: -30px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 12px;
+  font-weight: 600;
+  color: #3be6ff;
+  white-space: nowrap;
+  background: rgba(18, 27, 61, 0.9);
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(59, 230, 255, 0.3);
+}
+
+.bar-label {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.7);
+  margin-top: 12px;
+  text-align: center;
+  font-weight: 500;
+}
+
+.no-data {
+  text-align: center;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.no-data-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+/* Daily Message Activity - 필터 정보 표시 */
+.filter-info {
+  font-size: 12px;
+  color: rgba(59, 230, 255, 0.8);
+  margin-top: 4px;
+  display: block;
+}
