@@ -10,7 +10,8 @@ import {
   IconCamera,
   IconPalette,
   IconSave,
-  IconX
+  IconX,
+  IconUser
 } from '../ui/icons'
 import { useState } from 'react'
 
@@ -43,9 +44,13 @@ export default function Sidebar({
     name: 'TecAce Ax Pro',
     role: 'Main AI Assistant for HR Support',
     performance: 85,
-    avatar: 'AI'
+    avatar: localStorage.getItem('profileAvatar') || 'AI',
+    initials: localStorage.getItem('profileInitials') || 'AI'
   })
   
+  // Edit 모드용 임시 데이터
+  const [editData, setEditData] = useState(profileData)
+
   const filters = [
     { key: 'all', label: 'All', count: documents },
     { key: 'policies', label: 'Policies', count: 45 },
@@ -89,22 +94,18 @@ export default function Sidebar({
 
   const handleProfileEdit = () => {
     setIsEditingProfile(true)
+    setEditData(profileData)
   }
 
   const handleProfileSave = () => {
+    setProfileData(editData)
+    localStorage.setItem('profileInitials', editData.initials)
     setIsEditingProfile(false)
-    // 여기에 실제 저장 로직을 추가할 수 있습니다
   }
 
   const handleProfileCancel = () => {
+    setEditData(profileData)
     setIsEditingProfile(false)
-    // 변경사항을 원래대로 되돌립니다
-    setProfileData({
-      name: 'TecAce Ax Pro',
-      role: 'Main AI Assistant for HR Support',
-      performance: 85,
-      avatar: 'AI'
-    })
   }
 
   const handleProfileChange = (field: string, value: string | number) => {
@@ -121,6 +122,44 @@ export default function Sidebar({
     }
   }
 
+  const handlePhotoClick = () => {
+    // 이미 업로드된 사진이 있으면 삭제 확인
+    if (profileData.avatar !== 'AI') {
+      const confirmDelete = confirm('프로필 사진을 삭제하시겠습니까?')
+      if (confirmDelete) {
+        setProfileData(prev => ({
+          ...prev,
+          avatar: 'AI'
+        }))
+        localStorage.removeItem('profileAvatar')
+      }
+    } else {
+      // 사진이 없으면 파일 선택
+      const input = document.createElement('input')
+      input.type = 'file'
+      input.accept = 'image/*'
+      input.onchange = handlePhotoUpload
+      input.click()
+    }
+  }
+
+  const handlePhotoUpload = (event: Event) => {
+    const target = event.target as HTMLInputElement
+    const file = target.files?.[0]
+    if (file && file.type.startsWith('image/')) {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        const result = e.target?.result as string
+        setProfileData(prev => ({
+          ...prev,
+          avatar: result
+        }))
+        localStorage.setItem('profileAvatar', result)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
   return (
     <aside className={`dashboard-sidebar ${isCollapsed ? 'collapsed' : ''}`}>
       <div className="sidebar-toggle" onClick={onToggleCollapse}>
@@ -130,85 +169,100 @@ export default function Sidebar({
       {!isCollapsed && (
         <>
           {/* AI Assistant Profile */}
-          <div className="ai-profile">
-            <div className="profile-avatar">
-              <div className="avatar-placeholder">{profileData.avatar}</div>
-            </div>
-            <div className="profile-info">
-              {isEditingProfile ? (
-                <div className="profile-edit-form">
-                  <input
-                    type="text"
-                    className="profile-input"
-                    value={profileData.name}
-                    onChange={(e) => handleProfileChange('name', e.target.value)}
-                    placeholder="AI Name"
-                  />
-                  <input
-                    type="text"
-                    className="profile-input"
-                    value={profileData.role}
-                    onChange={(e) => handleProfileChange('role', e.target.value)}
-                    placeholder="Role Description"
-                  />
-                  <input
-                    type="number"
-                    className="profile-input"
-                    value={profileData.performance}
-                    onChange={(e) => handleProfileChange('performance', parseInt(e.target.value))}
-                    placeholder="Performance %"
-                    min="0"
-                    max="100"
-                  />
-                  <input
-                    type="text"
-                    className="profile-input"
-                    value={profileData.avatar}
-                    onChange={(e) => handleProfileChange('avatar', e.target.value)}
-                    placeholder="Avatar Text"
-                    maxLength={3}
-                  />
-                </div>
-              ) : (
-                <>
-                  <h3 className="profile-name">{profileData.name}</h3>
-                  <p className="profile-role">{profileData.role}</p>
-                  <div className="performance-score">
-                    <span className="score">{profileData.performance}%</span>
-                    <span className="label">Performance</span>
+          <div className="profile-section">
+            <div className="profile-content">
+              <div className="profile-avatar">
+                {profileData.avatar === 'AI' || profileData.avatar === profileData.initials ? (
+                  <div className="avatar-placeholder">
+                    {isEditingProfile ? (
+                      <input
+                        type="text"
+                        value={editData.initials}
+                        onChange={(e) => setEditData(prev => ({ ...prev, initials: e.target.value.toUpperCase() }))}
+                        className="initials-input"
+                        maxLength={3}
+                      />
+                    ) : (
+                      profileData.initials
+                    )}
                   </div>
-                  <div className="status-badge active">Active</div>
-                </>
-              )}
-            </div>
-            <div className="profile-actions">
-              {isEditingProfile ? (
-                <>
-                  <button className="btn-small save-btn" onClick={handleProfileSave}>
-                    <IconSave size={12} />
-                    Save
-                  </button>
-                  <button className="btn-small cancel-btn" onClick={handleProfileCancel}>
-                    <IconX size={12} />
-                    Cancel
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button className="btn-small" onClick={handleProfileEdit}>
-                    <IconEdit size={12} />
-                    Edit
-                  </button>
-                  <button className="btn-small">
-                    <IconCamera size={12} />
-                    Photo
-                  </button>
-                  <button className="btn-small">
-                    <IconPalette size={12} />
-                    Style
-                  </button>
-                </>
-              )}
+                ) : (
+                  <img 
+                    src={profileData.avatar} 
+                    alt="Profile" 
+                    className="profile-image"
+                  />
+                )}
+                <div className="status-indicator active"></div>
+              </div>
+
+              <div className="profile-info">
+                {isEditingProfile ? (
+                  <>
+                    <input
+                      type="text"
+                      value={editData.name}
+                      onChange={(e) => setEditData(prev => ({ ...prev, name: e.target.value }))}
+                      className="profile-name-input"
+                      placeholder="Name"
+                    />
+                    <input
+                      type="text"
+                      value={editData.role}
+                      onChange={(e) => setEditData(prev => ({ ...prev, role: e.target.value }))}
+                      className="profile-role-input"
+                      placeholder="Role"
+                    />
+                  </>
+                ) : (
+                  <>
+                    <h3 className="profile-name">{profileData.name}</h3>
+                    <p className="profile-role">{profileData.role}</p>
+                  </>
+                )}
+                
+                <div className="profile-metrics">
+                  <div className="profile-metric">
+                    <span className="profile-metric-value">{profileData.performance}%</span>
+                    <span className="profile-metric-label">Performance</span>
+                  </div>
+                  <div className="profile-metric-divider"></div>
+                  <div className="profile-metric">
+                    <span className="profile-status-badge active">Active</span>
+                    <span className="profile-metric-label">Status</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="profile-actions">
+                {isEditingProfile ? (
+                  <>
+                    <button className="btn-small save-btn" onClick={handleProfileSave}>
+                      <IconSave size={12} />
+                      Save
+                    </button>
+                    <button className="btn-small cancel-btn" onClick={handleProfileCancel}>
+                      <IconX size={12} />
+                      Cancel
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button className="btn-small" onClick={handleProfileEdit}>
+                      <IconEdit size={12} />
+                      Edit
+                    </button>
+                    <button className="btn-small" onClick={handlePhotoClick}>
+                      <IconCamera size={12} />
+                      Photo
+                    </button>
+                    <button className="btn-small">
+                      <IconPalette size={12} />
+                      Style
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           </div>
 
@@ -230,7 +284,7 @@ export default function Sidebar({
               <IconSearch size={16} />
               <input 
                 type="text" 
-                placeholder="Search knowledge base, conversat"
+                placeholder="Search knowledge base, conversations..."
                 value={searchValue}
                 onChange={handleSearchChange}
               />
