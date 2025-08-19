@@ -238,9 +238,567 @@
   color: var(--warning);
 }
 
+/* Performance Radar Container */
+.performance-radar-container {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+/* Radar Chart */
+.radar-chart-section {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 300px;
+}
+
+.radar-chart {
+  position: relative;
+  width: 300px;
+  height: 300px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.radar-svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
+
+.radar-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 3;
+}
+
+.center-score {
+  font-size: 48px;
+  font-weight: 800;
+  color: #4ade80;
+  text-shadow: 0 0 20px rgba(74, 222, 128, 0.5);
+  line-height: 1;
+}
+
+.center-label {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-top: 4px;
+}
+
+.radar-point {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform-origin: 0 0;
+  z-index: 2;
+}
+
+.point-dot {
+  width: 10px;
+  height: 10px;
+  background: #3be6ff;
+  border-radius: 50%;
+  box-shadow: 0 0 15px rgba(59, 230, 255, 0.8);
+  margin: -5px 0 0 -5px;
+  border: 2px solid #ffffff;
+}
+
+.point-label {
+  position: absolute;
+  top: -60px;
+  left: -50px;
+  text-align: center;
+  min-width: 100px;
+  background: rgba(18, 27, 61, 0.9);
+  border: 1px solid rgba(59, 230, 255, 0.3);
+  border-radius: 6px;
+  padding: 6px 8px;
+  backdrop-filter: blur(10px);
+}
+
+.point-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: #3be6ff;
+  margin-bottom: 2px;
+}
+
+.point-name {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.8);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 500;
+}
+
+/* Module Control */
+.module-control {
+  background: rgba(18, 27, 61, 0.6);
+  border: 1px solid rgba(59, 230, 255, 0.15);
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+
+.module-control h3 {
+  font-size: 18px;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0 0 0.5rem 0;
+}
+
+.control-subtitle {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.6);
+  margin: 0 0 1.5rem 0;
+}
+
+.control-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.control-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 0;
+}
+
+.control-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 1;
+}
+
+.control-icon {
+  font-size: 18px;
+  width: 24px;
+  text-align: center;
+}
+
+.control-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.control-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.control-description {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* Toggle Switch */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+  cursor: pointer;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 24px;
+  transition: 0.3s;
+}
+
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background: white;
+  border-radius: 50%;
+  transition: 0.3s;
+}
+
+input:checked + .toggle-slider {
+  background: #3be6ff;
+}
+
+input:checked + .toggle-slider:before {
+  transform: translateX(20px);
+}
+
 @media (max-width: 1024px) {
   .radar-content {
     grid-template-columns: 1fr;
     gap: 24px;
   }
+} 
+
+/* 레이더 차트 크기 조정 - 중복 제거하고 정확한 크기 설정 */
+.radar-chart-large {
+  position: relative;
+  width: 400px; /* SVG 크기와 동일하게 */
+  height: 400px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.radar-svg-large {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+}
+
+/* 중앙 점수 정확한 위치 */
+.radar-center-large {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 5;
+}
+
+/* 데이터 포인트 정확한 위치 */
+.radar-point-large {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform-origin: 0 0;
+  z-index: 10;
+}
+
+/* 점수 박스 위치 조정 */
+.point-score-box {
+  position: absolute;
+  top: -30px;
+  left: -20px;
+  width: 40px;
+  height: 24px;
+  background: rgba(18, 27, 61, 0.95);
+  border: 1px solid #3be6ff;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: #3be6ff;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  z-index: 12;
+}
+
+/* 라벨 위치 정확하게 */
+.radar-label-outside {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translateY(-50%);
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+  letter-spacing: 0.8px;
+  text-align: center;
+  z-index: 1;
+  white-space: nowrap;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+  line-height: 1;
+  width: 100px;
+}
+
+/* Module Control만 개선 */
+.module-control {
+  background: rgba(18, 27, 61, 0.6);
+  border: 1px solid rgba(59, 230, 255, 0.15);
+  border-radius: 12px;
+  padding: 24px;
+  margin-top: 32px;
+}
+
+.module-control h3 {
+  font-size: 20px;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0 0 8px 0;
+  text-align: center;
+}
+
+.control-subtitle {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.6);
+  margin: 0 0 24px 0;
+  text-align: center;
+}
+
+.control-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.control-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  background: rgba(30, 41, 74, 0.4);
+  border: 1px solid rgba(59, 230, 255, 0.1);
+  border-radius: 10px;
+  transition: all 0.2s ease;
+}
+
+.control-item:hover {
+  background: rgba(30, 41, 74, 0.6);
+  border-color: rgba(59, 230, 255, 0.2);
+  transform: translateY(-1px);
+}
+
+.control-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.control-icon {
+  font-size: 18px;
+  width: 24px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.control-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.control-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+  line-height: 1.2;
+}
+
+.control-description {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  line-height: 1.2;
+}
+
+/* Toggle Switch */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 24px;
+  transition: 0.3s;
+}
+
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background: white;
+  border-radius: 50%;
+  transition: 0.3s;
+}
+
+input:checked + .toggle-slider {
+  background: #3be6ff;
+}
+
+input:checked + .toggle-slider:before {
+  transform: translateX(20px);
+} 
+
+/* 모듈 컨트롤 항목 높이 조정 */
+.control-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px; /* 패딩 줄임 */
+  background: rgba(30, 41, 74, 0.4);
+  border: 1px solid rgba(59, 230, 255, 0.1);
+  border-radius: 10px;
+  transition: all 0.2s ease;
+  min-height: 48px; /* 최소 높이 설정 */
+}
+
+.control-item:hover {
+  background: rgba(30, 41, 74, 0.6);
+  border-color: rgba(59, 230, 255, 0.2);
+  transform: translateY(-1px);
+}
+
+.control-info {
+  display: flex;
+  align-items: center;
+  gap: 10px; /* 간격 줄임 */
+  flex: 1;
+}
+
+.control-icon {
+  font-size: 16px; /* 아이콘 크기 줄임 */
+  width: 20px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.control-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px; /* 간격 줄임 */
+  flex: 1;
+}
+
+.control-label {
+  font-size: 13px; /* 폰트 크기 줄임 */
+  font-weight: 600;
+  color: #ffffff;
+  line-height: 1.1;
+}
+
+.control-description {
+  font-size: 10px; /* 폰트 크기 줄임 */
+  color: rgba(255, 255, 255, 0.5);
+  line-height: 1.1;
+}
+
+/* Toggle Switch 크기 조정 */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 40px; /* 크기 줄임 */
+  height: 22px; /* 높이 줄임 */
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 22px;
+  transition: 0.3s;
+}
+
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 16px; /* 크기 줄임 */
+  width: 16px; /* 크기 줄임 */
+  left: 3px;
+  bottom: 3px;
+  background: white;
+  border-radius: 50%;
+  transition: 0.3s;
+}
+
+input:checked + .toggle-slider:before {
+  transform: translateX(18px); /* 이동 거리 조정 */
+}
+
+/* 모듈 컨트롤 전체 패딩 조정 */
+.module-control {
+  background: rgba(18, 27, 61, 0.6);
+  border: 1px solid rgba(59, 230, 255, 0.15);
+  border-radius: 12px;
+  padding: 20px; /* 패딩 줄임 */
+  margin-top: 24px; /* 마진 줄임 */
+}
+
+.control-subtitle {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.6);
+  margin: 0 0 20px 0; /* 마진 줄임 */
+  text-align: center;
+}
+
+.control-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px; /* 간격 줄임 */
+} 
+
+/* 깔끔한 레이블 스타일 */
+.radar-label-clean {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  font-size: 12px;
+  font-weight: 600;
+  color: #ffffff;
+  letter-spacing: 0.5px;
+  z-index: 1;
+  white-space: nowrap;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+  line-height: 1;
+  background: rgba(18, 27, 61, 0.8);
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(59, 230, 255, 0.3);
+  backdrop-filter: blur(8px);
 } 

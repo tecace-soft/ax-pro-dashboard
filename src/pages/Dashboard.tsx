@@ -67,6 +67,20 @@ export default function Dashboard() {
 	// 사이드바 collapse 상태 추가
 	const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 	
+	// Custom Range 모달 상태 추가
+	const [showCustomRangeModal, setShowCustomRangeModal] = useState(false)
+	const [customStartDate, setCustomStartDate] = useState('')
+	const [customEndDate, setCustomEndDate] = useState('')
+
+	// Custom Range 적용 함수
+	const applyCustomRange = () => {
+		if (customStartDate && customEndDate) {
+			setStartDate(customStartDate)
+			setEndDate(customEndDate)
+			setShowCustomRangeModal(false)
+		}
+	}
+
 	// Fetch auth token on mount
 	useEffect(() => {
 		let cancelled = false
@@ -289,7 +303,7 @@ export default function Dashboard() {
 		})
 	}
 
-	// 실제 메시지 활동 데이터 계산 - 필터링된 데이터 활용
+	// 실제 메시지 활동 데이터 계산 - 간단하게 수정
 	const getMessageActivityData = (days: number) => {
 		const now = new Date()
 		const filteredSessions = getFilteredSessions()
@@ -299,17 +313,30 @@ export default function Dashboard() {
 			const targetDate = new Date(now.getTime() - (i * 24 * 60 * 60 * 1000))
 			const targetDateStr = targetDate.toDateString()
 			
-			return filteredSessions.reduce((total, session) => {
-				const sessionId = session.sessionId || session.id || `session-${Math.random()}`
+			let totalMessages = 0
+			
+			// 각 세션의 요청들을 확인
+			filteredSessions.forEach(session => {
+				const sessionId = session.sessionId || session.id
 				const requests = sessionRequests[sessionId] || []
 				
-				const dayMessages = requests.filter(request => {
-					const requestDate = new Date(request.createdAt || Date.now())
-					return requestDate.toDateString() === targetDateStr
-				}).length
-				
-				return total + dayMessages
-			}, 0)
+				requests.forEach(request => {
+					// 다양한 날짜 필드 시도
+					const requestDate = new Date(
+						request.createdAt || 
+						request.timestamp || 
+						request.date || 
+						session.createdAt || 
+						Date.now()
+					)
+					
+					if (requestDate.toDateString() === targetDateStr) {
+						totalMessages++
+					}
+				})
+			})
+			
+			return totalMessages
 		}).reverse() // 최신 날짜가 오른쪽에 오도록
 		
 		return dailyMessages
@@ -327,6 +354,55 @@ export default function Dashboard() {
 		// startDate나 endDate가 변경되면 차트가 자동으로 업데이트됩니다
 	}, [startDate, endDate])
 
+	// Custom Range 버튼 클릭 핸들러 추가
+	const handleCustomRangeClick = () => {
+		setCustomStartDate(startDate)
+		setCustomEndDate(endDate)
+		setShowCustomRangeModal(true)
+	}
+
+	// 섹션별 스크롤 함수 - Content.tsx 모듈과 연동
+	const scrollToSection = (sectionId: string) => {
+		// Content.tsx 모듈 내부의 요소들을 찾아서 스크롤
+		if (sectionId === 'content-module') {
+			// Content 모듈 전체로 스크롤
+			const contentElement = document.querySelector('.content-module')
+			if (contentElement) {
+				contentElement.scrollIntoView({ 
+					behavior: 'smooth', 
+					block: 'start' 
+				})
+			}
+		} else if (sectionId === 'recent-conversations') {
+			// Content 모듈 내의 Recent Conversations 섹션으로 스크롤
+			const conversationsElement = document.querySelector('.conversations-module')
+			if (conversationsElement) {
+				conversationsElement.scrollIntoView({ 
+					behavior: 'smooth', 
+					block: 'start' 
+				})
+			}
+		} else if (sectionId === 'prompt-control') {
+			// Content 모듈 내의 Prompt Control 섹션으로 스크롤
+			const promptControlElement = document.querySelector('.prompt-control-module')
+			if (promptControlElement) {
+				promptControlElement.scrollIntoView({ 
+					behavior: 'smooth', 
+					block: 'start' 
+				})
+			}
+		} else {
+			// Dashboard.tsx 내의 다른 섹션들
+			const element = document.getElementById(sectionId)
+			if (element) {
+				element.scrollIntoView({ 
+					behavior: 'smooth', 
+					block: 'start' 
+				})
+			}
+		}
+	}
+
 	return (
 		<div className="dashboard-layout">
 			<Header performanceScore={91} currentTime={currentTime} onSignOut={signOut} />
@@ -342,6 +418,7 @@ export default function Dashboard() {
 					isCollapsed={sidebarCollapsed}
 					onToggleCollapse={toggleSidebar}
 					onScrollToConversations={scrollToConversations} // 새로운 prop 전달
+					onScrollToSection={scrollToSection} // 새로운 prop 전달
 				/>
 				
 				<main className="dashboard-main">
@@ -349,34 +426,30 @@ export default function Dashboard() {
 					
 					<div className="dashboard-grid">
 						<div className="grid-left">
-							<div className="performance-section">
-								<h2>Vector Style Performance Radar & Timeline</h2>
+							<div id="performance-radar" className="performance-section">
+								<h2>Performance Radar</h2>
 								<p className="section-subtitle">
-									깔끔한 벡터 스타일 레이더 차트 및 성능 타임라인 - TecAce Ax Pro 성능 분석 및 최적화
+									AI 응답 품질과 보안 성능을 6가지 핵심 지표로 실시간 모니터링하여 최적의 사용자 경험을 제공합니다
 								</p>
 								
 								<PerformanceRadar
-									expertise={79}
-									accuracy={75}
-									efficiency={76}
-									helpfulness={76}
-									clarity={68}
+									relevance={85}
+									tone={78}
+									length={82}
+									accuracy={92}
+									toxicity={95}
+									promptInjection={88}
 								/>
 							</div>
 
 							{/* PerformanceTimeline 컴포넌트만 제거 - 이것이 class="performance-timeline" */}
 
-							{/* Daily Message Activity - 필터링된 데이터 반영 */}
-							<div className="message-activity-section">
+							{/* Daily Message Activity - Filtered 텍스트 제거하고 Custom Range 모달 추가 */}
+							<div id="daily-message-activity" className="message-activity-section">
 								<div className="section-header">
 									<h2>Daily Message Activity</h2>
 									<div className="activity-summary">
 										Total: {periodTotalMessages} messages | Avg: {avgMessages}/day
-										{startDate && endDate && (
-											<span className="filter-info">
-												<br />Filtered: {startDate} to {endDate}
-											</span>
-										)}
 									</div>
 								</div>
 								
@@ -390,7 +463,10 @@ export default function Dashboard() {
 											Last {period} Days
 										</button>
 									))}
-									<button className="period-btn">
+									<button 
+										className="period-btn custom-range-btn"
+										onClick={handleCustomRangeClick}
+									>
 										Custom Range
 									</button>
 								</div>
@@ -422,140 +498,82 @@ export default function Dashboard() {
 									)}
 								</div>
 							</div>
+
+							{/* Custom Range 모달 */}
+							{showCustomRangeModal && (
+								<div className="custom-range-modal">
+									<div className="modal-content">
+										<div className="modal-header">
+											<h3>Select Custom Date Range</h3>
+											<button 
+												className="modal-close"
+												onClick={() => setShowCustomRangeModal(false)}
+											>
+												×
+											</button>
+										</div>
+										<div className="modal-body">
+											<div className="date-inputs">
+												<label className="date-field">
+													<span>Start Date</span>
+													<input 
+														type="date" 
+														value={customStartDate}
+														onChange={(e) => setCustomStartDate(e.target.value)}
+													/>
+												</label>
+												<label className="date-field">
+													<span>End Date</span>
+													<input 
+														type="date" 
+														value={customEndDate}
+														onChange={(e) => setCustomEndDate(e.target.value)}
+													/>
+												</label>
+											</div>
+										</div>
+										<div className="modal-footer">
+											<button 
+												className="btn-cancel"
+												onClick={() => setShowCustomRangeModal(false)}
+											>
+												Cancel
+											</button>
+											<button 
+												className="btn-apply"
+												onClick={applyCustomRange}
+												disabled={!customStartDate || !customEndDate}
+											>
+												Apply
+											</button>
+										</div>
+									</div>
+								</div>
+							)}
 						</div>
 
 						<div className="grid-right">
-							<SystemStatus
-								coreSystems={87}
-								security={75}
-								network={84}
-							/>
+							<div id="system-status">
+								<SystemStatus
+									coreSystems={87}
+									security={75}
+									network={84}
+								/>
+							</div>
 
-							<EnvironmentControls />
+							<div id="environment-controls">
+								<EnvironmentControls />
+							</div>
 						</div>
 					</div>
 
-					{/* Recent Conversations Module */}
-					{/* <div className="conversations-module">
-						<div className="card section" aria-labelledby="recent-conv-title">
-							<div className="section-header">
-								<div id="recent-conv-title" className="section-title conversations-title">Recent Conversations</div>
-								<div className="date-controls">
-									<label className="date-field">
-										<span>Start Date</span>
-										<input type="date" className="input date-input" value={startDate} onChange={(e)=>setStartDate(e.target.value)} />
-									</label>
-									<label className="date-field">
-										<span>End Date</span>
-										<input type="date" className="input date-input" value={endDate} onChange={(e)=>setEndDate(e.target.value)} />
-									</label>
-								</div>
-							</div>
-							<div className="sessions-content">
-								{isLoadingSessions ? (
-									<p className="muted">Loading conversations...</p>
-								) : sessions.length > 0 ? (
-									<div className="sessions-list">
-										{sessions.map((session, index) => {
-											const sessionId = session.sessionId || session.id || `Session ${index + 1}`
-											const isExpanded = expandedSessions.has(sessionId)
-											const requests = sessionRequests[sessionId] || []
-											
-											return (
-												<div key={sessionId} className="session-container">
-													<div className="session-row" onClick={() => toggleSessionExpansion(sessionId)}>
-														<div className="session-left">
-															<div className="session-id">Session: {sessionId}</div>
-															<div className="session-messages">
-																{requests.length === 1 ? '1 message' : `${requests.length} messages`}
-															</div>
-														</div>
-														<div className="session-right">
-															<div className="session-date">
-																{session.createdAt ? new Date(session.createdAt).toLocaleDateString() : 'No date'}
-															</div>
-															<div className="session-time">
-																{session.createdAt ? new Date(session.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}
-															</div>
-														</div>
-													</div>
-													
-													{isExpanded && (
-														<div className="requests-container">
-															{requests.length > 0 ? (
-																requests.map((request, reqIndex) => {
-																	const requestId = request.requestId || request.id
-																	const detail = requestDetails[requestId]
-																	
-																	return (
-																		<div key={requestId || reqIndex} className="request-item">
-																			<div className="request-header">
-																				<div className="request-datetime">
-																					{request.createdAt ? (
-																						<>
-																							<div className="request-date">
-																								{new Date(request.createdAt).toLocaleDateString()}
-																							</div>
-																							<div className="request-time">
-																								{request.createdAt ? new Date(request.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}
-																							</div>
-																						</>
-																					) : (
-																						<div className="request-date">No date available</div>
-																					)}
-																				</div>
-																				<div className="request-actions">
-																					<button 
-																						className={`thumbs-btn thumbs-up ${submittedFeedback[requestId] === 'positive' ? 'submitted' : ''}`}
-																						title="Thumbs Up"
-																						onClick={() => handleFeedbackClick('positive', requestId)}
-																					>
-																						<svg fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-																							<path d="M20 8h-5.612l1.123-3.367c.202-.608.1-1.282-.275-1.802S14.253 2 13.612 2H12c-.297 0-.578.132-.769.36L6.531 8H4c-1.103 0-2 .897-2 2v9c0 1.103.897 2 2 2h13.307a2.01 2.01 0 0 0 1.873-1.298l2.757-7.351A1 1 0 0 0 22 12v-2c0-1.103-.897-2-2-2zM4 10h2v9H4v-9zm16 1.819L17.307 19H8V9.362L12.468 4h1.146l-1.562 4.683A.998.998 0 0 0 13 10h7v1.819z"></path>
-																						</svg>
-																					</button>
-																					<button 
-																						className={`thumbs-btn thumbs-down ${submittedFeedback[requestId] === 'negative' ? 'submitted' : ''}`}
-																						title="Thumbs Down"
-																						onClick={() => handleFeedbackClick('negative', requestId)}
-																					>
-																						<svg fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-																							<path d="M20 3H6.693A2.01 2.01 0 0 0 4.82 4.298l-2.757 7.351A1 1 0 0 0 2 12v2c0 1.103.897 2 2 2h5.612L8.49 19.367a2.004 2.004 0 0 0 .274 1.802c.376.52.982.831 1.624.831H12c.297 0 .578-.132.769-.360l4.7-5.64H20c1.103 0 2-.897 2-2V5c0-1.103-.897-2-2-2zm-8.469 17h-1.145l1.562-4.684A1 1 0 0 0 11 14H4v-1.819L6.693 5H16v9.638L11.531 20zM18 14V5h2l.001 9H18z"></path>
-																						</svg>
-																					</button>
-																				</div>
-																			</div>
-																			
-																			{detail && (
-																				<>
-																					<div className="conversation-item user">
-																						<div className="conversation-text">{detail.inputText}</div>
-																					</div>
-																					<div className="conversation-item assistant">
-																						<div className="conversation-text">{detail.outputText}</div>
-																					</div>
-																				</>
-																			)}
-																		</div>
-																	)
-																})
-															) : (
-																<div className="muted">No requests found for this session.</div>
-															)}
-														</div>
-													)}
-												</div>
-											)
-										})}
-									</div>
-								) : (
-									<p className="muted">No conversations found for the selected date range.</p>
-								)}
-							</div>
-						</div> */}
+					{/* Content.tsx 모듈을 그대로 유지 */}
+					<div className="content-module">
+						<Content />
+					</div>
 
-					{/* Content 모듈 추가 */}
-					<Content />
+					{/* 중복된 Recent Conversations와 Prompt Control 섹션들 제거 */}
+
 				</main>
 			</div>
 

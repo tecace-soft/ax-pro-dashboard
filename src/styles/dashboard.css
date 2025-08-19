@@ -3188,7 +3188,7 @@ input:checked + .toggle-slider:before {
 .status-badge {
   background: rgba(74, 222, 128, 0.2);
   color: #4ade80;
-  padding: 3px 8px; /* 패딩 조정 */
+  padding: 4px 12px; /* 패딩 조정 */
   border-radius: 12px;
   font-size: 10px; /* 크기 조정 */
   font-weight: 600;
@@ -3311,3 +3311,329 @@ input:checked + .toggle-slider:before {
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
+
+/* Custom Range 모달 스타일 */
+.custom-range-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: rgba(18, 27, 61, 0.95);
+  border: 1px solid rgba(59, 230, 255, 0.3);
+  border-radius: 12px;
+  padding: 0;
+  width: 90%;
+  max-width: 400px;
+  backdrop-filter: blur(10px);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid rgba(59, 230, 255, 0.2);
+}
+
+.modal-header h3 {
+  margin: 0;
+  color: #ffffff;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 24px;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.modal-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.modal-body {
+  padding: 24px;
+}
+
+.date-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.date-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.date-field span {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.date-field input {
+  padding: 12px;
+  background: rgba(9, 14, 34, 0.6);
+  border: 1px solid rgba(59, 230, 255, 0.3);
+  border-radius: 8px;
+  color: #ffffff;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.date-field input:focus {
+  outline: none;
+  border-color: #3be6ff;
+  box-shadow: 0 0 0 2px rgba(59, 230, 255, 0.2);
+}
+
+.modal-footer {
+  display: flex;
+  gap: 12px;
+  padding: 20px 24px;
+  border-top: 1px solid rgba(59, 230, 255, 0.2);
+  justify-content: flex-end;
+}
+
+.btn-cancel, .btn-apply {
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.btn-cancel {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.btn-cancel:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+}
+
+.btn-apply {
+  background: #3be6ff;
+  color: #0f172a;
+}
+
+.btn-apply:hover {
+  background: #22c55e;
+}
+
+.btn-apply:disabled {
+  background: rgba(59, 230, 255, 0.3);
+  color: rgba(255, 255, 255, 0.5);
+  cursor: not-allowed;
+}
+
+/* Custom Range 버튼 스타일 */
+.custom-range-btn {
+  background: rgba(255, 193, 7, 0.1);
+  border-color: rgba(255, 193, 7, 0.3);
+}
+
+.custom-range-btn:hover {
+  background: rgba(255, 193, 7, 0.2);
+  border-color: rgba(255, 193, 7, 0.5);
+}
+
+/* 사이드바 메뉴 스타일 - 아이콘 개선 */
+.sidebar-menu {
+  margin-top: 24px;
+  padding: 0 16px;
+}
+
+.menu-section {
+  margin-bottom: 24px;
+}
+
+.menu-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.6);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0 0 12px 0;
+}
+
+.menu-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.menu-item {
+  margin-bottom: 4px;
+}
+
+.menu-button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+}
+
+.menu-button:hover {
+  background: rgba(59, 230, 255, 0.1);
+  color: #ffffff;
+  transform: translateX(4px);
+}
+
+.menu-button:active {
+  transform: translateX(2px);
+}
+
+.menu-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  stroke: currentColor;
+  stroke-width: 2;
+  fill: none;
+}
+
+.menu-text {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 선택된 메뉴 항목 스타일 */
+.menu-button.active {
+  background: rgba(59, 230, 255, 0.15);
+  color: #3be6ff;
+  border-left: 3px solid #3be6ff;
+}
+
+/* 섹션 ID 스타일 */
+#performance-radar,
+#daily-message-activity,
+#system-status,
+#environment-controls,
+#content-module {
+  scroll-margin-top: 20px;
+}
+
+/* Content 섹션들 스타일 */
+.content-section,
+.conversations-section,
+.prompt-control-section {
+  background: rgba(18, 27, 61, 0.6);
+  border: 1px solid rgba(59, 230, 255, 0.15);
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.section-header {
+  margin-bottom: 20px;
+}
+
+.section-header h2 {
+  font-size: 20px;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0 0 8px 0;
+}
+
+.section-subtitle {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.6);
+  line-height: 1.4;
+  margin: 0;
+}
+
+/* Recent Conversations 스타일 */
+.date-controls {
+  display: flex;
+  gap: 16px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+.date-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.date-field span {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 500;
+}
+
+.date-input {
+  padding: 8px 12px;
+  background: rgba(9, 14, 34, 0.6);
+  border: 1px solid rgba(59, 230, 255, 0.3);
+  border-radius: 6px;
+  color: #ffffff;
+  font-size: 13px;
+}
+
+.date-input:focus {
+  outline: none;
+  border-color: #3be6ff;
+  box-shadow: 0 0 0 2px rgba(59, 230, 255, 0.2);
+}
+
+/* 섹션 ID 스타일 */
+#content-module,
+#recent-conversations,
+#prompt-control {
+  scroll-margin-top: 20px;
+}
+
+/* Content 모듈 스타일 */
+.content-module {
+  margin-top: 24px;
+  scroll-margin-top: 20px;
+}
+
+/* Content.tsx 내부 요소들의 스크롤 마진 설정 */
+.conversations-module,
+.prompt-control-module {
+  scroll-margin-top: 20px;
+}
+
+/* 중복된 개별 섹션 스타일들 제거 */
+/* .content-section, .conversations-section, .prompt-control-section 스타일 제거 */
