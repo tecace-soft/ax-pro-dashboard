@@ -39,4 +39,6 @@ export interface UserFeedbackData {
   feedback_text?: string | null
   raw_data: any
   created_at?: string
+  chat_message?: string | null
+  chat_response?: string | null
 } 
