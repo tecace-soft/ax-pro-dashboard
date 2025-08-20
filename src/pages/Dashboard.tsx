@@ -5,6 +5,7 @@ import { getAuthToken } from '../services/auth'
 import { fetchSessions } from '../services/sessions'
 import { fetchSessionRequests } from '../services/requests'
 import { fetchRequestDetail } from '../services/requestDetails'
+import { fetchDailyMessageActivity, fetchMessageCounts } from '../services/dailyMessageActivity'
 
 // Components - MetricsCards 제거
 import Header from '../components/Header'
@@ -17,11 +18,106 @@ import Content from './Content' // Content.tsx import 추가
 
 import '../styles/dashboard.css'
 
+// 로컬 시간 기준 날짜 포맷팅 함수 (모든 곳에서 통일 사용)
 function formatDate(d: Date): string {
 	const year = d.getFullYear()
 	const month = String(d.getMonth() + 1).padStart(2, '0')
 	const day = String(d.getDate()).padStart(2, '0')
 	return `${year}-${month}-${day}`
+}
+
+interface MessageCount {
+  date: string
+  count: number
+}
+
+interface DailyMessageResponse {
+  messageCounts: MessageCount[]
+  totalMessages: number
+  averageMessages: number
+  period: {
+    startDate: string
+    endDate: string
+  }
+}
+
+// 캐시 키 생성 함수
+const getCacheKey = (startDate: string, endDate: string) => {
+  return `daily-messages-${startDate}-${endDate}`
+}
+
+// 캐시에서 데이터 가져오기
+const getFromCache = (key: string): DailyMessageResponse | null => {
+  try {
+    const cached = localStorage.getItem(key)
+    if (cached) {
+      const data = JSON.parse(cached)
+      // 캐시 만료 시간 확인 (24시간)
+      if (Date.now() - data.timestamp < 24 * 60 * 60 * 1000) {
+        return data.data
+      }
+      // 만료된 캐시 삭제
+      localStorage.removeItem(key)
+    }
+  } catch (error) {
+    console.error('Cache read error:', error)
+  }
+  return null
+}
+
+// 캐시에 데이터 저장
+const saveToCache = (key: string,  DailyMessageResponse) => {
+  try {
+    const cacheData = {
+      data,
+      timestamp: Date.now()
+    }
+    localStorage.setItem(key, JSON.stringify(cacheData))
+  } catch (error) {
+    console.error('Cache save error:', error)
+  }
+}
+
+// 더미 데이터 생성 (API 실패 시 사용)
+const generateDummyData = (startDate: string, endDate: string): DailyMessageResponse => {
+  const start = new Date(startDate)
+  const end = new Date(endDate)
+  const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
+  
+  const messageCounts: MessageCount[] = []
+  let totalMessages = 0
+  
+  for (let i = 0; i < days; i++) {
+    const date = new Date(start.getTime() + (i * 24 * 60 * 60 * 1000))
+    const count = Math.floor(Math.random() * 20) + 1 // 1-20 랜덤
+    messageCounts.push({
+      date: formatDate(date),
+      count
+    })
+    totalMessages += count
+  }
+  
+  return {
+    messageCounts,
+    totalMessages,
+    averageMessages: Math.round(totalMessages / days),
+    period: { startDate, endDate }
+  }
+}
+
+// 캐시 무효화 (필요시 사용)
+export const invalidateCache = (startDate?: string, endDate?: string) => {
+  if (startDate && endDate) {
+    const key = getCacheKey(startDate, endDate)
+    localStorage.removeItem(key)
+  } else {
+    // 모든 캐시 삭제
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('daily-messages-')) {
+        localStorage.removeItem(key)
+      }
+    })
+  }
 }
 
 export default function Dashboard() {
@@ -51,12 +147,9 @@ export default function Dashboard() {
 	const [selectedPeriod, setSelectedPeriod] = useState(7)
 	const [searchQuery, setSearchQuery] = useState('')
 
-	// Date filters: default to [today-7, today]
-	const today = new Date()
-	const sevenDaysAgo = new Date()
-	sevenDaysAgo.setDate(today.getDate() - 7)
-	const [startDate, setStartDate] = useState<string>(formatDate(sevenDaysAgo))
-	const [endDate, setEndDate] = useState<string>(formatDate(today))
+	// Date filters: 초기값을 빈 문자열로 설정
+	const [startDate, setStartDate] = useState<string>('')
+	const [endDate, setEndDate] = useState<string>('')
 
 	// Mock data for new components
 	const performanceData = Array.from({ length: 30 }, (_, i) => ({
@@ -72,12 +165,80 @@ export default function Dashboard() {
 	const [customStartDate, setCustomStartDate] = useState('')
 	const [customEndDate, setCustomEndDate] = useState('')
 
-	// Custom Range 적용 함수
-	const applyCustomRange = () => {
+	// Daily Message Activity 전용 상태
+	const [dailyMessageData, setDailyMessageData] = useState<MessageCount[]>([])
+	const [isLoadingDailyMessages, setIsLoadingDailyMessages] = useState(false)
+	const [dailyMessageStats, setDailyMessageStats] = useState({
+		total: 0,
+		average: 0
+	})
+
+	// 초기 날짜 설정을 위한 useEffect (가장 먼저 실행)
+	useEffect(() => {
+		const today = new Date()
+		const defaultStart = new Date()
+		defaultStart.setDate(today.getDate() - 6) // 7일 (오늘 포함)
+		
+		const startStr = formatDate(defaultStart)
+		const endStr = formatDate(today)
+		
+		console.log(`Setting initial dates: ${startStr} to ${endStr}`)
+		
+		setStartDate(startStr)
+		setEndDate(endStr)
+	}, [])
+
+	// Daily Message Activity 데이터 가져오기
+	const loadDailyMessages = async (start: string, end: string) => {
+		if (!authToken) return
+		
+		console.log(`Loading daily messages: ${start} to ${end}`)
+		
+		setIsLoadingDailyMessages(true)
+		try {
+			const data = await fetchDailyMessageActivity(authToken, start, end)
+			setDailyMessageData(data.messageCounts)
+			setDailyMessageStats({
+				total: data.totalMessages,
+				average: data.averageMessages
+			})
+		} catch (error) {
+			console.error('Failed to fetch daily messages:', error)
+		} finally {
+			setIsLoadingDailyMessages(false)
+		}
+	}
+
+	// 기간 변경 시 데이터 새로 가져오기
+	const handlePeriodChange = (days: number) => {
+		setSelectedPeriod(days)
+		
+		const today = new Date()
+		const startDate = new Date()
+		
+		// days=3이면 18,19,20일을 원한다면
+		startDate.setDate(today.getDate() - (days - 1))
+		
+		const startStr = formatDate(startDate)
+		const endStr = formatDate(today)
+		
+		console.log(`Period ${days} days: ${startStr} to ${endStr}`)
+		
+		setStartDate(startStr)
+		setEndDate(endStr)
+		
+		loadDailyMessages(startStr, endStr)
+	}
+
+	// Custom Range 적용 시
+	const applyCustomRange = async () => {
 		if (customStartDate && customEndDate) {
 			setStartDate(customStartDate)
 			setEndDate(customEndDate)
 			setShowCustomRangeModal(false)
+			
+			// Daily Message Activity 데이터 새로 가져오기
+			await loadDailyMessages(customStartDate, customEndDate)
 		}
 	}
 
@@ -105,9 +266,17 @@ export default function Dashboard() {
 		}
 	}, [])
 
+	// authToken과 날짜가 설정되면 데이터 로드
+	useEffect(() => {
+		if (authToken && startDate && endDate) {
+			console.log(`Loading  ${startDate} to ${endDate}`)
+			loadDailyMessages(startDate, endDate)
+		}
+	}, [authToken, startDate, endDate])
+
 	// Fetch sessions when token is available or dates change
 	useEffect(() => {
-		if (!authToken) return
+		if (!authToken || !startDate || !endDate) return
 
 		let cancelled = false
 		
@@ -303,56 +472,12 @@ export default function Dashboard() {
 		})
 	}
 
-	// 실제 메시지 활동 데이터 계산 - 간단하게 수정
-	const getMessageActivityData = (days: number) => {
-		const now = new Date()
-		const filteredSessions = getFilteredSessions()
-		
-		// 각 날짜별 메시지 수 계산
-		const dailyMessages = Array.from({ length: days }, (_, i) => {
-			const targetDate = new Date(now.getTime() - (i * 24 * 60 * 60 * 1000))
-			const targetDateStr = targetDate.toDateString()
-			
-			let totalMessages = 0
-			
-			// 각 세션의 요청들을 확인
-			filteredSessions.forEach(session => {
-				const sessionId = session.sessionId || session.id
-				const requests = sessionRequests[sessionId] || []
-				
-				requests.forEach(request => {
-					// 다양한 날짜 필드 시도
-					const requestDate = new Date(
-						request.createdAt || 
-						request.timestamp || 
-						request.date || 
-						session.createdAt || 
-						Date.now()
-					)
-					
-					if (requestDate.toDateString() === targetDateStr) {
-						totalMessages++
-					}
-				})
-			})
-			
-			return totalMessages
-		}).reverse() // 최신 날짜가 오른쪽에 오도록
-		
-		return dailyMessages
-	}
-
-	const periods = [3, 7, 14, 30]
-
-	// 선택된 기간의 메시지 데이터 (필터링 반영)
-	const messageData = getMessageActivityData(selectedPeriod)
-	const periodTotalMessages = messageData.reduce((sum, count) => sum + count, 0)
-	const avgMessages = Math.round(periodTotalMessages / selectedPeriod)
-
-	// startDate, endDate가 변경될 때마다 차트 업데이트
-	useEffect(() => {
-		// startDate나 endDate가 변경되면 차트가 자동으로 업데이트됩니다
-	}, [startDate, endDate])
+	const periods = [
+		{ label: 'Last 7 days', days: 7 },
+		{ label: 'Last 3 days', days: 3 },
+		{ label: 'Last 30 days', days: 30 },
+		{ label: 'Custom Range', days: 0 }
+	]
 
 	// Custom Range 버튼 클릭 핸들러 추가
 	const handleCustomRangeClick = () => {
@@ -426,8 +551,6 @@ export default function Dashboard() {
 				/>
 				
 				<main className="dashboard-main">
-					{/* MetricsCards 컴포넌트 완전 제거 */}
-					
 					<div className="dashboard-grid">
 						<div className="grid-left">
 							<div id="performance-radar" className="performance-section">
@@ -446,48 +569,45 @@ export default function Dashboard() {
 								/>
 							</div>
 
-							{/* PerformanceTimeline 컴포넌트만 제거 - 이것이 class="performance-timeline" */}
-
-							{/* Daily Message Activity - Filtered 텍스트 제거하고 Custom Range 모달 추가 */}
+							{/* Daily Message Activity - 새로운 API 사용 */}
 							<div id="daily-message-activity" className="message-activity-section">
 								<div className="section-header">
 									<h2>Daily Message Activity</h2>
 									<div className="activity-summary">
-										Total: {periodTotalMessages} messages | Avg: {avgMessages}/day
+										Total: {dailyMessageStats.total} messages | Avg: {dailyMessageStats.average}/day
 									</div>
 								</div>
 								
 								<div className="period-filters">
 									{periods.map(period => (
 										<button
-											key={period}
-											className={`period-btn ${selectedPeriod === period ? 'active' : ''}`}
-											onClick={() => setSelectedPeriod(period)}
+											key={period.label}
+											className={`period-btn ${selectedPeriod === period.days ? 'active' : ''}`}
+											onClick={() => period.days > 0 ? handlePeriodChange(period.days) : handleCustomRangeClick()}
 										>
-											Last {period} Days
+											{period.label}
 										</button>
 									))}
-									<button 
-										className="period-btn custom-range-btn"
-										onClick={handleCustomRangeClick}
-									>
-										Custom Range
-									</button>
 								</div>
 								
 								<div className="activity-chart">
-									{periodTotalMessages > 0 ? (
+									{isLoadingDailyMessages ? (
+										<div className="loading-state">
+											<div className="loading-spinner"></div>
+											<p>Loading message data...</p>
+										</div>
+									) : dailyMessageData.length > 0 ? (
 										<div className="bar-chart">
-											{messageData.map((dayData, i) => {
-												const maxValue = Math.max(...messageData)
-												const height = maxValue > 0 ? (dayData / maxValue) * 100 : 0
-												const date = new Date(Date.now() - ((selectedPeriod - 1 - i) * 24 * 60 * 60 * 1000))
+											{dailyMessageData.map((dayData, i) => {
+												const maxValue = Math.max(...dailyMessageData.map(d => d.count))
+												const height = maxValue > 0 ? (dayData.count / maxValue) * 100 : 0
+												const date = new Date(dayData.date)
 												const dayLabel = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 												
 												return (
 													<div key={i} className="bar-item">
 														<div className="bar" style={{ height: `${height}%` }}>
-															<span className="bar-value">{dayData}</span>
+															<span className="bar-value">{dayData.count}</span>
 														</div>
 														<span className="bar-label">{dayLabel}</span>
 													</div>
@@ -576,8 +696,6 @@ export default function Dashboard() {
 						<Content />
 					</div>
 
-					{/* 중복된 Recent Conversations와 Prompt Control 섹션들 제거 */}
-
 				</main>
 			</div>
 
@@ -633,4 +751,4 @@ export default function Dashboard() {
 			)}
 		</div>
 	)
-} 
+}
