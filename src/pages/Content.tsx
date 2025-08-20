@@ -7,7 +7,7 @@ import { fetchRequestDetail } from '../services/requestDetails'
 import { getAdminFeedbackBatch, saveAdminFeedback, updateAdminFeedback, deleteAdminFeedback } from '../services/adminFeedback'
 import { ensureChatDataExists } from '../services/chatData'
 import { AdminFeedbackData } from '../services/supabase'
-import MetricRadarChart from '../components/MetricRadarChart'
+
 import PromptControl from '../components/PromptControl'
 import UserFeedback from '../components/UserFeedback'
 import '../styles/dashboard.css'
@@ -21,6 +21,44 @@ function formatDate(d: Date): string {
 	const month = String(d.getMonth() + 1).padStart(2, '0')
 	const day = String(d.getDate()).padStart(2, '0')
 	return `${year}-${month}-${day}`
+}
+
+function formatSessionId(sessionId: string): string {
+	if (sessionId.length <= 8) {
+		return sessionId
+	}
+	return `...${sessionId.slice(-5)}`
+}
+
+function formatDateForAPI(d: Date, isEndDate: boolean = false): string {
+	// API expects dates in Korea timezone (UTC+9) formatted as yyyy-MM-dd HH:mm:ss
+	// Create a date object representing the selected date at midnight local time
+	const localDate = new Date(d.getFullYear(), d.getMonth(), d.getDate())
+	
+	if (isEndDate) {
+		// For end date, set to end of day (23:59:59) local time
+		localDate.setHours(23, 59, 59, 999)
+	} else {
+		// For start date, set to beginning of day (00:00:00) local time
+		localDate.setHours(0, 0, 0, 0)
+	}
+	
+	// Convert to Korea time by adding the difference between Korea (UTC+9) and local timezone
+	const koreaOffset = 9 * 60 // Korea is UTC+9 (540 minutes)
+	const localOffset = localDate.getTimezoneOffset() // Local timezone offset in minutes
+	const offsetDifference = koreaOffset + localOffset // Total offset to add
+	
+	const koreaTime = new Date(localDate.getTime() + (offsetDifference * 60 * 1000))
+	
+	// Format as Korea time
+	const year = koreaTime.getFullYear()
+	const month = String(koreaTime.getMonth() + 1).padStart(2, '0')
+	const day = String(koreaTime.getDate()).padStart(2, '0')
+	const hours = String(koreaTime.getHours()).padStart(2, '0')
+	const minutes = String(koreaTime.getMinutes()).padStart(2, '0')
+	const seconds = String(koreaTime.getSeconds()).padStart(2, '0')
+	
+	return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
 }
 
 export default function Content() {
@@ -68,6 +106,17 @@ export default function Content() {
 	sevenDaysAgo.setDate(today.getDate() - 7)
 	const [startDate, setStartDate] = useState<string>(formatDate(sevenDaysAgo))
 	const [endDate, setEndDate] = useState<string>(formatDate(today))
+	
+	// Helper functions to format dates for API calls with proper UTC time
+	const getApiStartDate = (startDateString: string): string => {
+		const startDateObj = new Date(startDateString)
+		return formatDateForAPI(startDateObj, false)
+	}
+	
+	const getApiEndDate = (endDateString: string): string => {
+		const endDateObj = new Date(endDateString)
+		return formatDateForAPI(endDateObj, true)
+	}
 
 	// Fetch auth token on mount
 	useEffect(() => {
@@ -101,8 +150,10 @@ export default function Content() {
 		
 		async function loadSessions() {
 			setIsLoadingSessions(true)
+			const apiStartDate = getApiStartDate(startDate)
+			const apiEndDate = getApiEndDate(endDate)
 			try {
-				const response = await fetchSessions(authToken!, startDate, endDate)
+				const response = await fetchSessions(authToken!, apiStartDate, apiEndDate)
 				if (!cancelled) {
 					setSessions(response.sessions || [])
 					
@@ -111,7 +162,7 @@ export default function Content() {
 					const requestPromises = sessions
 						.filter(session => session.sessionId)
 						.map(session => 
-							fetchSessionRequests(authToken!, session.sessionId, startDate, endDate)
+							fetchSessionRequests(authToken!, session.sessionId, apiStartDate, apiEndDate)
 								.catch(error => console.error(`Failed to fetch requests for session ${session.sessionId}:`, error))
 						)
 
@@ -638,21 +689,6 @@ export default function Content() {
 		<div className="screen">
 			<main className="content">
 				<div className="content-sections">
-					{/* Performance Radar Section */}
-					<div className="content-section">
-						<MetricRadarChart />
-					</div>
-
-					{/* Prompt Control Section */}
-					<div className="content-section">
-						<PromptControl />
-					</div>
-
-					{/* User Feedback Section */}
-					<div className="content-section">
-						<UserFeedback />
-					</div>
-
 					{/* Recent Conversations Section */}
 					<div className="content-section">
 						<div className="card section" aria-labelledby="recent-conv-title">
@@ -683,17 +719,28 @@ export default function Content() {
 												<div key={sessionId} className="session-container">
 													<div className="session-row" onClick={() => toggleSessionExpansion(sessionId)}>
 														<div className="session-left">
-															<div className="session-id">Session: {sessionId}</div>
+															<div className="session-datetime">
+																{session.createdAt ? (
+																	<>
+																		<span className="session-date">
+																			{new Date(session.createdAt).toLocaleDateString()}
+																		</span>
+																		<span className="session-time">
+																			{new Date(session.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+																		</span>
+																	</>
+																) : (
+																	<span className="session-date">No date</span>
+																)}
+															</div>
 															<div className="session-messages">
 																{requests.length === 1 ? '1 message' : `${requests.length} messages`}
 															</div>
 														</div>
 														<div className="session-right">
-															<div className="session-date">
-																{session.createdAt ? new Date(session.createdAt).toLocaleDateString() : 'No date'}
-															</div>
-															<div className="session-time">
-																{session.createdAt ? new Date(session.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}
+															<div className="session-label">Session:</div>
+															<div className="session-id" title={sessionId.length > 8 ? sessionId : undefined}>
+																{formatSessionId(sessionId)}
 															</div>
 														</div>
 													</div>
@@ -845,6 +892,16 @@ export default function Content() {
 								)}
 							</div>
 						</div>
+					</div>
+
+					{/* User Feedback Section */}
+					<div className="content-section">
+						<UserFeedback />
+					</div>
+
+					{/* Prompt Control Section */}
+					<div className="content-section">
+						<PromptControl />
 					</div>
 				</div>
 			</main>
