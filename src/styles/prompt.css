@@ -101,12 +101,15 @@
 .prompt-actions {
   display: flex;
   justify-content: flex-end;
+  gap: 12px;
 }
 
 .update-btn {
   min-width: 120px;
   height: 44px;
 }
+
+
 
 .confirmation-modal {
   max-width: 380px;

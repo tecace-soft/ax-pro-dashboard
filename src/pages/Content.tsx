@@ -7,6 +7,7 @@ import { fetchRequestDetail } from '../services/requestDetails'
 import { getAdminFeedbackBatch, saveAdminFeedback, updateAdminFeedback, deleteAdminFeedback } from '../services/adminFeedback'
 import { ensureChatDataExists } from '../services/chatData'
 import { AdminFeedbackData } from '../services/supabase'
+import { updatePromptWithFeedback } from '../services/promptUpdater'
 
 import PromptControl from '../components/PromptControl'
 import UserFeedback from '../components/UserFeedback'
@@ -499,6 +500,9 @@ export default function Content() {
 				requestId: null,
 				onConfirm: null
 			})
+			
+			// Update prompt with new negative feedback
+			await updatePromptWithFeedback()
 		} catch (error) {
 			console.error('Failed to submit negative feedback override:', error)
 		} finally {
@@ -617,6 +621,9 @@ export default function Content() {
 			// Close the inline form with animation
 			closeFeedbackForm(requestId)
 			
+			// Update prompt with new negative feedback
+			await updatePromptWithFeedback()
+			
 		} catch (error) {
 			console.error('Failed to submit inline feedback:', error)
 		} finally {
@@ -677,6 +684,11 @@ export default function Content() {
 			}))
 			
 			closeFeedbackModal()
+			
+			// Update prompt with new negative feedback (only for bad feedback)
+			if (verdict === 'bad') {
+				await updatePromptWithFeedback()
+			}
 		} catch (error) {
 			console.error('Failed to submit feedback:', error)
 			// TODO: Show error message to user
