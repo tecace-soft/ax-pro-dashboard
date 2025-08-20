@@ -4,6 +4,8 @@ import { fetchSystemPrompt, updateSystemPrompt } from '../services/prompt'
 export default function PromptControl() {
   const [promptText, setPromptText] = useState('')
   const [isLoading, setIsLoading] = useState(true)
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [isResizing, setIsResizing] = useState(false)
   const [showConfirmation, setShowConfirmation] = useState(false)
@@ -16,6 +18,7 @@ export default function PromptControl() {
         const content = await fetchSystemPrompt()
         console.log('System prompt received:', content)
         setPromptText(content)
+        setLastRefreshed(new Date())
       } catch (error) {
         console.error('Failed to load system prompt:', error)
         setPromptText('') // Keep empty on error
@@ -26,6 +29,19 @@ export default function PromptControl() {
     
     loadSystemPrompt()
   }, [])
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true)
+    try {
+      const content = await fetchSystemPrompt()
+      setPromptText(content)
+      setLastRefreshed(new Date())
+    } catch (error) {
+      console.error('Failed to refresh system prompt:', error)
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
 
   const handleUpdate = () => {
     setShowConfirmation(true)
@@ -79,6 +95,35 @@ export default function PromptControl() {
     <div className="prompt-control-container">
       <div className="prompt-header">
         <div className="prompt-title">Prompt Control</div>
+        <div className="prompt-header-controls">
+          <div className="last-refreshed">
+            {lastRefreshed && (
+              <span className="refresh-timestamp">
+                Last refreshed: {lastRefreshed.toLocaleString()}
+              </span>
+            )}
+          </div>
+          <button 
+            className="refresh-icon-btn"
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            title="Refresh prompt from API"
+          >
+            {isRefreshing ? (
+              <svg className="refresh-spinner" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" opacity="0.25"/>
+                <path d="M4.93 4.93A10 10 0 0 1 12 2a10 10 0 0 1 8.16 3.84" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+                <path d="M21 3v5h-5"/>
+                <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
+                <path d="M3 21v-5h5"/>
+              </svg>
+            )}
+          </button>
+        </div>
       </div>
       
       <div className="prompt-content">
