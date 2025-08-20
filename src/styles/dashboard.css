@@ -31,11 +31,7 @@
 .date-field{ display:flex; align-items:center; gap:8px; color: var(--text-muted); font-size: 13px; }
 .date-input{ height:36px; padding:0 10px; }
 
-.sessions-content{ height: 400px; overflow-y: auto; padding-right: 4px; }
-.sessions-content::-webkit-scrollbar{ width: 6px; }
-.sessions-content::-webkit-scrollbar-track{ background: rgba(9,14,34,0.3); border-radius: 3px; }
-.sessions-content::-webkit-scrollbar-thumb{ background: rgba(59,230,255,0.3); border-radius: 3px; }
-.sessions-content::-webkit-scrollbar-thumb:hover{ background: rgba(59,230,255,0.5); }
+
 
 .sessions-list{ display:flex; flex-direction:column; gap:8px; }
 .session-container{ }
@@ -58,12 +54,14 @@
 }
 
 .session-left{ flex:1; }
-.session-id{ font-weight:600; font-size:14px; color: var(--text); font-family: 'Courier New', monospace; }
-.session-messages{ font-size:12px; color: var(--text-muted); margin-top:2px; }
-
-.session-right{ display:flex; flex-direction:column; align-items:flex-end; gap:2px; }
+.session-datetime{ display:flex; align-items:center; gap:8px; margin-bottom:2px; }
 .session-date{ color: var(--text); font-size:13px; font-weight:500; }
 .session-time{ color: var(--text-muted); font-size:12px; }
+.session-messages{ font-size:12px; color: var(--text-muted); }
+
+.session-right{ display:flex; flex-direction:column; align-items:flex-end; gap:2px; }
+.session-label{ font-size:10px; color: var(--text-muted); font-weight:500; text-transform:uppercase; letter-spacing:0.5px; }
+.session-id{ font-weight:600; font-size:12px; color: var(--text-muted); font-family: 'Courier New', monospace; background: rgba(59,230,255,0.1); padding: 4px 8px; border-radius: 4px; }
 
 .requests-container{ margin-top:8px; padding-left:16px; border-left: 2px solid rgba(59,230,255,0.1); }
 .request-item{ padding:12px; margin-bottom:12px; background: rgba(9,14,34,0.3); border:1px solid rgba(59,230,255,0.05); border-radius:6px; }
@@ -279,7 +277,6 @@
 /* Custom Scrollbar Styling - Hide ugly default scrollbars */
 .dashboard-sidebar::-webkit-scrollbar,
 .dashboard-main::-webkit-scrollbar,
-.sessions-content::-webkit-scrollbar,
 .timeline-chart::-webkit-scrollbar {
   width: 0;
   height: 0;
@@ -287,14 +284,12 @@
 
 .dashboard-sidebar::-webkit-scrollbar-track,
 .dashboard-main::-webkit-scrollbar-track,
-.sessions-content::-webkit-scrollbar-track,
 .timeline-chart::-webkit-scrollbar-track {
   background: transparent;
 }
 
 .dashboard-sidebar::-webkit-scrollbar-thumb,
 .dashboard-main::-webkit-scrollbar-thumb,
-.sessions-content::-webkit-scrollbar-thumb,
 .timeline-chart::-webkit-scrollbar-thumb {
   background: transparent;
 }
@@ -302,7 +297,6 @@
 /* Firefox scrollbar hiding */
 .dashboard-sidebar,
 .dashboard-main,
-.sessions-content,
 .timeline-chart {
   scrollbar-width: none;
   -ms-overflow-style: none;
@@ -1425,18 +1419,11 @@ input:checked + .toggle-slider:before {
   flex: 1;
 }
 
-.session-id {
-  font-weight: 600;
-  font-size: 14px;
-  color: var(--text);
-  font-family: 'Courier New', monospace;
-}
-
-.session-right {
+.session-datetime {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
 }
 
 .session-date {
@@ -1448,6 +1435,31 @@ input:checked + .toggle-slider:before {
 .session-time {
   color: var(--text-muted);
   font-size: 12px;
+}
+
+.session-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.session-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.session-id {
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: 'Courier New', monospace;
+  background: rgba(59,230,255,0.1);
+  padding: 4px 8px;
+  border-radius: 4px;
 }
 
 .requests-container {
@@ -2107,6 +2119,7 @@ input:checked + .toggle-slider:before {
 .sessions-content {
   max-height: 600px;
   overflow-y: auto;
+  padding-right: 4px;
 }
 
 .sessions-list {
@@ -2141,18 +2154,11 @@ input:checked + .toggle-slider:before {
   gap: 4px;
 }
 
-.session-id {
-  color: white;
-  font-size: 14px;
-  font-weight: 500;
-  font-family: 'Courier New', monospace;
-}
-
-.session-right {
+.session-datetime {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
 }
 
 .session-date {
@@ -2162,8 +2168,33 @@ input:checked + .toggle-slider:before {
 }
 
 .session-time {
-  color: rgba(255,255,255,0.6);
+  color: rgba(255,255,255,0.7);
   font-size: 12px;
+}
+
+.session-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.session-label {
+  font-size: 10px;
+  color: rgba(255,255,255,0.6);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.session-id {
+  font-weight: 600;
+  font-size: 12px;
+  color: rgba(255,255,255,0.7);
+  font-family: 'Courier New', monospace;
+  background: rgba(59,230,255,0.1);
+  padding: 4px 8px;
+  border-radius: 4px;
 }
 
 .requests-container {

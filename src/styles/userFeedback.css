@@ -32,6 +32,25 @@
   height: 400px;
   overflow-y: auto;
   overflow-x: hidden;
+  padding-right: 4px;
+}
+
+.user-feedback-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.user-feedback-content::-webkit-scrollbar-track {
+  background: rgba(9,14,34,0.3);
+  border-radius: 3px;
+}
+
+.user-feedback-content::-webkit-scrollbar-thumb {
+  background: rgba(59,230,255,0.3);
+  border-radius: 3px;
+}
+
+.user-feedback-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(59,230,255,0.5);
 }
 
 .refresh-btn {
