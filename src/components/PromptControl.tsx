@@ -50,6 +50,8 @@ export default function PromptControl() {
     setShowConfirmation(false)
   }
 
+
+
   const handleMouseDown = (e: React.MouseEvent) => {
     e.preventDefault()
     setIsResizing(true)
