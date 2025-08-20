@@ -25,8 +25,11 @@ interface SidebarProps {
   isCollapsed: boolean
   onToggleCollapse: () => void
   onScrollToConversations: () => void
-  // 새로운 prop 추가
   onScrollToSection: (sectionId: string) => void
+  // 실제 데이터 검색을 위한 props 추가
+  sessions: any[]
+  sessionRequests: Record<string, any[]>
+  requestDetails: Record<string, any>
 }
 
 export default function Sidebar({ 
@@ -39,8 +42,165 @@ export default function Sidebar({
   isCollapsed,
   onToggleCollapse,
   onScrollToConversations,
-  onScrollToSection
+  onScrollToSection,
+  sessions,
+  sessionRequests,
+  requestDetails
 }: SidebarProps) {
+  // 검색 관련 상태 추가
+  const [searchQuery, setSearchQuery] = useState('')
+  const [recentSearches, setRecentSearches] = useState<string[]>([
+    'HR policies',
+    'Leave management', 
+    'Performance reviews',
+    'Benefits enrollment'
+  ])
+  const [extractedKeywords, setExtractedKeywords] = useState<string[]>([])
+  
+  // 검색 범위 선택 상태 추가
+  const [searchScope, setSearchScope] = useState<'all' | 'conversations' | 'feedback' | 'knowledge'>('all')
+  const [showSearchResults, setShowSearchResults] = useState(false)
+  const [searchResults, setSearchResults] = useState<any[]>([])
+  const [isSearching, setIsSearching] = useState(false)
+
+  // 검색 범위 옵션
+  const searchScopes = [
+    { id: 'all', label: 'All Sources', icon: '🔍', description: 'Search everywhere' },
+    { id: 'conversations', label: 'Recent Conversations', icon: '💬', description: 'Search chat history' },
+    { id: 'feedback', label: 'User Feedback', icon: '📝', description: 'Search feedback data' },
+    { id: 'knowledge', label: 'Knowledge Base', icon: '📚', description: 'Search documents & policies' }
+  ]
+
+  // 검색 실행 함수 - 범위별 검색
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (searchQuery.trim()) {
+      const newSearch = searchQuery.trim()
+      
+      // 새로운 검색어를 recent searches에 추가
+      if (!recentSearches.includes(newSearch)) {
+        setRecentSearches(prev => [newSearch, ...prev.slice(0, 9)])
+      }
+      
+      // 검색 시작
+      setIsSearching(true)
+      setShowSearchResults(true)
+      
+      try {
+        const results = await searchInScope(newSearch, searchScope)
+        setSearchResults(results)
+      } catch (error) {
+        console.error('Search failed:', error)
+        setSearchResults([])
+      } finally {
+        setIsSearching(false)
+      }
+      
+      setSearchQuery('')
+    }
+  }
+
+  // 범위별 검색 함수
+  const searchInScope = async (query: string, scope: string) => {
+    const results: any[] = []
+    
+    switch (scope) {
+      case 'conversations':
+        // Recent Conversations에서만 검색
+        return await searchConversations(query)
+        
+      case 'feedback':
+        // User Feedback에서만 검색 (아직 구현되지 않음)
+        return await searchFeedback(query)
+        
+      case 'knowledge':
+        // Knowledge Base에서만 검색 (아직 구현되지 않음)
+        return await searchKnowledge(query)
+        
+      case 'all':
+      default:
+        // 모든 소스에서 검색
+        const [convResults, feedbackResults, knowledgeResults] = await Promise.all([
+          searchConversations(query),
+          searchFeedback(query),
+          searchKnowledge(query)
+        ])
+        return [...convResults, ...feedbackResults, ...knowledgeResults]
+    }
+  }
+
+  // Recent Conversations 검색
+  const searchConversations = async (query: string) => {
+    const results: any[] = []
+    
+    sessions.forEach(session => {
+      const sessionId = session.sessionId || session.id
+      const requests = sessionRequests[sessionId] || []
+      
+      requests.forEach(request => {
+        const requestId = request.requestId || request.id
+        const detail = requestDetails[requestId]
+        
+        const userMessage = detail?.userMessage || request.userMessage || request.message || ''
+        const aiResponse = detail?.aiResponse || ''
+        
+        const queryLower = query.toLowerCase()
+        const userMatch = userMessage.toLowerCase().includes(queryLower)
+        const aiMatch = aiResponse.toLowerCase().includes(queryLower)
+        
+        if (userMatch || aiMatch) {
+          results.push({
+            id: `${sessionId}-${requestId}`,
+            sessionId: sessionId,
+            userMessage: userMessage,
+            aiResponse: aiResponse,
+            timestamp: request.createdAt ? new Date(request.createdAt).toLocaleString() : 'No timestamp',
+            matchType: userMatch ? 'userMessage' : 'aiResponse',
+            source: 'conversations',
+            session: session,
+            request: request
+          })
+        }
+      })
+    })
+    
+    return results
+  }
+
+  // User Feedback 검색 (향후 구현)
+  const searchFeedback = async (query: string) => {
+    // TODO: User Feedback 데이터에서 검색 구현
+    return []
+  }
+
+  // Knowledge Base 검색 (향후 구현)
+  const searchKnowledge = async (query: string) => {
+    // TODO: Knowledge Base 문서에서 검색 구현
+    return []
+  }
+
+  // 검색어 클릭 시 재검색
+  const handleSearchClick = async (searchTerm: string) => {
+    setSearchQuery(searchTerm)
+    setIsSearching(true)
+    setShowSearchResults(true)
+    
+    try {
+      const results = await searchInScope(searchTerm, searchScope)
+      setSearchResults(results)
+    } catch (error) {
+      console.error('Search failed:', error)
+      setSearchResults([])
+    } finally {
+      setIsSearching(false)
+    }
+  }
+
+  // 검색어 삭제 함수
+  const removeSearch = (searchToRemove: string) => {
+    setRecentSearches(prev => prev.filter(search => search !== searchToRemove))
+  }
+
   const [searchValue, setSearchValue] = useState('')
   const [isEditingProfile, setIsEditingProfile] = useState(false)
   const [profileData, setProfileData] = useState({
@@ -62,13 +222,6 @@ export default function Sidebar({
     { key: 'payroll', label: 'Payroll', count: 21 }
   ]
 
-  const recentSearches = [
-    'HR policies',
-    'Leave management', 
-    'Performance reviews',
-    'Benefits enrollment'
-  ]
-
   const menuItems = [
     { icon: IconMessage, label: 'Dashboard', active: true },
     { icon: IconMessage, label: 'Monitoring' },
@@ -80,19 +233,8 @@ export default function Sidebar({
     { icon: IconSettings, label: 'Settings' }
   ]
 
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value
-    setSearchValue(value)
-    onSearch(value)
-  }
-
   const handleFilterClick = (filterKey: string) => {
     onFilterChange(filterKey)
-  }
-
-  const handleRecentSearchClick = (searchTerm: string) => {
-    setSearchValue(searchTerm)
-    onSearch(searchTerm)
   }
 
   const handleProfileEdit = () => {
@@ -281,18 +423,123 @@ export default function Sidebar({
             </div>
           </div>
 
-          {/* Search */}
+          {/* Search Section - 범위 선택 UI 추가 */}
           <div className="search-section">
-            <div className="search-input">
-              <IconSearch size={16} />
-              <input 
-                type="text" 
-                placeholder="Search knowledge base, conversations..."
-                value={searchValue}
-                onChange={handleSearchChange}
-              />
+            {/* 검색 범위 선택 */}
+            <div className="search-scope-selector">
+              <label className="scope-label">Search in:</label>
+              <div className="scope-options">
+                {searchScopes.map((scope) => (
+                  <button
+                    key={scope.id}
+                    className={`scope-option ${searchScope === scope.id ? 'active' : ''}`}
+                    onClick={() => setSearchScope(scope.id as any)}
+                    title={scope.description}
+                  >
+                    <span className="scope-icon">{scope.icon}</span>
+                    <span className="scope-text">{scope.label}</span>
+                  </button>
+                ))}
+              </div>
             </div>
+
+            {/* 검색 입력 */}
+            <form onSubmit={handleSearch} className="search-form">
+              <input
+                type="text"
+                className="search-input"
+                placeholder={`Search in ${searchScopes.find(s => s.id === searchScope)?.label.toLowerCase()}...`}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </form>
+            
+            {/* Recent Searches */}
+            {recentSearches.length > 0 && (
+              <div className="recent-searches">
+                <h4 className="recent-title">Recent Searches</h4>
+                <div className="search-tags">
+                  {recentSearches.map((search, index) => (
+                    <div key={index} className="search-tag">
+                      <span 
+                        className="tag-text"
+                        onClick={() => handleSearchClick(search)}
+                      >
+                        {search}
+                      </span>
+                      <button
+                        className="tag-delete"
+                        onClick={() => removeSearch(search)}
+                        title="Remove search"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
+
+          {/* Search Results Popup - 범위별 결과 표시 */}
+          {showSearchResults && (
+            <div className="search-results-popup">
+              <div className="popup-header">
+                <h3>
+                  Search Results 
+                  <span className="search-scope-badge">
+                    {searchScopes.find(s => s.id === searchScope)?.icon} 
+                    {searchScopes.find(s => s.id === searchScope)?.label}
+                  </span>
+                </h3>
+                <button 
+                  className="popup-close"
+                  onClick={() => setShowSearchResults(false)}
+                >
+                  ×
+                </button>
+              </div>
+              
+              <div className="popup-content">
+                {isSearching ? (
+                  <div className="search-loading">
+                    <div className="loading-spinner"></div>
+                    <p>Searching in {searchScopes.find(s => s.id === searchScope)?.label.toLowerCase()}...</p>
+                  </div>
+                ) : searchResults.length > 0 ? (
+                  <div className="search-results-list">
+                    {searchResults.map((result) => (
+                      <div key={result.id} className="search-result-item">
+                        <div className="result-header">
+                          <span className="result-source">{result.source}</span>
+                          <span className="result-session">Session: {result.sessionId}</span>
+                          <span className="result-timestamp">{result.timestamp}</span>
+                          <span className={`result-match ${result.matchType}`}>
+                            {result.matchType === 'userMessage' ? 'User' : 'AI'}
+                          </span>
+                        </div>
+                        <div className="result-content">
+                          <div className="result-message">
+                            <strong>Message:</strong> {result.userMessage}
+                          </div>
+                          {result.aiResponse && (
+                            <div className="result-response">
+                              <strong>Response:</strong> {result.aiResponse}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="no-results">
+                    <p>No results found in {searchScopes.find(s => s.id === searchScope)?.label.toLowerCase()}.</p>
+                    <p className="no-results-hint">Try adjusting your search terms or search in a different scope.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Filters */}
           <div className="filters-section">
@@ -305,22 +552,6 @@ export default function Sidebar({
                 {filter.label} ({filter.count})
               </button>
             ))}
-          </div>
-
-          {/* Recent Searches */}
-          <div className="recent-searches">
-            <h4>Recent Searches</h4>
-            <div className="search-tags">
-              {recentSearches.map(search => (
-                <button
-                  key={search}
-                  className="search-tag clickable"
-                  onClick={() => handleRecentSearchClick(search)}
-                >
-                  {search}
-                </button>
-              ))}
-            </div>
           </div>
 
           {/* 사이드바 메뉴 항목들 */}

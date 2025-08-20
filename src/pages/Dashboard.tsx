@@ -409,7 +409,7 @@ export default function Dashboard() {
 			
 			<div className="dashboard-content">
 				<Sidebar
-					conversations={totalMessages} // 실제 데이터로 변경
+					conversations={totalMessages}
 					satisfaction={94.5}
 					documents={156}
 					activeFilters={activeFilters}
@@ -417,8 +417,12 @@ export default function Dashboard() {
 					onSearch={handleSearch}
 					isCollapsed={sidebarCollapsed}
 					onToggleCollapse={toggleSidebar}
-					onScrollToConversations={scrollToConversations} // 새로운 prop 전달
-					onScrollToSection={scrollToSection} // 새로운 prop 전달
+					onScrollToConversations={scrollToConversations}
+					onScrollToSection={scrollToSection}
+					// 실제 데이터 전달
+					sessions={sessions}
+					sessionRequests={sessionRequests}
+					requestDetails={requestDetails}
 				/>
 				
 				<main className="dashboard-main">
