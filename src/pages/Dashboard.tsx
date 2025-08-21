@@ -5,6 +5,7 @@ import { getAuthToken } from '../services/auth'
 import { fetchSessions } from '../services/sessions'
 import { fetchSessionRequests } from '../services/requests'
 import { fetchRequestDetail } from '../services/requestDetails'
+import { fetchDailyMessageActivity, fetchMessageCounts } from '../services/dailyMessageActivity'
 
 // Components - MetricsCards 제거
 import Header from '../components/Header'
@@ -17,11 +18,106 @@ import Content from './Content' // Content.tsx import 추가
 
 import '../styles/dashboard.css'
 
+// 로컬 시간 기준 날짜 포맷팅 함수 (모든 곳에서 통일 사용)
 function formatDate(d: Date): string {
 	const year = d.getFullYear()
 	const month = String(d.getMonth() + 1).padStart(2, '0')
 	const day = String(d.getDate()).padStart(2, '0')
 	return `${year}-${month}-${day}`
+}
+
+interface MessageCount {
+  date: string
+  count: number
+}
+
+interface DailyMessageResponse {
+  messageCounts: MessageCount[]
+  totalMessages: number
+  averageMessages: number
+  period: {
+    startDate: string
+    endDate: string
+  }
+}
+
+// 캐시 키 생성 함수
+const getCacheKey = (startDate: string, endDate: string) => {
+  return `daily-messages-${startDate}-${endDate}`
+}
+
+// 캐시에서 데이터 가져오기
+const getFromCache = (key: string): DailyMessageResponse | null => {
+  try {
+    const cached = localStorage.getItem(key)
+    if (cached) {
+      const data = JSON.parse(cached)
+      // 캐시 만료 시간 확인 (24시간)
+      if (Date.now() - data.timestamp < 24 * 60 * 60 * 1000) {
+        return data.data
+      }
+      // 만료된 캐시 삭제
+      localStorage.removeItem(key)
+    }
+  } catch (error) {
+    console.error('Cache read error:', error)
+  }
+  return null
+}
+
+// 캐시에 데이터 저장
+const saveToCache = (key: string,  DailyMessageResponse) => {
+  try {
+    const cacheData = {
+      data,
+      timestamp: Date.now()
+    }
+    localStorage.setItem(key, JSON.stringify(cacheData))
+  } catch (error) {
+    console.error('Cache save error:', error)
+  }
+}
+
+// 더미 데이터 생성 (API 실패 시 사용)
+const generateDummyData = (startDate: string, endDate: string): DailyMessageResponse => {
+  const start = new Date(startDate)
+  const end = new Date(endDate)
+  const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
+  
+  const messageCounts: MessageCount[] = []
+  let totalMessages = 0
+  
+  for (let i = 0; i < days; i++) {
+    const date = new Date(start.getTime() + (i * 24 * 60 * 60 * 1000))
+    const count = Math.floor(Math.random() * 20) + 1 // 1-20 랜덤
+    messageCounts.push({
+      date: formatDate(date),
+      count
+    })
+    totalMessages += count
+  }
+  
+  return {
+    messageCounts,
+    totalMessages,
+    averageMessages: Math.round(totalMessages / days),
+    period: { startDate, endDate }
+  }
+}
+
+// 캐시 무효화 (필요시 사용)
+export const invalidateCache = (startDate?: string, endDate?: string) => {
+  if (startDate && endDate) {
+    const key = getCacheKey(startDate, endDate)
+    localStorage.removeItem(key)
+  } else {
+    // 모든 캐시 삭제
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('daily-messages-')) {
+        localStorage.removeItem(key)
+      }
+    })
+  }
 }
 
 export default function Dashboard() {
@@ -51,12 +147,9 @@ export default function Dashboard() {
 	const [selectedPeriod, setSelectedPeriod] = useState(7)
 	const [searchQuery, setSearchQuery] = useState('')
 
-	// Date filters: default to [today-7, today]
-	const today = new Date()
-	const sevenDaysAgo = new Date()
-	sevenDaysAgo.setDate(today.getDate() - 7)
-	const [startDate, setStartDate] = useState<string>(formatDate(sevenDaysAgo))
-	const [endDate, setEndDate] = useState<string>(formatDate(today))
+	// Date filters: 초기값을 빈 문자열로 설정
+	const [startDate, setStartDate] = useState<string>('')
+	const [endDate, setEndDate] = useState<string>('')
 
 	// Mock data for new components
 	const performanceData = Array.from({ length: 30 }, (_, i) => ({
@@ -67,6 +160,88 @@ export default function Dashboard() {
 	// 사이드바 collapse 상태 추가
 	const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 	
+	// Custom Range 모달 상태 추가
+	const [showCustomRangeModal, setShowCustomRangeModal] = useState(false)
+	const [customStartDate, setCustomStartDate] = useState('')
+	const [customEndDate, setCustomEndDate] = useState('')
+
+	// Daily Message Activity 전용 상태
+	const [dailyMessageData, setDailyMessageData] = useState<MessageCount[]>([])
+	const [isLoadingDailyMessages, setIsLoadingDailyMessages] = useState(false)
+	const [dailyMessageStats, setDailyMessageStats] = useState({
+		total: 0,
+		average: 0
+	})
+
+	// 초기 날짜 설정을 위한 useEffect (가장 먼저 실행)
+	useEffect(() => {
+		const today = new Date()
+		const defaultStart = new Date()
+		defaultStart.setDate(today.getDate() - 6) // 7일 (오늘 포함)
+		
+		const startStr = formatDate(defaultStart)
+		const endStr = formatDate(today)
+		
+		console.log(`Setting initial dates: ${startStr} to ${endStr}`)
+		
+		setStartDate(startStr)
+		setEndDate(endStr)
+	}, [])
+
+	// Daily Message Activity 데이터 가져오기
+	const loadDailyMessages = async (start: string, end: string) => {
+		if (!authToken) return
+		
+		console.log(`Loading daily messages: ${start} to ${end}`)
+		
+		setIsLoadingDailyMessages(true)
+		try {
+			const data = await fetchDailyMessageActivity(authToken, start, end)
+			setDailyMessageData(data.messageCounts)
+			setDailyMessageStats({
+				total: data.totalMessages,
+				average: data.averageMessages
+			})
+		} catch (error) {
+			console.error('Failed to fetch daily messages:', error)
+		} finally {
+			setIsLoadingDailyMessages(false)
+		}
+	}
+
+	// 기간 변경 시 데이터 새로 가져오기
+	const handlePeriodChange = (days: number) => {
+		setSelectedPeriod(days)
+		
+		const today = new Date()
+		const startDate = new Date()
+		
+		// days=3이면 18,19,20일을 원한다면
+		startDate.setDate(today.getDate() - (days - 1))
+		
+		const startStr = formatDate(startDate)
+		const endStr = formatDate(today)
+		
+		console.log(`Period ${days} days: ${startStr} to ${endStr}`)
+		
+		setStartDate(startStr)
+		setEndDate(endStr)
+		
+		loadDailyMessages(startStr, endStr)
+	}
+
+	// Custom Range 적용 시
+	const applyCustomRange = async () => {
+		if (customStartDate && customEndDate) {
+			setStartDate(customStartDate)
+			setEndDate(customEndDate)
+			setShowCustomRangeModal(false)
+			
+			// Daily Message Activity 데이터 새로 가져오기
+			await loadDailyMessages(customStartDate, customEndDate)
+		}
+	}
+
 	// Fetch auth token on mount
 	useEffect(() => {
 		let cancelled = false
@@ -91,9 +266,17 @@ export default function Dashboard() {
 		}
 	}, [])
 
+	// authToken과 날짜가 설정되면 데이터 로드
+	useEffect(() => {
+		if (authToken && startDate && endDate) {
+			console.log(`Loading  ${startDate} to ${endDate}`)
+			loadDailyMessages(startDate, endDate)
+		}
+	}, [authToken, startDate, endDate])
+
 	// Fetch sessions when token is available or dates change
 	useEffect(() => {
-		if (!authToken) return
+		if (!authToken || !startDate || !endDate) return
 
 		let cancelled = false
 		
@@ -289,43 +472,61 @@ export default function Dashboard() {
 		})
 	}
 
-	// 실제 메시지 활동 데이터 계산 - 필터링된 데이터 활용
-	const getMessageActivityData = (days: number) => {
-		const now = new Date()
-		const filteredSessions = getFilteredSessions()
-		
-		// 각 날짜별 메시지 수 계산
-		const dailyMessages = Array.from({ length: days }, (_, i) => {
-			const targetDate = new Date(now.getTime() - (i * 24 * 60 * 60 * 1000))
-			const targetDateStr = targetDate.toDateString()
-			
-			return filteredSessions.reduce((total, session) => {
-				const sessionId = session.sessionId || session.id || `session-${Math.random()}`
-				const requests = sessionRequests[sessionId] || []
-				
-				const dayMessages = requests.filter(request => {
-					const requestDate = new Date(request.createdAt || Date.now())
-					return requestDate.toDateString() === targetDateStr
-				}).length
-				
-				return total + dayMessages
-			}, 0)
-		}).reverse() // 최신 날짜가 오른쪽에 오도록
-		
-		return dailyMessages
+	const periods = [
+		{ label: 'Last 7 days', days: 7 },
+		{ label: 'Last 3 days', days: 3 },
+		{ label: 'Last 30 days', days: 30 },
+		{ label: 'Custom Range', days: 0 }
+	]
+
+	// Custom Range 버튼 클릭 핸들러 추가
+	const handleCustomRangeClick = () => {
+		setCustomStartDate(startDate)
+		setCustomEndDate(endDate)
+		setShowCustomRangeModal(true)
 	}
 
-	const periods = [3, 7, 14, 30]
-
-	// 선택된 기간의 메시지 데이터 (필터링 반영)
-	const messageData = getMessageActivityData(selectedPeriod)
-	const periodTotalMessages = messageData.reduce((sum, count) => sum + count, 0)
-	const avgMessages = Math.round(periodTotalMessages / selectedPeriod)
-
-	// startDate, endDate가 변경될 때마다 차트 업데이트
-	useEffect(() => {
-		// startDate나 endDate가 변경되면 차트가 자동으로 업데이트됩니다
-	}, [startDate, endDate])
+	// 섹션별 스크롤 함수 - Content.tsx 모듈과 연동
+	const scrollToSection = (sectionId: string) => {
+		// Content.tsx 모듈 내부의 요소들을 찾아서 스크롤
+		if (sectionId === 'content-module') {
+			// Content 모듈 전체로 스크롤
+			const contentElement = document.querySelector('.content-module')
+			if (contentElement) {
+				contentElement.scrollIntoView({ 
+					behavior: 'smooth', 
+					block: 'start' 
+				})
+			}
+		} else if (sectionId === 'recent-conversations') {
+			// Content 모듈 내의 Recent Conversations 섹션으로 스크롤
+			const conversationsElement = document.querySelector('.conversations-module')
+			if (conversationsElement) {
+				conversationsElement.scrollIntoView({ 
+					behavior: 'smooth', 
+					block: 'start' 
+				})
+			}
+		} else if (sectionId === 'prompt-control') {
+			// Content 모듈 내의 Prompt Control 섹션으로 스크롤
+			const promptControlElement = document.querySelector('.prompt-control-module')
+			if (promptControlElement) {
+				promptControlElement.scrollIntoView({ 
+					behavior: 'smooth', 
+					block: 'start' 
+				})
+			}
+		} else {
+			// Dashboard.tsx 내의 다른 섹션들
+			const element = document.getElementById(sectionId)
+			if (element) {
+				element.scrollIntoView({ 
+					behavior: 'smooth', 
+					block: 'start' 
+				})
+			}
+		}
+	}
 
 	return (
 		<div className="dashboard-layout">
@@ -333,7 +534,7 @@ export default function Dashboard() {
 			
 			<div className="dashboard-content">
 				<Sidebar
-					conversations={totalMessages} // 실제 데이터로 변경
+					conversations={totalMessages}
 					satisfaction={94.5}
 					documents={156}
 					activeFilters={activeFilters}
@@ -341,73 +542,72 @@ export default function Dashboard() {
 					onSearch={handleSearch}
 					isCollapsed={sidebarCollapsed}
 					onToggleCollapse={toggleSidebar}
-					onScrollToConversations={scrollToConversations} // 새로운 prop 전달
+					onScrollToConversations={scrollToConversations}
+					onScrollToSection={scrollToSection}
+					// 실제 데이터 전달
+					sessions={sessions}
+					sessionRequests={sessionRequests}
+					requestDetails={requestDetails}
 				/>
 				
 				<main className="dashboard-main">
-					{/* MetricsCards 컴포넌트 완전 제거 */}
-					
 					<div className="dashboard-grid">
 						<div className="grid-left">
-							<div className="performance-section">
-								<h2>Vector Style Performance Radar & Timeline</h2>
+							<div id="performance-radar" className="performance-section">
+								<h2>Performance Radar</h2>
 								<p className="section-subtitle">
-									깔끔한 벡터 스타일 레이더 차트 및 성능 타임라인 - TecAce Ax Pro 성능 분석 및 최적화
+									AI 응답 품질과 보안 성능을 6가지 핵심 지표로 실시간 모니터링하여 최적의 사용자 경험을 제공합니다
 								</p>
 								
 								<PerformanceRadar
-									expertise={79}
-									accuracy={75}
-									efficiency={76}
-									helpfulness={76}
-									clarity={68}
+									relevance={85}
+									tone={78}
+									length={82}
+									accuracy={92}
+									toxicity={95}
+									promptInjection={88}
 								/>
 							</div>
 
-							{/* PerformanceTimeline 컴포넌트만 제거 - 이것이 class="performance-timeline" */}
-
-							{/* Daily Message Activity - 필터링된 데이터 반영 */}
-							<div className="message-activity-section">
+							{/* Daily Message Activity - 새로운 API 사용 */}
+							<div id="daily-message-activity" className="message-activity-section">
 								<div className="section-header">
 									<h2>Daily Message Activity</h2>
 									<div className="activity-summary">
-										Total: {periodTotalMessages} messages | Avg: {avgMessages}/day
-										{startDate && endDate && (
-											<span className="filter-info">
-												<br />Filtered: {startDate} to {endDate}
-											</span>
-										)}
+										Total: {dailyMessageStats.total} messages | Avg: {dailyMessageStats.average}/day
 									</div>
 								</div>
 								
 								<div className="period-filters">
 									{periods.map(period => (
 										<button
-											key={period}
-											className={`period-btn ${selectedPeriod === period ? 'active' : ''}`}
-											onClick={() => setSelectedPeriod(period)}
+											key={period.label}
+											className={`period-btn ${selectedPeriod === period.days ? 'active' : ''}`}
+											onClick={() => period.days > 0 ? handlePeriodChange(period.days) : handleCustomRangeClick()}
 										>
-											Last {period} Days
+											{period.label}
 										</button>
 									))}
-									<button className="period-btn">
-										Custom Range
-									</button>
 								</div>
 								
 								<div className="activity-chart">
-									{periodTotalMessages > 0 ? (
+									{isLoadingDailyMessages ? (
+										<div className="loading-state">
+											<div className="loading-spinner"></div>
+											<p>Loading message data...</p>
+										</div>
+									) : dailyMessageData.length > 0 ? (
 										<div className="bar-chart">
-											{messageData.map((dayData, i) => {
-												const maxValue = Math.max(...messageData)
-												const height = maxValue > 0 ? (dayData / maxValue) * 100 : 0
-												const date = new Date(Date.now() - ((selectedPeriod - 1 - i) * 24 * 60 * 60 * 1000))
+											{dailyMessageData.map((dayData, i) => {
+												const maxValue = Math.max(...dailyMessageData.map(d => d.count))
+												const height = maxValue > 0 ? (dayData.count / maxValue) * 100 : 0
+												const date = new Date(dayData.date)
 												const dayLabel = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 												
 												return (
 													<div key={i} className="bar-item">
 														<div className="bar" style={{ height: `${height}%` }}>
-															<span className="bar-value">{dayData}</span>
+															<span className="bar-value">{dayData.count}</span>
 														</div>
 														<span className="bar-label">{dayLabel}</span>
 													</div>
@@ -422,140 +622,80 @@ export default function Dashboard() {
 									)}
 								</div>
 							</div>
+
+							{/* Custom Range 모달 */}
+							{showCustomRangeModal && (
+								<div className="custom-range-modal">
+									<div className="modal-content">
+										<div className="modal-header">
+											<h3>Select Custom Date Range</h3>
+											<button 
+												className="modal-close"
+												onClick={() => setShowCustomRangeModal(false)}
+											>
+												×
+											</button>
+										</div>
+										<div className="modal-body">
+											<div className="date-inputs">
+												<label className="date-field">
+													<span>Start Date</span>
+													<input 
+														type="date" 
+														value={customStartDate}
+														onChange={(e) => setCustomStartDate(e.target.value)}
+													/>
+												</label>
+												<label className="date-field">
+													<span>End Date</span>
+													<input 
+														type="date" 
+														value={customEndDate}
+														onChange={(e) => setCustomEndDate(e.target.value)}
+													/>
+												</label>
+											</div>
+										</div>
+										<div className="modal-footer">
+											<button 
+												className="btn-cancel"
+												onClick={() => setShowCustomRangeModal(false)}
+											>
+												Cancel
+											</button>
+											<button 
+												className="btn-apply"
+												onClick={applyCustomRange}
+												disabled={!customStartDate || !customEndDate}
+											>
+												Apply
+											</button>
+										</div>
+									</div>
+								</div>
+							)}
 						</div>
 
 						<div className="grid-right">
-							<SystemStatus
-								coreSystems={87}
-								security={75}
-								network={84}
-							/>
+							<div id="system-status">
+								<SystemStatus
+									coreSystems={87}
+									security={75}
+									network={84}
+								/>
+							</div>
 
-							<EnvironmentControls />
+							<div id="environment-controls">
+								<EnvironmentControls />
+							</div>
 						</div>
 					</div>
 
-					{/* Recent Conversations Module */}
-					{/* <div className="conversations-module">
-						<div className="card section" aria-labelledby="recent-conv-title">
-							<div className="section-header">
-								<div id="recent-conv-title" className="section-title conversations-title">Recent Conversations</div>
-								<div className="date-controls">
-									<label className="date-field">
-										<span>Start Date</span>
-										<input type="date" className="input date-input" value={startDate} onChange={(e)=>setStartDate(e.target.value)} />
-									</label>
-									<label className="date-field">
-										<span>End Date</span>
-										<input type="date" className="input date-input" value={endDate} onChange={(e)=>setEndDate(e.target.value)} />
-									</label>
-								</div>
-							</div>
-							<div className="sessions-content">
-								{isLoadingSessions ? (
-									<p className="muted">Loading conversations...</p>
-								) : sessions.length > 0 ? (
-									<div className="sessions-list">
-										{sessions.map((session, index) => {
-											const sessionId = session.sessionId || session.id || `Session ${index + 1}`
-											const isExpanded = expandedSessions.has(sessionId)
-											const requests = sessionRequests[sessionId] || []
-											
-											return (
-												<div key={sessionId} className="session-container">
-													<div className="session-row" onClick={() => toggleSessionExpansion(sessionId)}>
-														<div className="session-left">
-															<div className="session-id">Session: {sessionId}</div>
-															<div className="session-messages">
-																{requests.length === 1 ? '1 message' : `${requests.length} messages`}
-															</div>
-														</div>
-														<div className="session-right">
-															<div className="session-date">
-																{session.createdAt ? new Date(session.createdAt).toLocaleDateString() : 'No date'}
-															</div>
-															<div className="session-time">
-																{session.createdAt ? new Date(session.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}
-															</div>
-														</div>
-													</div>
-													
-													{isExpanded && (
-														<div className="requests-container">
-															{requests.length > 0 ? (
-																requests.map((request, reqIndex) => {
-																	const requestId = request.requestId || request.id
-																	const detail = requestDetails[requestId]
-																	
-																	return (
-																		<div key={requestId || reqIndex} className="request-item">
-																			<div className="request-header">
-																				<div className="request-datetime">
-																					{request.createdAt ? (
-																						<>
-																							<div className="request-date">
-																								{new Date(request.createdAt).toLocaleDateString()}
-																							</div>
-																							<div className="request-time">
-																								{request.createdAt ? new Date(request.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}
-																							</div>
-																						</>
-																					) : (
-																						<div className="request-date">No date available</div>
-																					)}
-																				</div>
-																				<div className="request-actions">
-																					<button 
-																						className={`thumbs-btn thumbs-up ${submittedFeedback[requestId] === 'positive' ? 'submitted' : ''}`}
-																						title="Thumbs Up"
-																						onClick={() => handleFeedbackClick('positive', requestId)}
-																					>
-																						<svg fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-																							<path d="M20 8h-5.612l1.123-3.367c.202-.608.1-1.282-.275-1.802S14.253 2 13.612 2H12c-.297 0-.578.132-.769.36L6.531 8H4c-1.103 0-2 .897-2 2v9c0 1.103.897 2 2 2h13.307a2.01 2.01 0 0 0 1.873-1.298l2.757-7.351A1 1 0 0 0 22 12v-2c0-1.103-.897-2-2-2zM4 10h2v9H4v-9zm16 1.819L17.307 19H8V9.362L12.468 4h1.146l-1.562 4.683A.998.998 0 0 0 13 10h7v1.819z"></path>
-																						</svg>
-																					</button>
-																					<button 
-																						className={`thumbs-btn thumbs-down ${submittedFeedback[requestId] === 'negative' ? 'submitted' : ''}`}
-																						title="Thumbs Down"
-																						onClick={() => handleFeedbackClick('negative', requestId)}
-																					>
-																						<svg fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-																							<path d="M20 3H6.693A2.01 2.01 0 0 0 4.82 4.298l-2.757 7.351A1 1 0 0 0 2 12v2c0 1.103.897 2 2 2h5.612L8.49 19.367a2.004 2.004 0 0 0 .274 1.802c.376.52.982.831 1.624.831H12c.297 0 .578-.132.769-.360l4.7-5.64H20c1.103 0 2-.897 2-2V5c0-1.103-.897-2-2-2zm-8.469 17h-1.145l1.562-4.684A1 1 0 0 0 11 14H4v-1.819L6.693 5H16v9.638L11.531 20zM18 14V5h2l.001 9H18z"></path>
-																						</svg>
-																					</button>
-																				</div>
-																			</div>
-																			
-																			{detail && (
-																				<>
-																					<div className="conversation-item user">
-																						<div className="conversation-text">{detail.inputText}</div>
-																					</div>
-																					<div className="conversation-item assistant">
-																						<div className="conversation-text">{detail.outputText}</div>
-																					</div>
-																				</>
-																			)}
-																		</div>
-																	)
-																})
-															) : (
-																<div className="muted">No requests found for this session.</div>
-															)}
-														</div>
-													)}
-												</div>
-											)
-										})}
-									</div>
-								) : (
-									<p className="muted">No conversations found for the selected date range.</p>
-								)}
-							</div>
-						</div> */}
+					{/* Content.tsx 모듈을 그대로 유지 */}
+					<div className="content-module">
+						<Content />
+					</div>
 
-					{/* Content 모듈 추가 */}
-					<Content />
 				</main>
 			</div>
 
@@ -611,4 +751,4 @@ export default function Dashboard() {
 			)}
 		</div>
 	)
-} 
+}

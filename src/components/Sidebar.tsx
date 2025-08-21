@@ -24,7 +24,12 @@ interface SidebarProps {
   onSearch: (query: string) => void
   isCollapsed: boolean
   onToggleCollapse: () => void
-  onScrollToConversations?: () => void // 새로운 prop 추가
+  onScrollToConversations: () => void
+  onScrollToSection: (sectionId: string) => void
+  // 실제 데이터 검색을 위한 props 추가
+  sessions: any[]
+  sessionRequests: Record<string, any[]>
+  requestDetails: Record<string, any>
 }
 
 export default function Sidebar({ 
@@ -36,8 +41,166 @@ export default function Sidebar({
   onSearch,
   isCollapsed,
   onToggleCollapse,
-  onScrollToConversations
+  onScrollToConversations,
+  onScrollToSection,
+  sessions,
+  sessionRequests,
+  requestDetails
 }: SidebarProps) {
+  // 검색 관련 상태 추가
+  const [searchQuery, setSearchQuery] = useState('')
+  const [recentSearches, setRecentSearches] = useState<string[]>([
+    'HR policies',
+    'Leave management', 
+    'Performance reviews',
+    'Benefits enrollment'
+  ])
+  const [extractedKeywords, setExtractedKeywords] = useState<string[]>([])
+  
+  // 검색 범위 선택 상태 추가
+  const [searchScope, setSearchScope] = useState<'all' | 'conversations' | 'feedback' | 'knowledge'>('all')
+  const [showSearchResults, setShowSearchResults] = useState(false)
+  const [searchResults, setSearchResults] = useState<any[]>([])
+  const [isSearching, setIsSearching] = useState(false)
+
+  // 검색 범위 옵션
+  const searchScopes = [
+    { id: 'all', label: 'All Sources', icon: '🔍', description: 'Search everywhere' },
+    { id: 'conversations', label: 'Recent Conversations', icon: '💬', description: 'Search chat history' },
+    { id: 'feedback', label: 'User Feedback', icon: '📝', description: 'Search feedback data' },
+    { id: 'knowledge', label: 'Knowledge Base', icon: '📚', description: 'Search documents & policies' }
+  ]
+
+  // 검색 실행 함수 - 범위별 검색
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (searchQuery.trim()) {
+      const newSearch = searchQuery.trim()
+      
+      // 새로운 검색어를 recent searches에 추가
+      if (!recentSearches.includes(newSearch)) {
+        setRecentSearches(prev => [newSearch, ...prev.slice(0, 9)])
+      }
+      
+      // 검색 시작
+      setIsSearching(true)
+      setShowSearchResults(true)
+      
+      try {
+        const results = await searchInScope(newSearch, searchScope)
+        setSearchResults(results)
+      } catch (error) {
+        console.error('Search failed:', error)
+        setSearchResults([])
+      } finally {
+        setIsSearching(false)
+      }
+      
+      setSearchQuery('')
+    }
+  }
+
+  // 범위별 검색 함수
+  const searchInScope = async (query: string, scope: string) => {
+    const results: any[] = []
+    
+    switch (scope) {
+      case 'conversations':
+        // Recent Conversations에서만 검색
+        return await searchConversations(query)
+        
+      case 'feedback':
+        // User Feedback에서만 검색 (아직 구현되지 않음)
+        return await searchFeedback(query)
+        
+      case 'knowledge':
+        // Knowledge Base에서만 검색 (아직 구현되지 않음)
+        return await searchKnowledge(query)
+        
+      case 'all':
+      default:
+        // 모든 소스에서 검색
+        const [convResults, feedbackResults, knowledgeResults] = await Promise.all([
+          searchConversations(query),
+          searchFeedback(query),
+          searchKnowledge(query)
+        ])
+        return [...convResults, ...feedbackResults, ...knowledgeResults]
+    }
+  }
+
+  // Recent Conversations 검색
+  const searchConversations = async (query: string) => {
+    const results: any[] = []
+    
+    sessions.forEach(session => {
+      const sessionId = session.sessionId || session.id
+      const requests = sessionRequests[sessionId] || []
+      
+      requests.forEach(request => {
+        const requestId = request.requestId || request.id
+        const detail = requestDetails[requestId]
+        
+        const userMessage = detail?.userMessage || request.userMessage || request.message || ''
+        const aiResponse = detail?.aiResponse || ''
+        
+        const queryLower = query.toLowerCase()
+        const userMatch = userMessage.toLowerCase().includes(queryLower)
+        const aiMatch = aiResponse.toLowerCase().includes(queryLower)
+        
+        if (userMatch || aiMatch) {
+          results.push({
+            id: `${sessionId}-${requestId}`,
+            sessionId: sessionId,
+            userMessage: userMessage,
+            aiResponse: aiResponse,
+            timestamp: request.createdAt ? new Date(request.createdAt).toLocaleString() : 'No timestamp',
+            matchType: userMatch ? 'userMessage' : 'aiResponse',
+            source: 'conversations',
+            session: session,
+            request: request
+          })
+        }
+      })
+    })
+    
+    return results
+  }
+
+  // User Feedback 검색 (향후 구현)
+  const searchFeedback = async (query: string) => {
+    // TODO: User Feedback 데이터에서 검색 구현
+    return []
+  }
+
+  // Knowledge Base 검색 (향후 구현)
+  const searchKnowledge = async (query: string) => {
+    // TODO: Knowledge Base 문서에서 검색 구현
+    return []
+  }
+
+  // 검색어 클릭 시 재검색
+  const handleSearchClick = async (searchTerm: string) => {
+    setSearchQuery(searchTerm)
+    setIsSearching(true)
+    setShowSearchResults(true)
+    
+    try {
+      const results = await searchInScope(searchTerm, searchScope)
+      setSearchResults(results)
+    } catch (error) {
+      console.error('Search failed:', error)
+      setSearchResults([])
+    } finally {
+      setIsSearching(false)
+    }
+  }
+
+  // 검색어 삭제 함수
+  const removeSearch = (searchToRemove: string) => {
+    setRecentSearches(prev => prev.filter(search => search !== searchToRemove))
+  }
+
   const [searchValue, setSearchValue] = useState('')
   const [isEditingProfile, setIsEditingProfile] = useState(false)
   const [profileData, setProfileData] = useState({
@@ -59,13 +222,6 @@ export default function Sidebar({
     { key: 'payroll', label: 'Payroll', count: 21 }
   ]
 
-  const recentSearches = [
-    'HR policies',
-    'Leave management', 
-    'Performance reviews',
-    'Benefits enrollment'
-  ]
-
   const menuItems = [
     { icon: IconMessage, label: 'Dashboard', active: true },
     { icon: IconMessage, label: 'Monitoring' },
@@ -77,19 +233,8 @@ export default function Sidebar({
     { icon: IconSettings, label: 'Settings' }
   ]
 
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value
-    setSearchValue(value)
-    onSearch(value)
-  }
-
   const handleFilterClick = (filterKey: string) => {
     onFilterChange(filterKey)
-  }
-
-  const handleRecentSearchClick = (searchTerm: string) => {
-    setSearchValue(searchTerm)
-    onSearch(searchTerm)
   }
 
   const handleProfileEdit = () => {
@@ -278,18 +423,123 @@ export default function Sidebar({
             </div>
           </div>
 
-          {/* Search */}
+          {/* Search Section - 범위 선택 UI 추가 */}
           <div className="search-section">
-            <div className="search-input">
-              <IconSearch size={16} />
-              <input 
-                type="text" 
-                placeholder="Search knowledge base, conversations..."
-                value={searchValue}
-                onChange={handleSearchChange}
-              />
+            {/* 검색 범위 선택 */}
+            <div className="search-scope-selector">
+              <label className="scope-label">Search in:</label>
+              <div className="scope-options">
+                {searchScopes.map((scope) => (
+                  <button
+                    key={scope.id}
+                    className={`scope-option ${searchScope === scope.id ? 'active' : ''}`}
+                    onClick={() => setSearchScope(scope.id as any)}
+                    title={scope.description}
+                  >
+                    <span className="scope-icon">{scope.icon}</span>
+                    <span className="scope-text">{scope.label}</span>
+                  </button>
+                ))}
+              </div>
             </div>
+
+            {/* 검색 입력 */}
+            <form onSubmit={handleSearch} className="search-form">
+              <input
+                type="text"
+                className="search-input"
+                placeholder={`Search in ${searchScopes.find(s => s.id === searchScope)?.label.toLowerCase()}...`}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </form>
+            
+            {/* Recent Searches */}
+            {recentSearches.length > 0 && (
+              <div className="recent-searches">
+                <h4 className="recent-title">Recent Searches</h4>
+                <div className="search-tags">
+                  {recentSearches.map((search, index) => (
+                    <div key={index} className="search-tag">
+                      <span 
+                        className="tag-text"
+                        onClick={() => handleSearchClick(search)}
+                      >
+                        {search}
+                      </span>
+                      <button
+                        className="tag-delete"
+                        onClick={() => removeSearch(search)}
+                        title="Remove search"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
+
+          {/* Search Results Popup - 범위별 결과 표시 */}
+          {showSearchResults && (
+            <div className="search-results-popup">
+              <div className="popup-header">
+                <h3>
+                  Search Results 
+                  <span className="search-scope-badge">
+                    {searchScopes.find(s => s.id === searchScope)?.icon} 
+                    {searchScopes.find(s => s.id === searchScope)?.label}
+                  </span>
+                </h3>
+                <button 
+                  className="popup-close"
+                  onClick={() => setShowSearchResults(false)}
+                >
+                  ×
+                </button>
+              </div>
+              
+              <div className="popup-content">
+                {isSearching ? (
+                  <div className="search-loading">
+                    <div className="loading-spinner"></div>
+                    <p>Searching in {searchScopes.find(s => s.id === searchScope)?.label.toLowerCase()}...</p>
+                  </div>
+                ) : searchResults.length > 0 ? (
+                  <div className="search-results-list">
+                    {searchResults.map((result) => (
+                      <div key={result.id} className="search-result-item">
+                        <div className="result-header">
+                          <span className="result-source">{result.source}</span>
+                          <span className="result-session">Session: {result.sessionId}</span>
+                          <span className="result-timestamp">{result.timestamp}</span>
+                          <span className={`result-match ${result.matchType}`}>
+                            {result.matchType === 'userMessage' ? 'User' : 'AI'}
+                          </span>
+                        </div>
+                        <div className="result-content">
+                          <div className="result-message">
+                            <strong>Message:</strong> {result.userMessage}
+                          </div>
+                          {result.aiResponse && (
+                            <div className="result-response">
+                              <strong>Response:</strong> {result.aiResponse}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="no-results">
+                    <p>No results found in {searchScopes.find(s => s.id === searchScope)?.label.toLowerCase()}.</p>
+                    <p className="no-results-hint">Try adjusting your search terms or search in a different scope.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Filters */}
           <div className="filters-section">
@@ -304,34 +554,115 @@ export default function Sidebar({
             ))}
           </div>
 
-          {/* Recent Searches */}
-          <div className="recent-searches">
-            <h4>Recent Searches</h4>
-            <div className="search-tags">
-              {recentSearches.map(search => (
-                <button
-                  key={search}
-                  className="search-tag clickable"
-                  onClick={() => handleRecentSearchClick(search)}
-                >
-                  {search}
-                </button>
-              ))}
+          {/* 사이드바 메뉴 항목들 */}
+          <div className="sidebar-menu">
+            <div className="menu-section">
+              <h3 className="menu-title">Dashboard</h3>
+              <ul className="menu-list">
+                <li className="menu-item">
+                  <button 
+                    className="menu-button"
+                    onClick={() => onScrollToSection('performance-radar')}
+                  >
+                    <svg className="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M3 3v18h18" />
+                      <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3" />
+                    </svg>
+                    <span className="menu-text">Performance Radar</span>
+                  </button>
+                </li>
+                <li className="menu-item">
+                  <button 
+                    className="menu-button"
+                    onClick={() => onScrollToSection('daily-message-activity')}
+                  >
+                    <svg className="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M3 3v18h18" />
+                      <path d="M9 9l3 3 3-3" />
+                      <path d="M9 15l3-3 3 3" />
+                    </svg>
+                    <span className="menu-text">Daily Message Activity</span>
+                  </button>
+                </li>
+                <li className="menu-item">
+                  <button 
+                    className="menu-button"
+                    onClick={() => onScrollToSection('system-status')}
+                  >
+                    <svg className="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <circle cx="12" cy="12" r="3" />
+                      <path d="M12 1v6m0 6v6" />
+                      <path d="M3.6 3.6l4.2 4.2m8.4 8.4l4.2 4.2" />
+                    </svg>
+                    <span className="menu-text">System Status</span>
+                  </button>
+                </li>
+                <li className="menu-item">
+                  <button 
+                    className="menu-button"
+                    onClick={() => onScrollToSection('environment-controls')}
+                  >
+                    <svg className="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <circle cx="12" cy="12" r="3" />
+                      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                    </svg>
+                    <span className="menu-text">Environment Controls</span>
+                  </button>
+                </li>
+              </ul>
+            </div>
+
+            <div className="menu-section">
+              <h3 className="menu-title">Content</h3>
+              <ul className="menu-list">
+                <li className="menu-item">
+                  <button 
+                    className="menu-button"
+                    onClick={() => onScrollToSection('content-module')}
+                  >
+                    <svg className="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                      <polyline points="14,2 14,8 20,8" />
+                      <line x1="16" y1="13" x2="8" y2="13" />
+                      <line x1="16" y1="17" x2="8" y2="17" />
+                      <polyline points="10,9 9,9 8,9" />
+                    </svg>
+                    <span className="menu-text">Content Module</span>
+                  </button>
+                </li>
+                <li className="menu-item">
+                  <button 
+                    className="menu-button"
+                    onClick={() => onScrollToSection('recent-conversations')}
+                  >
+                    <svg className="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                    </svg>
+                    <span className="menu-text">Recent Conversations</span>
+                  </button>
+                </li>
+              </ul>
+            </div>
+
+            <div className="menu-section">
+              <h3 className="menu-title">Settings</h3>
+              <ul className="menu-list">
+                <li className="menu-item">
+                  <button 
+                    className="menu-button"
+                    onClick={() => onScrollToSection('prompt-control')}
+                  >
+                    <svg className="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <circle cx="12" cy="12" r="3" />
+                      <path d="M12 1v6m0 6v6" />
+                      <path d="M3.6 3.6l4.2 4.2m8.4 8.4l4.2 4.2" />
+                    </svg>
+                    <span className="menu-text">Prompt Control</span>
+                  </button>
+                </li>
+              </ul>
             </div>
           </div>
-
-          {/* Navigation Menu */}
-          <nav className="sidebar-nav">
-            {menuItems.map(item => (
-              <button
-                key={item.label}
-                className={`nav-item ${item.active ? 'active' : ''}`}
-              >
-                <item.icon size={18} />
-                <span>{item.label}</span>
-              </button>
-            ))}
-          </nav>
         </>
       )}
     </aside>
