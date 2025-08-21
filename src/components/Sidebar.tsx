@@ -65,10 +65,10 @@ export default function Sidebar({
 
   // 검색 범위 옵션
   const searchScopes = [
-    { id: 'all', label: 'All Sources', icon: '🔍', description: 'Search everywhere' },
-    { id: 'conversations', label: 'Recent Conversations', icon: '💬', description: 'Search chat history' },
-    { id: 'feedback', label: 'User Feedback', icon: '📝', description: 'Search feedback data' },
-    { id: 'knowledge', label: 'Knowledge Base', icon: '📚', description: 'Search documents & policies' }
+    { key: 'all', label: 'All Sources', icon: '🔍', description: 'Search everywhere' },
+    { key: 'conversations', label: 'Recent Conversations', icon: '💬', description: 'Search chat history' },
+    { key: 'feedback', label: 'User Feedback', icon: '📝', description: 'Search feedback data' },
+    { key: 'knowledge', label: 'Knowledge Base', icon: '📚', description: 'Search documents & policies' }
   ]
 
   // 검색 실행 함수 - 범위별 검색
@@ -305,6 +305,11 @@ export default function Sidebar({
     }
   }
 
+  // Style 관련 함수 주석 처리
+  // const handleStyleClick = () => {
+  //   // Style 관련 로직
+  // }
+
   return (
     <aside className={`dashboard-sidebar ${isCollapsed ? 'collapsed' : ''}`}>
       <div className="sidebar-toggle" onClick={onToggleCollapse}>
@@ -401,10 +406,11 @@ export default function Sidebar({
                       <IconCamera size={12} />
                       Photo
                     </button>
-                    <button className="btn-small">
+                    {/* Style 버튼 주석 처리 */}
+                    {/* <button className="btn-small">
                       <IconPalette size={12} />
                       Style
-                    </button>
+                    </button> */}
                   </>
                 )}
               </div>
@@ -428,19 +434,28 @@ export default function Sidebar({
           <div className="search-section">
             {/* 검색 범위 선택 */}
             <div className="search-scope-selector">
-              <label className="scope-label">Search in:</label>
+              <label className="scope-label">Search In:</label>
               <div className="scope-options">
-                {searchScopes.map((scope) => (
-                  <button
-                    key={scope.id}
-                    className={`scope-option ${searchScope === scope.id ? 'active' : ''}`}
-                    onClick={() => setSearchScope(scope.id as any)}
-                    title={scope.description}
-                  >
-                    <span className="scope-icon">{scope.icon}</span>
-                    <span className="scope-text">{scope.label}</span>
-                  </button>
-                ))}
+                <div className={`scope-option ${searchScope === 'all' ? 'active' : ''}`} onClick={() => setSearchScope('all')}>
+                  <div className="scope-checkbox"></div>
+                  <div className="scope-icon">🔍</div>
+                  <span className="scope-text">All Sources</span>
+                </div>
+                <div className={`scope-option ${searchScope === 'conversations' ? 'active' : ''}`} onClick={() => setSearchScope('conversations')}>
+                  <div className="scope-checkbox"></div>
+                  <div className="scope-icon">💬</div>
+                  <span className="scope-text">Recent Conversations</span>
+                </div>
+                <div className={`scope-option ${searchScope === 'feedback' ? 'active' : ''}`} onClick={() => setSearchScope('feedback')}>
+                  <div className="scope-checkbox"></div>
+                  <div className="scope-icon">📝</div>
+                  <span className="scope-text">User Feedback</span>
+                </div>
+                <div className={`scope-option ${searchScope === 'knowledge' ? 'active' : ''}`} onClick={() => setSearchScope('knowledge')}>
+                  <div className="scope-checkbox"></div>
+                  <div className="scope-icon">📚</div>
+                  <span className="scope-text">Knowledge Base</span>
+                </div>
               </div>
             </div>
 
@@ -449,7 +464,7 @@ export default function Sidebar({
               <input
                 type="text"
                 className="search-input"
-                placeholder={`Search in ${searchScopes.find(s => s.id === searchScope)?.label.toLowerCase()}...`}
+                placeholder={`Search in ${searchScopes.find(s => s.key === searchScope)?.label.toLowerCase()}...`}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -489,8 +504,8 @@ export default function Sidebar({
                 <h3>
                   Search Results 
                   <span className="search-scope-badge">
-                    {searchScopes.find(s => s.id === searchScope)?.icon} 
-                    {searchScopes.find(s => s.id === searchScope)?.label}
+                    {searchScopes.find(s => s.key === searchScope)?.icon} 
+                    {searchScopes.find(s => s.key === searchScope)?.label}
                   </span>
                 </h3>
                 <button 
@@ -505,7 +520,7 @@ export default function Sidebar({
                 {isSearching ? (
                   <div className="search-loading">
                     <div className="loading-spinner"></div>
-                    <p>Searching in {searchScopes.find(s => s.id === searchScope)?.label.toLowerCase()}...</p>
+                    <p>Searching in {searchScopes.find(s => s.key === searchScope)?.label.toLowerCase()}...</p>
                   </div>
                 ) : searchResults.length > 0 ? (
                   <div className="search-results-list">
@@ -534,7 +549,7 @@ export default function Sidebar({
                   </div>
                 ) : (
                   <div className="no-results">
-                    <p>No results found in {searchScopes.find(s => s.id === searchScope)?.label.toLowerCase()}.</p>
+                    <p>No results found in {searchScopes.find(s => s.key === searchScope)?.label.toLowerCase()}.</p>
                     <p className="no-results-hint">Try adjusting your search terms or search in a different scope.</p>
                   </div>
                 )}
@@ -542,7 +557,7 @@ export default function Sidebar({
             </div>
           )}
 
-          {/* Filters */}
+          {/* Filters
           <div className="filters-section">
             {filters.map(filter => (
               <button
@@ -553,7 +568,44 @@ export default function Sidebar({
                 {filter.label} ({filter.count})
               </button>
             ))}
-          </div>
+          </div> */}
+
+          {/* Content Filters 섹션 주석 처리 */}
+          {/* <div className="filters-section">
+            <h3>Content Filters</h3>
+            <div className="filter-buttons">
+              <button 
+                className={`filter-btn ${activeFilters.includes('all') ? 'active' : ''}`}
+                onClick={() => handleFilterChange('all')}
+              >
+                All (156)
+              </button>
+              <button 
+                className={`filter-btn ${activeFilters.includes('policies') ? 'active' : ''}`}
+                onClick={() => handleFilterChange('policies')}
+              >
+                Policies (45)
+              </button>
+              <button 
+                className={`filter-btn ${activeFilters.includes('benefits') ? 'active' : ''}`}
+                onClick={() => handleFilterChange('benefits')}
+              >
+                Benefits (32)
+              </button>
+              <button 
+                className={`filter-btn ${activeFilters.includes('training') ? 'active' : ''}`}
+                onClick={() => handleFilterChange('training')}
+              >
+                Training (28)
+              </button>
+              <button 
+                className={`filter-btn ${activeFilters.includes('payroll') ? 'active' : ''}`}
+                onClick={() => handleFilterChange('payroll')}
+              >
+                Payroll (21)
+              </button>
+            </div>
+          </div> */}
 
           {/* 사이드바 메뉴 항목들 */}
           <div className="sidebar-menu">
