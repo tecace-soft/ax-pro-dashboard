@@ -497,17 +497,11 @@ export default function Sidebar({
             )}
           </div>
 
-          {/* Search Results Popup - 범위별 결과 표시 */}
+          {/* Search Results Popup */}
           {showSearchResults && (
             <div className="search-results-popup">
               <div className="popup-header">
-                <h3>
-                  Search Results 
-                  <span className="search-scope-badge">
-                    {searchScopes.find(s => s.key === searchScope)?.icon} 
-                    {searchScopes.find(s => s.key === searchScope)?.label}
-                  </span>
-                </h3>
+                <h3>Search Results</h3>
                 <button 
                   className="popup-close"
                   onClick={() => setShowSearchResults(false)}
@@ -515,41 +509,31 @@ export default function Sidebar({
                   ×
                 </button>
               </div>
-              
               <div className="popup-content">
                 {isSearching ? (
                   <div className="search-loading">
                     <div className="loading-spinner"></div>
-                    <p>Searching in {searchScopes.find(s => s.key === searchScope)?.label.toLowerCase()}...</p>
+                    <p>Searching...</p>
                   </div>
                 ) : searchResults.length > 0 ? (
                   <div className="search-results-list">
-                    {searchResults.map((result) => (
-                      <div key={result.id} className="search-result-item">
+                    {searchResults.map((result, index) => (
+                      <div key={index} className="search-result-item">
                         <div className="result-header">
-                          <span className="result-source">{result.source}</span>
-                          <span className="result-session">Session: {result.sessionId}</span>
+                          <span className="result-session">{result.sessionId}</span>
                           <span className="result-timestamp">{result.timestamp}</span>
-                          <span className={`result-match ${result.matchType}`}>
-                            {result.matchType === 'userMessage' ? 'User' : 'AI'}
-                          </span>
                         </div>
-                        <div className="result-content">
-                          <div className="result-message">
-                            <strong>Message:</strong> {result.userMessage}
-                          </div>
-                          {result.aiResponse && (
-                            <div className="result-response">
-                              <strong>Response:</strong> {result.aiResponse}
-                            </div>
-                          )}
+                        <div className="result-match">
+                          <span className="result-content">{result.userMessage}</span>
+                          <span className="result-message">{result.aiResponse}</span>
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
                   <div className="no-results">
-                    <p>No results found in {searchScopes.find(s => s.key === searchScope)?.label.toLowerCase()}.</p>
+                    <div className="no-results-icon"></div>
+                    <p>No results found in {searchScope === 'all' ? 'all sources' : searchScope}.</p>
                     <p className="no-results-hint">Try adjusting your search terms or search in a different scope.</p>
                   </div>
                 )}
