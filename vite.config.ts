@@ -11,8 +11,9 @@ export default defineConfig({
 				secure: true,
 			},
 			'/prompt-api': {
-				target: 'http://localhost:3978',
+				target: 'https://botda0313.azurewebsites.net',
 				changeOrigin: true,
+				secure: true,
 				rewrite: (path) => path.replace(/^\/prompt-api/, '/api')
 			}
 		}
