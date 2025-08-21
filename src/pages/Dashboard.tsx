@@ -677,17 +677,19 @@ export default function Dashboard() {
 						</div>
 
 						<div className="grid-right">
-							<div id="system-status">
+							{/* System Status 주석 처리 */}
+							{/* <div id="system-status">
 								<SystemStatus
 									coreSystems={87}
 									security={75}
 									network={84}
 								/>
-							</div>
+							</div> */}
 
-							<div id="environment-controls">
+							{/* Environment Controls 주석 처리 */}
+							{/* <div id="environment-controls">
 								<EnvironmentControls />
-							</div>
+							</div> */}
 						</div>
 					</div>
 

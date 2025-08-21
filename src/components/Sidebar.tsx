@@ -412,7 +412,8 @@ export default function Sidebar({
           </div>
 
           {/* Quick Stats */}
-          <div className="quick-stats">
+          {/* System Status 관련 Quick Stats 주석 처리 */}
+          {/* <div className="quick-stats">
             <div className="stat-item" onClick={handleConversationsClick}>
               <span className="stat-value">{conversations.toLocaleString()}</span>
               <span className="stat-label">Conversations</span>
@@ -421,7 +422,7 @@ export default function Sidebar({
               <span className="stat-value">{satisfaction}%</span>
               <span className="stat-label">Satisfaction</span>
             </div>
-          </div>
+          </div> */}
 
           {/* Search Section - 범위 선택 UI 추가 */}
           <div className="search-section">
@@ -584,7 +585,8 @@ export default function Sidebar({
                     <span className="menu-text">Daily Message Activity</span>
                   </button>
                 </li>
-                <li className="menu-item">
+                {/* System Status 주석 처리 */}
+                {/* <li className="menu-item">
                   <button 
                     className="menu-button"
                     onClick={() => onScrollToSection('system-status')}
@@ -596,8 +598,9 @@ export default function Sidebar({
                     </svg>
                     <span className="menu-text">System Status</span>
                   </button>
-                </li>
-                <li className="menu-item">
+                </li> */}
+                {/* Environment Controls 주석 처리 */}
+                {/* <li className="menu-item">
                   <button 
                     className="menu-button"
                     onClick={() => onScrollToSection('environment-controls')}
@@ -608,7 +611,7 @@ export default function Sidebar({
                     </svg>
                     <span className="menu-text">Environment Controls</span>
                   </button>
-                </li>
+                </li> */}
               </ul>
             </div>
 
