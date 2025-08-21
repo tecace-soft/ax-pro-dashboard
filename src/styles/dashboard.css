@@ -1484,7 +1484,7 @@
 }
 
 .performance-radar-section {
-  display: grid;
+  display: block;
   grid-template-columns: 1fr 300px;
   gap: 24px;
 }
@@ -2486,7 +2486,7 @@ input:checked + .toggle-slider:before {
 }
 
 .performance-radar-section {
-  display: grid;
+  display: block;
   grid-template-columns: 1fr 300px;
   gap: 24px;
 }
@@ -3857,7 +3857,7 @@ input:checked + .toggle-slider:before {
 }
 
 .performance-radar-section {
-  display: grid;
+  display: block;
   grid-template-columns: 1fr 300px;
   gap: 24px;
 }
@@ -5232,7 +5232,7 @@ input:checked + .toggle-slider:before {
 }
 
 .performance-radar-section {
-  display: grid;
+  display: block;
   grid-template-columns: 1fr 300px;
   gap: 24px;
 }

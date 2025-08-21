@@ -366,14 +366,14 @@ export default function Sidebar({
                   </>
                 ) : (
                   <>
-                    <h3 className="profile-name">{profileData.name}</h3>
-                    <p className="profile-role">{profileData.role}</p>
+                    <h3 className="profile-name">TecAce Ax Pro</h3>
+                    <p className="profile-role">Main AI Assistant for HR Support</p>
                   </>
                 )}
                 
                 <div className="profile-metrics">
                   <div className="profile-metric">
-                    <span className="profile-metric-value">{profileData.performance}%</span>
+                    <span className="profile-metric-value">87%</span>
                     <span className="profile-metric-label">Performance</span>
                   </div>
                   <div className="profile-metric-divider"></div>
