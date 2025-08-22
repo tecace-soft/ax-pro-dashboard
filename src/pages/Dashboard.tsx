@@ -554,25 +554,27 @@ export default function Dashboard() {
 				<main className="dashboard-main">
 					<div className="dashboard-grid">
 						<div className="grid-left">
-							<div id="performance-radar" className="performance-section">
-								<PerformanceRadar
-									relevance={85}
-									tone={78}
-									length={82}
-									accuracy={92}
-									toxicity={95}
-									promptInjection={88}
-								/>
+						<div id="performance-radar" className="performance-section">
+							{/* 통일된 타이틀/서브타이틀 (CSS에서 panel-title / panel-subtitle로 통일 스타일 적용) */}
+
+							<PerformanceRadar
+								relevance={85}
+								tone={78}
+								length={82}
+								accuracy={92}
+								toxicity={95}
+								promptInjection={88}
+							/>
 							</div>
 
 							{/* Daily Message Activity - Performance Radar와 동일한 스타일 */}
 							<div id="daily-message-activity" className="daily-message-section">
-								<div className="daily-message-header">
-									<h2 className="daily-message-title">Daily Message Activity</h2>
-									<div className="daily-message-summary">
-										Total: {dailyMessageStats.total} messages | Avg: {dailyMessageStats.average}/day
-									</div>
-								</div>
+							<div className="daily-message-header">
+								<h2 className="daily-message-title panel-title">Daily Message Activity</h2>
+								<p className="daily-message-summary panel-subtitle">
+									Total: {dailyMessageStats.total} messages | Avg: {dailyMessageStats.average}/day
+								</p>
+							</div>
 								
 								<div className="daily-message-content">
 									<div className="period-filters">
