@@ -67,7 +67,7 @@ const getFromCache = (key: string): DailyMessageResponse | null => {
 }
 
 // 캐시에 데이터 저장
-const saveToCache = (key: string,  DailyMessageResponse) => {
+const saveToCache = (key: string, data: DailyMessageResponse) => {
   try {
     const cacheData = {
       data,
