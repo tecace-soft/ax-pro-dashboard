@@ -17,6 +17,12 @@ import '../styles/prompt.css'
 import '../styles/userFeedback.css'
 import '../styles/tabs.css'
 
+interface ContentProps {
+	startDate?: string;
+	endDate?: string;
+	onChangeRange?: (start: string, end: string) => void;
+  }
+
 function formatDate(d: Date): string {
 	const year = d.getFullYear()
 	const month = String(d.getMonth() + 1).padStart(2, '0')
@@ -62,7 +68,11 @@ function formatDateForAPI(d: Date, isEndDate: boolean = false): string {
 	return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
 }
 
-export default function Content() {
+export default function Content({
+  startDate: extStartDate,
+  endDate: extEndDate,
+  onChangeRange,
+}: ContentProps) {
 	const [authToken, setAuthToken] = useState<string | null>(null)
 	const [sessions, setSessions] = useState<any[]>([])
 	const [isLoadingSessions, setIsLoadingSessions] = useState(false)
@@ -107,7 +117,29 @@ export default function Content() {
 	sevenDaysAgo.setDate(today.getDate() - 7)
 	const [startDate, setStartDate] = useState<string>(formatDate(sevenDaysAgo))
 	const [endDate, setEndDate] = useState<string>(formatDate(today))
+
+	// 날짜 변경 시, 내부 state 업데이트 + 부모에 알리기
+const changeStart = (v: string) => {
+	setStartDate(v)
+	if (onChangeRange) onChangeRange(v, endDate)
+  }
+  
+  const changeEnd = (v: string) => {
+	setEndDate(v)
+	if (onChangeRange) onChangeRange(startDate, v)
+  }
 	
+	// 외부에서 내려오는 기간을 내부 state에 반영
+	useEffect(() => {
+		if (extStartDate && extStartDate !== startDate) setStartDate(extStartDate)
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [extStartDate])
+  
+  useEffect(() => {
+	if (extEndDate && extEndDate !== endDate) setEndDate(extEndDate)
+	// eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [extEndDate])
+
 	// Helper functions to format dates for API calls with proper UTC time
 	const getApiStartDate = (startDateString: string): string => {
 		const startDateObj = new Date(startDateString)
@@ -709,11 +741,21 @@ export default function Content() {
 								<div className="date-controls">
 									<label className="date-field">
 										<span>Start Date</span>
-										<input type="date" className="input date-input" value={startDate} onChange={(e)=>setStartDate(e.target.value)} />
+										<input
+  type="date"
+  className="input date-input"
+  value={startDate}
+  onChange={(e) => changeStart(e.target.value)}
+/>
 									</label>
 									<label className="date-field">
 										<span>End Date</span>
-										<input type="date" className="input date-input" value={endDate} onChange={(e)=>setEndDate(e.target.value)} />
+										<input
+  type="date"
+  className="input date-input"
+  value={endDate}
+  onChange={(e) => changeEnd(e.target.value)}
+/>
 									</label>
 								</div>
 							</div>

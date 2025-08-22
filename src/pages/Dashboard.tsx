@@ -28,6 +28,50 @@ function formatDate(d: Date): string {
 	return `${year}-${month}-${day}`
 }
 
+// 로컬 날짜 키 (YYYY-MM-DD)
+function localDateKey(d: Date): string {
+	const y = d.getFullYear();
+	const m = String(d.getMonth() + 1).padStart(2, '0');
+	const day = String(d.getDate()).padStart(2, '0');
+	return `${y}-${m}-${day}`;
+  }
+  
+  // 하루별 카운트 생성 (선택 기간 inclusive, Content와 동일 기준)
+  function buildDailyMessageData(
+	startDate: string,
+	endDate: string,
+	sessionRequests: Record<string, any[]>
+  ): { data: { date: string; count: number }[]; total: number } {
+	if (!startDate || !endDate) return { data: [], total: 0 };
+  
+	const start = new Date(`${startDate}T00:00:00`);
+	const end = new Date(`${endDate}T23:59:59`);
+  
+	const counts: Record<string, number> = {};
+	let total = 0;
+  
+	Object.values(sessionRequests).forEach((reqs = []) => {
+	  reqs.forEach((r: any) => {
+		if (!r?.createdAt) return;
+		const t = new Date(r.createdAt);
+		if (t < start || t > end) return;       // 선택 기간 inclusive
+		const key = localDateKey(t);            // 로컬 날짜 기준
+		counts[key] = (counts[key] || 0) + 1;
+		total += 1;
+	  });
+	});
+  
+	const out: { date: string; count: number }[] = [];
+	const cur = new Date(start);
+	while (cur <= end) {
+	  const key = localDateKey(cur);
+	  out.push({ date: key, count: counts[key] || 0 });
+	  cur.setDate(cur.getDate() + 1);
+	}
+  
+	return { data: out, total };
+  }
+
 interface MessageCount {
   date: string
   count: number
@@ -181,19 +225,27 @@ useEffect(() => {
 		const startObj = new Date(startDate)
 		startObj.setDate(startObj.getDate() - 14)
 		const startForSessions = formatDate(startObj)
+
+		// 세션/요청 로딩 useEffect 안에서, startForSessions 만든 바로 아래에 추가
+const endObj = new Date(endDate);
+endObj.setDate(endObj.getDate() + 2);
+const endExclusive = formatDate(endObj); // 서버가 end를 exclusive로 처리하는 경우 대비
   
-		const response = await fetchSessions(authToken!, startForSessions, endDate)
+		// 세션은 넉넉히 (-14일 ~ endExclusive)
+const response = await fetchSessions(authToken!, startForSessions, endExclusive);
+		
 		if (cancelled) return
   
 		const sessionsList = response.sessions || []
 		setSessions(sessionsList)
   
-		const requestPromises = sessionsList
-		  .filter(s => s.sessionId)
-		  .map(s =>
-			fetchSessionRequests(authToken!, s.sessionId, startDate, endDate)
-			  .catch(err => console.error(`Failed to fetch requests for ${s.sessionId}:`, err))
-		  )
+		// 각 세션의 요청도 startDate ~ endExclusive 로 조회
+const requestPromises = sessionsList
+.filter(s => s.sessionId)
+.map(s =>
+  fetchSessionRequests(authToken!, s.sessionId, startDate, endExclusive)
+	.catch(err => console.error(`Failed to fetch requests for ${s.sessionId}:`, err))
+);
   
 		const requestResponses = await Promise.all(requestPromises)
 		const sessionRequestsMap: Record<string, any[]> = {}
@@ -487,6 +539,12 @@ useEffect(() => {
 	// 스크롤 버튼 상태 추가
 	const [showScrollTop, setShowScrollTop] = useState(false);
 
+	// 날짜 범위 바꾸는 핸들러 (Dashboard -> Content로 내려줌)
+const handleRangeChange = (start: string, end: string) => {
+	setStartDate(start);
+	setEndDate(end);
+  };
+
 	// [ADD] 초기 날짜 설정: 오늘 포함 최근 7일
 useEffect(() => {
 	const today = new Date()
@@ -514,7 +572,8 @@ useEffect(() => {
 		behavior: 'smooth'
 	  });
 	};
-
+	const { data: dailyData, total: dailyTotal } =
+	buildDailyMessageData(startDate, endDate, sessionRequests);
 	return (
 		<div className="dashboard-layout">
 			<Header performanceScore={87} currentTime={currentTime} onSignOut={signOut} />
@@ -554,12 +613,12 @@ useEffect(() => {
 							</div>
 
 							{/* DailyMessageActivity 컴포넌트에 props 전달 */}
-							<DailyMessageActivity 
-								startDate={startDate}
-								endDate={endDate}
-								sessions={sessions}
-								sessionRequests={sessionRequests}
-							/>
+							<DailyMessageActivity
+  startDate={startDate}
+  endDate={endDate}
+  data={dailyData}           // ✅ Dashboard에서 계산한 값을 그대로 전달
+  totalOverride={dailyTotal} // ✅ 총합도 함께 전달
+/>
 						</div>
 
 						<div className="grid-right">
@@ -581,8 +640,12 @@ useEffect(() => {
 
 					{/* Content.tsx 모듈을 그대로 유지 */}
 					<div className="content-module">
-						<Content />
-					</div>
+  <Content 
+    startDate={startDate} 
+    endDate={endDate} 
+    onChangeRange={handleRangeChange} 
+  />
+</div>
 
 				</main>
 			</div>
