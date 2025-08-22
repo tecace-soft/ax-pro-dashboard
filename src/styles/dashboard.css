@@ -3597,3 +3597,92 @@ input:checked + .toggle-slider::before {
     font-size: clamp(4px, 2vw, 8px) !important;
   }
 }
+
+/* Module Control expand/collapse 애니메이션 수정 */
+.module-control-content {
+  max-height: 0;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  padding: 0;
+  background: rgba(18, 27, 61, 0.6);
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+.module-control-content.expanded {
+  max-height: 500px; /* 충분한 높이 */
+  padding: clamp(16px, 3vw, 24px);
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.module-control-content.collapsed {
+  max-height: 0;
+  padding: 0;
+  opacity: 0;
+  transform: translateY(-10px);
+  pointer-events: none; /* collapsed일 때 클릭 불가 */
+}
+
+/* expand 아이콘 방향 수정 */
+.expand-icon {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: clamp(10px, 2vw, 12px);
+  transition: all 0.3s ease;
+  width: clamp(20px, 4vw, 24px);
+  height: clamp(20px, 4vw, 24px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.expand-icon.expanded {
+  transform: rotate(180deg);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* collapsed 상태일 때 아이콘은 위쪽 화살표 (▲) */
+.expand-icon:not(.expanded) {
+  transform: rotate(0deg);
+}
+
+/* Module Control 헤더 호버 효과 */
+.module-control-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: clamp(12px, 2.5vw, 16px) clamp(16px, 3vw, 24px);
+  cursor: pointer;
+  background: rgba(18, 27, 61, 0.9);
+  transition: all 0.2s ease;
+  border-bottom: 1px solid rgba(59, 230, 255, 0.1);
+  user-select: none; /* 텍스트 선택 방지 */
+}
+
+.module-control-header:hover {
+  background: rgba(18, 27, 61, 1);
+  border-bottom-color: rgba(59, 230, 255, 0.3);
+}
+
+.module-control-header:active {
+  transform: scale(0.98);
+}
+
+/* Module Control 컨테이너 자체의 높이 조정 */
+.module-control-integrated {
+  width: 100%;
+  background: rgba(18, 27, 61, 0.8);
+  border-top: 1px solid rgba(59, 230, 255, 0.2);
+  border-radius: 0 0 12px 12px;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  margin-top: 25px;
+}
+
+/* collapsed 상태일 때 하단 테두리 제거 */
+.module-control-integrated:not(.expanded) {
+  border-bottom-left-radius: 12px;
+  border-bottom-right-radius: 12px;
+}

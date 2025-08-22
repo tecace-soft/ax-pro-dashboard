@@ -29,8 +29,15 @@ export default function PerformanceRadar({
     promptInjection: true
   })
 
-  // Module Control 접기/펼치기 상태 추가
-  const [isModuleControlExpanded, setIsModuleControlExpanded] = useState(false)
+  // Module Control 상태 관리 확인
+  // 기본값을 collapsed로 설정
+  const [isModuleControlExpanded, setIsModuleControlExpanded] = useState(false);
+
+  // 토글 함수 수정
+  const toggleModuleControl = () => {
+    setIsModuleControlExpanded(prev => !prev);
+    console.log('Module Control toggled:', !isModuleControlExpanded); // 디버깅용
+  };
 
   const allDataPoints = [
     { key: 'relevance', label: 'Relevance', value: relevance, description: 'Content Matching', icon: '⚡' },
@@ -237,18 +244,20 @@ export default function PerformanceRadar({
           <div className="module-control-integrated">
             <div 
               className="module-control-header"
-              onClick={() => setIsModuleControlExpanded(!isModuleControlExpanded)}
+              onClick={toggleModuleControl}
+              style={{ cursor: 'pointer' }}
             >
               <div className="header-content">
                 <span className="control-title">Module Control</span>
                 <span className="control-badge">{activeCount} Active</span>
               </div>
               <span className={`expand-icon ${isModuleControlExpanded ? 'expanded' : ''}`}>
-                ▼
+                {isModuleControlExpanded ? '▼' : '▲'}
               </span>
             </div>
             
-            <div className={`module-control-content ${isModuleControlExpanded ? 'expanded' : ''}`}>
+            {/* Module Control 내용 - collapsed일 때 완전히 숨김 */}
+            <div className={`module-control-content ${isModuleControlExpanded ? 'expanded' : 'collapsed'}`}>
               <div className="control-list">
                 {allDataPoints.map((point) => (
                   <div key={point.key} className="control-item">
