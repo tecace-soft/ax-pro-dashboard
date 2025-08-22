@@ -3372,28 +3372,36 @@ input:checked + .toggle-slider::before {
   font-weight: 600 !important;
   color: #ffffff !important;
   letter-spacing: 0.5px !important;
-  text-align: center !important;
   z-index: 10 !important;
   white-space: nowrap !important;
-  width: 120px !important;
   background: rgba(18, 27, 61, 0.95) !important;
-  padding: 8px 12px !important;
-  border-radius: 20px !important;
   border: 1px solid rgba(59, 230, 255, 0.3) !important;
   backdrop-filter: blur(10px) !important;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3) !important;
   
-  /* 위치 관련 속성을 강제로 제거 */
-  top: unset !important;
-  left: unset !important;
+  /* 위치 관련 속성 완전 제거 - JavaScript에서 제어 */
+  top: auto !important;
+  left: auto !important;
   transform: none !important;
   margin: 0 !important;
+  width: 120px !important;
+  text-align: center !important;
+}
+
+/* 특정 레이블의 고정 위치도 완전 제거 */
+.radar-label-relevance,
+.radar-label-tone,
+.radar-label-length,
+.radar-label-accuracy,
+.radar-label-toxicity,
+.radar-label-promptinjection {
+  /* 모든 위치 속성 강제 제거 */
+  top: unset !important;
+  left: unset !important;
   right: unset !important;
   bottom: unset !important;
-  width: auto !important;
-  min-width: 110px !important;
-  max-width: 150px !important;
-  padding: 6px 10px !important;
+  transform: none !important;
+  margin: 0 !important;
 }
 
 /* 레이블 이름 자동 폰트 크기 */
@@ -3685,4 +3693,65 @@ input:checked + .toggle-slider::before {
 .module-control-integrated:not(.expanded) {
   border-bottom-left-radius: 12px;
   border-bottom-right-radius: 12px;
+}
+
+/* Performance Radar - Daily Message와 동일한 스타일로 통일 */
+.performance-radar-section {
+  background: linear-gradient(135deg, rgba(18,27,61,0.40), rgba(13,20,44,0.40)) !important;
+  border: 1px solid rgba(59,230,255,0.10) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.25) !important;
+  
+  /* Daily Message와 동일한 여백/패딩 */
+  width: min(90%, 1800px) !important;
+  margin: clamp(20px, 3vh, 40px) auto !important;
+  padding: clamp(16px, 1.8vw, 24px) !important;
+  
+  /* 기존 outer container 스타일 제거 */
+  background-image: none !important;
+  backdrop-filter: none !important;
+}
+
+/* radar-content-wrapper 스타일 제거 (더 이상 필요 없음) */
+.radar-content-wrapper {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  width: 100% !important;
+}
+
+/* radar-chart-section을 Daily Message content와 동일하게 */
+.radar-chart-section {
+  background: rgba(9,14,34,0.30) !important;
+  border: 1px solid rgba(59,230,255,0.12) !important;
+  border-radius: 10px !important;
+  padding: clamp(16px, 2vw, 24px) !important;
+  margin-bottom: 16px !important;
+}
+
+/* 두 섹션 완벽 통일 */
+.performance-radar-section,
+.daily-message-section {
+  background: linear-gradient(180deg, rgba(18,27,61,0.40), rgba(13,20,44,0.40)) !important;
+  border: 1px solid rgba(59,230,255,0.10) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.25) !important;
+  
+  width: min(90%, 1800px) !important;
+  margin: clamp(20px, 3vh, 40px) auto !important;
+  padding: clamp(16px, 1.8vw, 24px) !important;
+  
+  box-sizing: border-box !important;
+}
+
+/* 내부 컨텐츠 영역도 통일 */
+.radar-chart-section,
+.daily-message-content {
+  background: rgba(9,14,34,0.30) !important;
+  border: 1px solid rgba(59,230,255,0.12) !important;
+  border-radius: 10px !important;
+  padding: clamp(16px, 2vw, 24px) !important;
+  margin-bottom: 16px !important;
 }
