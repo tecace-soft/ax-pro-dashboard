@@ -269,15 +269,21 @@ export default function Content() {
 					onConfirm: () => switchToNegativeFeedback(requestId)
 				})
 			} else if (type === 'negative' && existingFeedback.feedback_verdict === 'bad') {
-				// Red thumbs down clicked again - show form with existing data for editing/deleting
-				setExpandedFeedbackForms(prev => new Set(prev).add(requestId))
-				setFeedbackFormData(prev => ({
-					...prev,
-					[requestId]: { 
-						text: existingFeedback.feedback_text || '', 
-						preferredResponse: existingFeedback.corrected_response || '' 
-					}
-				}))
+				// Red thumbs down clicked again - toggle form visibility
+				if (expandedFeedbackForms.has(requestId)) {
+					// If form is already open, close it
+					closeFeedbackForm(requestId)
+				} else {
+					// If form is closed, open it with existing data for editing/deleting
+					setExpandedFeedbackForms(prev => new Set(prev).add(requestId))
+					setFeedbackFormData(prev => ({
+						...prev,
+						[requestId]: { 
+							text: existingFeedback.feedback_text || '', 
+							preferredResponse: existingFeedback.corrected_response || '' 
+						}
+					}))
+				}
 			}
 		} else if (type === 'positive') {
 			// Auto-submit positive feedback with empty text
@@ -804,7 +810,14 @@ export default function Content() {
 																				</div>
 																			</div>
 																			
-																			{/* Inline feedback form for negative feedback - positioned after header */}
+																			{detail && (
+																				<>
+																					<div className="conversation-text user">{detail.inputText}</div>
+																					<div className="conversation-text assistant">{detail.outputText}</div>
+																				</>
+																			)}
+																			
+																			{/* Inline feedback form for negative feedback - positioned BELOW chat messages */}
 																			{expandedFeedbackForms.has(requestId) && (
 																				<div className={`inline-feedback-form ${closingFeedbackForms.has(requestId) ? 'closing' : ''}`}>
 																					<div className="feedback-form-fields">
@@ -822,7 +835,7 @@ export default function Content() {
 																									}
 																								}))}
 																								placeholder="Explain what was wrong with this response..."
-																								rows={3}
+																								rows={2}
 																							/>
 																						</div>
 																						<div className="feedback-field">
@@ -839,7 +852,7 @@ export default function Content() {
 																									}
 																								}))}
 																								placeholder="Enter the corrected response..."
-																								rows={4}
+																								rows={2}
 																							/>
 																						</div>
 																					</div>
@@ -872,20 +885,9 @@ export default function Content() {
 																							disabled={!feedbackFormData[requestId]?.text?.trim() || submittingFeedbackRequests.has(requestId)}
 																						>
 																							{submittingFeedbackRequests.has(requestId) ? 'Submitting...' : 'Submit'}
-																						</button>
+																							</button>
 																					</div>
 																				</div>
-																			)}
-																			
-																			{detail && (
-																				<>
-																					<div className="conversation-item user">
-																						<div className="conversation-text">{detail.inputText}</div>
-																					</div>
-																					<div className="conversation-item assistant">
-																						<div className="conversation-text">{detail.outputText}</div>
-																					</div>
-																				</>
 																			)}
 																		</div>
 																	)

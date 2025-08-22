@@ -54,14 +54,14 @@
 }
 
 .session-left{ flex:1; }
-.session-datetime{ display:flex; align-items:center; gap:8px; margin-bottom:2px; }
-.session-date{ color: var(--text); font-size:13px; font-weight:500; }
-.session-time{ color: var(--text-muted); font-size:12px; }
-.session-messages{ font-size:12px; color: var(--text-muted); }
+.session-datetime{ display:flex; align-items:center; gap:6px; margin-bottom:1px; }
+.session-date{ color: var(--text); font-size:12px; font-weight:500; }
+.session-time{ color: var(--text-muted); font-size:11px; }
+.session-messages{ font-size:11px; color: var(--text-muted); }
 
-.session-right{ display:flex; flex-direction:column; align-items:flex-end; gap:2px; }
-.session-label{ font-size:10px; color: var(--text-muted); font-weight:500; text-transform:uppercase; letter-spacing:0.5px; }
-.session-id{ font-weight:600; font-size:12px; color: var(--text-muted); font-family: 'Courier New', monospace; background: rgba(59,230,255,0.1); padding: 4px 8px; border-radius: 4px; }
+.session-right{ display:flex; flex-direction:column; align-items:flex-end; gap:1px; }
+.session-label{ font-size:9px; color: var(--text-muted); font-weight:500; text-transform:uppercase; letter-spacing:0.5px; }
+.session-id{ font-weight:600; font-size:11px; color: var(--text-muted); font-family: 'Courier New', monospace; background: rgba(59,230,255,0.1); padding: 3px 6px; border-radius: 3px; }
 
 .requests-container{ margin-top:8px; padding-left:16px; border-left: 2px solid rgba(59,230,255,0.1); }
 .request-item{ padding:12px; margin-bottom:12px; background: rgba(9,14,34,0.3); border:1px solid rgba(59,230,255,0.05); border-radius:6px; }
@@ -6838,4 +6838,204 @@ input:checked + .toggle-slider:before {
   font-size: 12px;
   color: rgba(255, 255, 255, 0.5);
   margin-top: 8px;
+}
+
+/* Compact Recent Conversations Styles */
+.sessions-list {
+  gap: 6px !important;
+}
+
+.session-row {
+  padding: 8px 12px !important;
+  min-height: 44px !important;
+}
+
+/* Remove pointless nested container margins and padding */
+.session-container {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.requests-container {
+  margin: 0 !important;
+  padding: 0 !important;
+  padding-left: 0 !important;
+  margin-left: 0 !important;
+  border-left: none !important;
+}
+
+.request-item {
+  margin: 0 !important;
+  margin-left: 0 !important;
+  padding: 8px !important;
+  padding-left: 0 !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+/* Align feedback form with existing request section margins */
+.inline-feedback-form {
+  margin-left: inherit !important;
+  padding-left: inherit !important;
+}
+
+/* Condense the supervisor feedback section */
+.inline-feedback-form {
+  margin-top: 12px !important;
+  padding: 12px !important;
+  background: rgba(59, 230, 255, 0.05) !important;
+  border: 1px solid rgba(59, 230, 255, 0.2) !important;
+  border-radius: 6px !important;
+}
+
+.feedback-form-fields {
+  gap: 12px !important;
+}
+
+.feedback-field {
+  margin-bottom: 12px !important;
+}
+
+.feedback-field label {
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  margin-bottom: 6px !important;
+  display: block !important;
+}
+
+.feedback-input {
+  padding: 8px 10px !important;
+  font-size: 12px !important;
+  min-height: auto !important;
+  resize: vertical !important;
+  border: 1px solid rgba(59, 230, 255, 0.3) !important;
+  border-radius: 4px !important;
+  background: rgba(59, 230, 255, 0.05) !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.feedback-form-actions {
+  gap: 8px !important;
+  margin-top: 12px !important;
+  padding-top: 12px !important;
+  border-top: none !important;
+}
+
+.feedback-form-actions button {
+  padding: 6px 12px !important;
+  font-size: 11px !important;
+  height: auto !important;
+}
+
+.session-datetime {
+  gap: 6px !important;
+  margin-bottom: 1px !important;
+}
+
+.session-date {
+  font-size: 12px !important;
+}
+
+.session-time {
+  font-size: 11px !important;
+}
+
+.session-messages {
+  font-size: 11px !important;
+}
+
+.session-right {
+  gap: 1px !important;
+}
+
+.session-label {
+  font-size: 9px !important;
+}
+
+.session-id {
+  font-size: 11px !important;
+  padding: 3px 6px !important;
+  border-radius: 3px !important;
+}
+
+.requests-container {
+  margin-top: 6px !important;
+  padding-left: 12px !important;
+}
+
+.request-item {
+  padding: 8px !important;
+  margin-bottom: 8px !important;
+}
+
+.request-header {
+  margin-bottom: 8px !important;
+  padding-bottom: 6px !important;
+}
+
+.request-datetime {
+  gap: 1px !important;
+}
+
+.request-date {
+  font-size: 12px !important;
+}
+
+.request-time {
+  font-size: 11px !important;
+}
+
+.request-actions {
+  gap: 6px !important;
+}
+
+.thumbs-btn {
+  width: 24px !important;
+  height: 24px !important;
+  padding: 1px !important;
+  border-radius: 3px !important;
+}
+
+.conversation-item {
+  margin-bottom: 6px !important;
+}
+
+.conversation-text {
+  padding: 8px 10px !important;
+  border-radius: 6px !important;
+  line-height: 1.3 !important;
+  font-size: 12px !important;
+}
+
+/* Updated conversation styles for new HTML structure */
+.conversation-text.user{ 
+  background: rgba(59,230,255,0.1) !important; 
+  border:1px solid rgba(59,230,255,0.2) !important;
+  color: var(--text) !important;
+}
+
+.conversation-text.assistant{ 
+  background: rgba(124,140,255,0.2) !important; 
+  border:1px solid rgba(124,140,255,0.3) !important;
+  color: var(--text) !important;
+}
+
+/* Fix thumbs button colors for saved feedback states */
+.thumbs-up.submitted {
+  color: #22c55e !important;
+}
+
+.thumbs-down.submitted {
+  color: #ef4444 !important;
+}
+
+.thumbs-up.submitted:hover {
+  color: #22c55e !important;
+  transform: scale(1.1) !important;
+}
+
+.thumbs-down.submitted:hover {
+  color: #ef4444 !important;
+  transform: scale(1.1) !important;
 }
