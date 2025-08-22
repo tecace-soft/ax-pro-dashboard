@@ -3372,28 +3372,36 @@ input:checked + .toggle-slider::before {
   font-weight: 600 !important;
   color: #ffffff !important;
   letter-spacing: 0.5px !important;
-  text-align: center !important;
   z-index: 10 !important;
   white-space: nowrap !important;
-  width: 120px !important;
   background: rgba(18, 27, 61, 0.95) !important;
-  padding: 8px 12px !important;
-  border-radius: 20px !important;
   border: 1px solid rgba(59, 230, 255, 0.3) !important;
   backdrop-filter: blur(10px) !important;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3) !important;
   
-  /* 위치 관련 속성을 강제로 제거 */
-  top: unset !important;
-  left: unset !important;
+  /* 위치 관련 속성 완전 제거 - JavaScript에서 제어 */
+  top: auto !important;
+  left: auto !important;
   transform: none !important;
   margin: 0 !important;
+  width: 120px !important;
+  text-align: center !important;
+}
+
+/* 특정 레이블의 고정 위치도 완전 제거 */
+.radar-label-relevance,
+.radar-label-tone,
+.radar-label-length,
+.radar-label-accuracy,
+.radar-label-toxicity,
+.radar-label-promptinjection {
+  /* 모든 위치 속성 강제 제거 */
+  top: unset !important;
+  left: unset !important;
   right: unset !important;
   bottom: unset !important;
-  width: auto !important;
-  min-width: 110px !important;
-  max-width: 150px !important;
-  padding: 6px 10px !important;
+  transform: none !important;
+  margin: 0 !important;
 }
 
 /* 레이블 이름 자동 폰트 크기 */
@@ -3596,4 +3604,190 @@ input:checked + .toggle-slider::before {
   .radar-label-promptinjection .label-name {
     font-size: clamp(4px, 2vw, 8px) !important;
   }
+}
+
+/* Module Control expand/collapse 애니메이션 수정 */
+.module-control-content {
+  max-height: 0;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  padding: 0;
+  background: rgba(18, 27, 61, 0.6);
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+.module-control-content.expanded {
+  max-height: 500px; /* 충분한 높이 */
+  padding: clamp(16px, 3vw, 24px);
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.module-control-content.collapsed {
+  max-height: 0;
+  padding: 0;
+  opacity: 0;
+  transform: translateY(-10px);
+  pointer-events: none; /* collapsed일 때 클릭 불가 */
+}
+
+/* expand 아이콘 방향 수정 */
+.expand-icon {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: clamp(10px, 2vw, 12px);
+  transition: all 0.3s ease;
+  width: clamp(20px, 4vw, 24px);
+  height: clamp(20px, 4vw, 24px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.expand-icon.expanded {
+  transform: rotate(180deg);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* collapsed 상태일 때 아이콘은 위쪽 화살표 (▲) */
+.expand-icon:not(.expanded) {
+  transform: rotate(0deg);
+}
+
+/* Module Control 헤더 호버 효과 */
+.module-control-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: clamp(12px, 2.5vw, 16px) clamp(16px, 3vw, 24px);
+  cursor: pointer;
+  background: rgba(18, 27, 61, 0.9);
+  transition: all 0.2s ease;
+  border-bottom: 1px solid rgba(59, 230, 255, 0.1);
+  user-select: none; /* 텍스트 선택 방지 */
+}
+
+.module-control-header:hover {
+  background: rgba(18, 27, 61, 1);
+  border-bottom-color: rgba(59, 230, 255, 0.3);
+}
+
+.module-control-header:active {
+  transform: scale(0.98);
+}
+
+/* Module Control 컨테이너 자체의 높이 조정 */
+.module-control-integrated {
+  width: 100%;
+  background: rgba(18, 27, 61, 0.8);
+  border-top: 1px solid rgba(59, 230, 255, 0.2);
+  border-radius: 0 0 12px 12px;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  margin-top: 25px;
+}
+
+/* collapsed 상태일 때 하단 테두리 제거 */
+.module-control-integrated:not(.expanded) {
+  border-bottom-left-radius: 12px;
+  border-bottom-right-radius: 12px;
+}
+
+/* Performance Radar - Daily Message와 동일한 스타일로 통일 */
+.performance-radar-section {
+  background: linear-gradient(135deg, rgba(18,27,61,0.40), rgba(13,20,44,0.40)) !important;
+  border: 1px solid rgba(59,230,255,0.10) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.25) !important;
+  
+  /* Daily Message와 동일한 여백/패딩 */
+  width: min(90%, 1800px) !important;
+  margin: clamp(20px, 3vh, 40px) auto !important;
+  padding: clamp(16px, 1.8vw, 24px) !important;
+  
+  /* 기존 outer container 스타일 제거 */
+  background-image: none !important;
+  backdrop-filter: none !important;
+}
+
+/* radar-content-wrapper 스타일 제거 (더 이상 필요 없음) */
+.radar-content-wrapper {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  width: 100% !important;
+}
+
+/* radar-chart-section을 Daily Message content와 동일하게 */
+.radar-chart-section {
+  background: rgba(9,14,34,0.30) !important;
+  border: 1px solid rgba(59,230,255,0.12) !important;
+  border-radius: 10px !important;
+  padding: clamp(16px, 2vw, 24px) !important;
+  margin-bottom: 16px !important;
+}
+
+/* 두 섹션 완벽 통일 */
+.performance-radar-section,
+.daily-message-section {
+  background: linear-gradient(180deg, rgba(18,27,61,0.40), rgba(13,20,44,0.40)) !important;
+  border: 1px solid rgba(59,230,255,0.10) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.25) !important;
+  
+  width: min(90%, 1800px) !important;
+  margin: clamp(20px, 3vh, 40px) auto !important;
+  padding: clamp(16px, 1.8vw, 24px) !important;
+  
+  box-sizing: border-box !important;
+}
+
+/* 내부 컨텐츠 영역도 통일 */
+.radar-chart-section,
+.daily-message-content {
+  background: rgba(9,14,34,0.30) !important;
+  border: 1px solid rgba(59,230,255,0.12) !important;
+  border-radius: 10px !important;
+  padding: clamp(16px, 2vw, 24px) !important;
+  margin-bottom: 16px !important;
+}
+
+/* 사이드바 클릭 가능한 메뉴 아이템 */
+.section-item.clickable {
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 8px 12px;
+  border-radius: 6px;
+  margin: 2px 0;
+  user-select: none;
+}
+
+.section-item.clickable:hover {
+  background: rgba(59, 230, 255, 0.1);
+  transform: translateX(4px);
+}
+
+.section-item.clickable:active {
+  transform: translateX(2px);
+  background: rgba(59, 230, 255, 0.15);
+}
+
+/* 클릭 불가능한 메뉴 아이템 */
+.section-item:not(.clickable) {
+  cursor: default;
+}
+
+/* MANAGEMENT 섹션 제목 스타일 */
+.sidebar-section .section-title {
+  color: #8b9bb4;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 12px;
+  padding: 0 12px;
 }
