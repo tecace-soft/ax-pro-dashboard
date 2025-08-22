@@ -3755,3 +3755,39 @@ input:checked + .toggle-slider::before {
   padding: clamp(16px, 2vw, 24px) !important;
   margin-bottom: 16px !important;
 }
+
+/* 사이드바 클릭 가능한 메뉴 아이템 */
+.section-item.clickable {
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 8px 12px;
+  border-radius: 6px;
+  margin: 2px 0;
+  user-select: none;
+}
+
+.section-item.clickable:hover {
+  background: rgba(59, 230, 255, 0.1);
+  transform: translateX(4px);
+}
+
+.section-item.clickable:active {
+  transform: translateX(2px);
+  background: rgba(59, 230, 255, 0.15);
+}
+
+/* 클릭 불가능한 메뉴 아이템 */
+.section-item:not(.clickable) {
+  cursor: default;
+}
+
+/* MANAGEMENT 섹션 제목 스타일 */
+.sidebar-section .section-title {
+  color: #8b9bb4;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 12px;
+  padding: 0 12px;
+}
