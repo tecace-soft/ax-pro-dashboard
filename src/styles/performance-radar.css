@@ -381,14 +381,13 @@
   font-weight: 400;
 }
 
-/* Toggle Switch - Circle이 보이도록 수정 */
+/* Toggle Switch - Circle이 확실히 보이도록 완전 새로 작성 */
 .toggle-switch {
   position: relative;
   display: inline-block;
-  width: 51px;
-  height: 31px;
+  width: 44px;
+  height: 24px;
   cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
 }
 
 .toggle-switch input {
@@ -404,56 +403,50 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(120, 120, 128, 0.16);
-  border-radius: 31px;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  border: none;
-  box-shadow: inset 0 1px 0 rgba(0, 0, 0, 0.1);
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 24px;
+  transition: 0.3s ease;
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-/* Circle을 명확하게 표시 */
+/* Circle을 확실하게 표시 */
 .toggle-slider:before {
   content: "";
   position: absolute;
-  height: 27px;
-  width: 27px;
-  left: 2px;
+  height: 18px;
+  width: 18px;
+  left: 3px;
   bottom: 2px;
   background: #ffffff;
   border-radius: 50%;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 
-    0 2px 4px rgba(0, 0, 0, 0.2),
-    0 1px 2px rgba(0, 0, 0, 0.1);
-  border: 1px solid rgba(0, 0, 0, 0.05);
-  z-index: 2;
+  transition: 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  z-index: 10;
 }
 
-/* OFF 상태 (비활성화) */
+/* OFF 상태 - Circle이 왼쪽 */
 input:not(:checked) + .toggle-slider {
-  background: rgba(120, 120, 128, 0.16);
+  background: rgba(255, 255, 255, 0.2);
 }
 
 input:not(:checked) + .toggle-slider:before {
   transform: translateX(0);
-  background: #ffffff;
+  left: 3px;
 }
 
-/* ON 상태 (활성화) */
+/* ON 상태 - Circle이 오른쪽 */
 input:checked + .toggle-slider {
-  background: #34c759;
+  background: #3be6ff;
 }
 
 input:checked + .toggle-slider:before {
   transform: translateX(20px);
-  background: #ffffff;
+  left: 3px;
 }
 
 /* 호버 효과 */
 .toggle-switch:hover .toggle-slider:before {
-  box-shadow: 
-    0 3px 6px rgba(0, 0, 0, 0.25),
-    0 1px 3px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.4);
 }
 
 /* 액티브 상태 */
@@ -464,37 +457,19 @@ input:checked + .toggle-slider:before {
 /* 반응형 */
 @media (max-width: 768px) {
   .toggle-switch {
-    width: 47px;
-    height: 29px;
+    width: 40px;
+    height: 22px;
   }
   
   .toggle-slider:before {
-    height: 25px;
-    width: 25px;
-    left: 2px;
+    height: 16px;
+    width: 16px;
+    left: 3px;
     bottom: 2px;
   }
   
   input:checked + .toggle-slider:before {
     transform: translateX(18px);
-  }
-}
-
-@media (max-width: 480px) {
-  .toggle-switch {
-    width: 44px;
-    height: 27px;
-  }
-  
-  .toggle-slider:before {
-    height: 23px;
-    width: 23px;
-    left: 2px;
-    bottom: 2px;
-  }
-  
-  input:checked + .toggle-slider:before {
-    transform: translateX(17px);
   }
 }
 
@@ -771,8 +746,8 @@ input:checked + .toggle-slider:before {
   background: rgba(18, 27, 61, 0.9);
   border: 2px solid rgba(59, 230, 255, 0.4);
   border-radius: 50%;
-  width: clamp(70px, 15vw, 80px);
-  height: clamp(70px, 15vw, 80px);
+  width: 80px;
+  height: 80px;
   backdrop-filter: blur(10px);
   box-shadow: 
     0 0 30px rgba(59, 230, 255, 0.3),
@@ -1199,4 +1174,137 @@ input:checked + .toggle-slider:before {
 
 .dashboard-grid .grid-left > div {
   width: 100%;
+}
+
+/* Search Options - 체크박스 문제 해결 */
+.search-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.search-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  padding: 8px 12px;
+  height: 40px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.search-option:hover {
+  background: rgba(59, 230, 255, 0.05);
+}
+
+/* Custom Checkbox - 이상한 문자 제거 */
+.search-option input[type="checkbox"] {
+  display: none;
+}
+
+.checkbox-custom {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(59, 230, 255, 0.4);
+  border-radius: 4px;
+  background: rgba(18, 27, 61, 0.8);
+  position: relative;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+/* 체크 표시를 정확한 ✓ 문자로 */
+.search-option input[type="checkbox"]:checked + .checkbox-custom::after {
+  content: "✓";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #3be6ff;
+  font-size: 14px;
+  font-weight: bold;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.search-option input[type="checkbox"]:checked + .checkbox-custom {
+  background: rgba(59, 230, 255, 0.1);
+  border-color: #3be6ff;
+  box-shadow: 0 0 15px rgba(59, 230, 255, 0.3);
+}
+
+/* Option Icon - 이모지 정리 */
+.option-icon {
+  font-size: 16px;
+  width: 20px;
+  text-align: center;
+  flex-shrink: 0;
+  filter: drop-shadow(0 0 8px rgba(59, 230, 255, 0.3));
+}
+
+/* Option Text */
+.option-text {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  flex: 1;
+}
+
+/* 선택된 옵션 하이라이트 */
+.search-option input[type="checkbox"]:checked ~ .option-text {
+  color: #3be6ff;
+  font-weight: 600;
+}
+
+.search-option input[type="checkbox"]:checked ~ .option-icon {
+  filter: drop-shadow(0 0 12px rgba(59, 230, 255, 0.5));
+}
+
+/* 레이블 스타일 - radial line 정렬 개선 */
+.radar-label-clean {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translateY(-50%);
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+  letter-spacing: 0.5px;
+  text-align: center;
+  z-index: 1;
+  white-space: nowrap;
+  width: 120px;
+  background: rgba(18, 27, 61, 0.95);
+  padding: 8px 12px;
+  border-radius: 20px;
+  border: 1px solid rgba(59, 230, 255, 0.3);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+/* 각도별 레이블 위치 미세 조정 */
+.radar-label-relevance {
+  text-align: center !important;
+}
+
+.radar-label-tone {
+  text-align: left !important;
+}
+
+.radar-label-length {
+  text-align: left !important;
+}
+
+.radar-label-accuracy {
+  text-align: center !important;
+}
+
+.radar-label-toxicity {
+  text-align: right !important;
+}
+
+.radar-label-promptInjection {
+  text-align: right !important;
 }
