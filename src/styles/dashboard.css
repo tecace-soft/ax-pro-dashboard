@@ -3367,25 +3367,77 @@ input:checked + .toggle-slider::before {
 
 /* 레이블 반응형 개선 */
 .radar-label-clean {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translateY(-50%);
-  font-size: min(14px, 3vw);
-  font-weight: 600;
-  color: #ffffff;
-  letter-spacing: 0.5px;
-  text-align: center;
-  z-index: 1;
-  white-space: nowrap;
-  width: min(120px, 25vw);
-  background: rgba(18, 27, 61, 0.95);
-  padding: min(8px, 2vw) min(12px, 3vw);
-  border-radius: 20px;
-  border: 1px solid rgba(59, 230, 255, 0.3);
-  backdrop-filter: blur(10px);
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+  position: absolute !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  color: #ffffff !important;
+  letter-spacing: 0.5px !important;
+  text-align: center !important;
+  z-index: 10 !important;
+  white-space: nowrap !important;
+  width: 120px !important;
+  background: rgba(18, 27, 61, 0.95) !important;
+  padding: 8px 12px !important;
+  border-radius: 20px !important;
+  border: 1px solid rgba(59, 230, 255, 0.3) !important;
+  backdrop-filter: blur(10px) !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3) !important;
+  
+  /* 위치 관련 속성을 강제로 제거 */
+  top: unset !important;
+  left: unset !important;
+  transform: none !important;
+  margin: 0 !important;
+  right: unset !important;
+  bottom: unset !important;
+  width: auto !important;
+  min-width: 110px !important;
+  max-width: 150px !important;
+  padding: 6px 10px !important;
 }
+
+/* 레이블 이름 자동 폰트 크기 */
+.radar-label-clean .label-name {
+  font-size: clamp(9px, 1.8vw, 13px) !important;
+  line-height: 1.1 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  max-width: 100% !important;
+}
+
+/* 레이블 점수 자동 폰트 크기 */
+.radar-label-clean .label-score {
+  font-size: clamp(11px, 2.2vw, 15px) !important;
+  line-height: 1 !important;
+}
+
+/* 각도별 레이블 정렬 - 미세 조정 */
+.radar-label-relevance {
+  text-align: center !important;
+}
+
+.radar-label-tone {
+  text-align: left !important;
+}
+
+.radar-label-length {
+  text-align: left !important;
+}
+
+.radar-label-accuracy {
+  text-align: center !important;
+}
+
+.radar-label-toxicity {
+  text-align: right !important;
+}
+
+.radar-label-promptInjection {
+  text-align: right !important;
+}
+
+/* ... existing styles ... */
 
 /* 반응형 브레이크포인트 */
 @media (max-width: 1200px) {
@@ -3431,5 +3483,117 @@ input:checked + .toggle-slider::before {
   .radar-label-clean {
     font-size: min(10px, 4vw);
     width: min(80px, 30vw);
+  }
+}
+
+/* 각 레이블을 CSS로 직접 위치 지정 */
+.radar-label-relevance {
+  top: 5% !important;           /* Accuracy와 동일한 거리 */
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  text-align: center !important;
+}
+
+.radar-label-tone {
+  top: 20% !important;          /* Accuracy와 동일한 거리 (5%) */
+  right: 5% !important;         /* 오른쪽에서 5%만큼만 */
+  transform: translateX(0) !important;
+  text-align: left !important;
+}
+
+.radar-label-length {
+  bottom: 20% !important;       /* Accuracy와 동일한 거리 (5%) */
+  right: 5% !important;         /* 오른쪽에서 5%만큼만 */
+  transform: translateX(0) !important;
+  text-align: left !important;
+}
+
+.radar-label-accuracy {
+  bottom: 5% !important;        /* 기준 거리 유지 */
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  text-align: center !important;
+}
+
+.radar-label-toxicity {
+  bottom: 20% !important;       /* Accuracy와 동일한 거리 (5%) */
+  left: 5% !important;          /* 왼쪽에서 5%만큼만 */
+  transform: translateX(0) !important;
+  text-align: right !important;
+}
+
+.radar-label-promptinjection {
+  top: 20% !important;          /* Accuracy와 동일한 거리 (5%) */
+  left: 5% !important;          /* 왼쪽에서 5%만큼만 */
+  transform: translateX(0) !important;
+  text-align: right !important;
+}
+
+/* PROMPT INJECTION 내부 텍스트 자동 폰트 크기 */
+.radar-label-promptinjection .label-name {
+  font-size: clamp(8px, 1.5vw, 12px) !important;  /* 자동 폰트 크기 */
+  line-height: 1.1 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  max-width: 100% !important;
+}
+
+.radar-label-promptinjection .label-score {
+  font-size: clamp(10px, 2vw, 14px) !important;   /* 점수는 조금 더 크게 */
+  line-height: 1 !important;
+}
+
+/* 화면 크기에 따른 거리 자동 조정 */
+@media (max-width: 768px) {
+  .radar-label-tone, .radar-label-length { right: 0.5% !important; }
+  .radar-label-toxicity, .radar-label-promptinjection { left: 0.5% !important; }
+}
+
+@media (min-width: 1400px) {
+  .radar-label-tone, .radar-label-length { right: 6% !important; }
+  .radar-label-toxicity, .radar-label-promptinjection { left: 6% !important; }
+  .radar-label-relevance { top: 6% !important; }
+  .radar-label-accuracy { bottom: 6% !important; }
+}
+
+@media (min-width: 1920px) {
+  .radar-label-tone, .radar-label-length { right: 7% !important; }
+  .radar-label-toxicity, .radar-label-promptinjection { left: 7% !important; }
+  .radar-label-relevance { top: 7% !important; }
+  .radar-label-accuracy { bottom: 7% !important; }
+}
+
+/* CSS 변수로 거리 통일 관리 */
+:root {
+  --label-distance: 5%;         /* 기본 거리 (Accuracy 기준) */
+  --label-distance-mobile: 3%;  /* 모바일 거리 */
+  --label-distance-large: 6%;   /* 대형 화면 거리 */
+}
+
+/* 모든 레이블에 변수 적용 */
+.radar-label-relevance { top: var(--label-distance) !important; }
+.radar-label-accuracy { bottom: var(--label-distance) !important; }
+.radar-label-tone, .radar-label-length { right: var(--label-distance) !important; }
+.radar-label-toxicity, .radar-label-promptinjection { left: var(--label-distance) !important; }
+
+/* 화면 크기별 폰트 크기 조정 */
+@media (max-width: 768px) {
+  .radar-label-clean .label-name {
+    font-size: clamp(6px, 1.8vw, 10px) !important;
+  }
+  
+  .radar-label-promptinjection .label-name {
+    font-size: clamp(5px, 1.6vw, 9px) !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .radar-label-clean .label-name {
+    font-size: clamp(5px, 2.2vw, 9px) !important;
+  }
+  
+  .radar-label-promptinjection .label-name {
+    font-size: clamp(4px, 2vw, 8px) !important;
   }
 }

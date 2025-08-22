@@ -82,41 +82,33 @@ export default function PerformanceRadar({
     return `M ${points.join(' L ')} Z`
   }
 
-  // 레이블 위치 계산 - radial line에 정확히 맞춤
+  // 레이블 위치 계산 함수 수정
   const getLabelCoordinates = (index: number, total: number) => {
     const angle = (index * 360) / total - 90
-    const labelRadius = maxRadius + 50 // 레이블 거리 조정
+    const labelRadius = maxRadius + 60 // 레이블 거리 증가
     
-    // 각도별 정확한 위치 계산
+    // 레이더 센터를 기준으로 정확한 위치 계산
     const x = Math.cos(angle * Math.PI / 180) * labelRadius
-    const y = Math.sin(angle * Math.PI / 180) * labelRadius + centerY - center
+    const y = Math.sin(angle * Math.PI / 180) * labelRadius
     
     // 각도별 텍스트 정렬 방향 결정
     let textAlign = 'center'
-    let offsetX = 0
-    let offsetY = 0
     
     if (index === 0) { // Relevance (상단)
       textAlign = 'center'
-      offsetY = -10
     } else if (index === 1) { // Tone (우상단)
       textAlign = 'left'
-      offsetX = 10
     } else if (index === 2) { // Length (우하단)
       textAlign = 'left'
-      offsetX = 10
     } else if (index === 3) { // Accuracy (하단)
       textAlign = 'center'
-      offsetY = 10
     } else if (index === 4) { // Toxicity (좌하단)
       textAlign = 'right'
-      offsetX = -10
     } else if (index === 5) { // Prompt Injection (좌상단)
       textAlign = 'right'
-      offsetX = -10
     }
     
-    return { x: x + offsetX, y: y + offsetY, angle, textAlign }
+    return { x, y, angle, textAlign }
   }
 
   return (
@@ -219,7 +211,7 @@ export default function PerformanceRadar({
               </div>
             </div>
             
-            {/* 레이블들 - radial line에 정확히 맞춤 */}
+            {/* 레이블들 - 수정된 배치 */}
             {activeDataPoints.map((point, index) => {
               if (!point || !point.label) {
                 return null;
@@ -230,12 +222,7 @@ export default function PerformanceRadar({
                 <div
                   key={index}
                   className={`radar-label-clean radar-label-${point.key.toLowerCase()}`}
-                  style={{
-                    left: `${coords.x + center}px`,
-                    top: `${coords.y + center}px`,
-                    transform: 'translate(-50%, -50%)',
-                    textAlign: coords.textAlign as any
-                  }}
+                  // style 속성 완전 제거
                 >
                   <div className="label-content">
                     <span className="label-name">{point.label}</span>

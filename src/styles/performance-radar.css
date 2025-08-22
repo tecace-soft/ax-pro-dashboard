@@ -173,9 +173,6 @@
 /* 레이블 스타일 - 반응형 */
 .radar-label-clean {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translateY(-50%);
   font-size: clamp(11px, 2.5vw, 14px);
   font-weight: 600;
   color: #ffffff;
@@ -568,9 +565,6 @@ input:checked + .toggle-slider:before {
 /* 레이블 스타일 - 겹침 방지 및 자동 폰트 크기 조정 */
 .radar-label-clean {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translateY(-50%);
   font-size: clamp(10px, 2vw, 13px);
   font-weight: 600;
   color: #ffffff;
@@ -1265,9 +1259,6 @@ input:checked + .toggle-slider:before {
 /* 레이블 스타일 - radial line 정렬 개선 */
 .radar-label-clean {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translateY(-50%);
   font-size: 14px;
   font-weight: 600;
   color: #ffffff;
@@ -1284,7 +1275,7 @@ input:checked + .toggle-slider:before {
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
 }
 
-/* 각도별 레이블 위치 미세 조정 */
+/* 각도별 레이블 정렬 - 미세 조정 */
 .radar-label-relevance {
   text-align: center !important;
 }
