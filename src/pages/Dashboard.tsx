@@ -529,6 +529,28 @@ export default function Dashboard() {
 		}
 	}
 
+	// 스크롤 버튼 상태 추가
+	const [showScrollTop, setShowScrollTop] = useState(false);
+
+	// 스크롤 이벤트 리스너 추가
+	useEffect(() => {
+	  const handleScroll = () => {
+		const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+		setShowScrollTop(scrollTop > 300); // 300px 이상 스크롤 시 버튼 표시
+	  };
+
+	  window.addEventListener('scroll', handleScroll);
+	  return () => window.removeEventListener('scroll', handleScroll);
+	}, []);
+
+	// 맨 위로 스크롤 함수
+	const scrollToTop = () => {
+	  window.scrollTo({
+		top: 0,
+		behavior: 'smooth'
+	  });
+	};
+
 	return (
 		<div className="dashboard-layout">
 			<Header performanceScore={87} currentTime={currentTime} onSignOut={signOut} />
@@ -750,6 +772,26 @@ export default function Dashboard() {
 						<div className="muted">Settings content will go here.</div>
 					</div>
 				</div>
+			)}
+
+			{/* 스크롤 버튼 */}
+			{showScrollTop && (
+			  <button 
+				className="scroll-to-top-btn"
+				onClick={scrollToTop}
+				aria-label="Scroll to top"
+				title="Scroll to top"
+			  >
+				<svg 
+				  className="scroll-icon" 
+				  viewBox="0 0 24 24" 
+				  fill="none" 
+				  stroke="currentColor" 
+				  strokeWidth="2"
+				>
+				  <path d="M18 15l-6-6-6 6"/>
+				</svg>
+			  </button>
 			)}
 		</div>
 	)

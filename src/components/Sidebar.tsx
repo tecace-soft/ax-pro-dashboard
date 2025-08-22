@@ -344,6 +344,37 @@ export default function Sidebar({
     }
   };
 
+  // User Feedback 섹션으로 스크롤
+  const scrollToUserFeedback = () => {
+    // UserFeedback 컴포넌트가 있는 content-section을 찾기
+    const contentSections = document.querySelector('.content-sections');
+    if (contentSections) {
+      // UserFeedback은 두 번째 content-section
+      const sections = contentSections.querySelectorAll('.content-section');
+      if (sections.length >= 2) {
+        sections[1].scrollIntoView({ 
+          behavior: 'smooth',
+          block: 'start'
+        });
+      }
+    }
+  };
+
+  // Prompt Control 섹션으로 스크롤
+  const scrollToPromptControl = () => {
+    const contentSections = document.querySelector('.content-sections');
+    if (contentSections) {
+      // PromptControl은 세 번째 content-section
+      const sections = contentSections.querySelectorAll('.content-section');
+      if (sections.length >= 3) {
+        sections[2].scrollIntoView({ 
+          behavior: 'smooth',
+          block: 'start'
+        });
+      }
+    }
+  };
+
   return (
     <aside className={`dashboard-sidebar ${isCollapsed ? 'collapsed' : ''}`}>
       <div className="sidebar-toggle" onClick={onToggleCollapse}>
@@ -738,20 +769,18 @@ export default function Sidebar({
                 </li>
                 <li 
                   className="menu-item"
-                  onClick={() => onScrollToSection('content-sections')}
+                  onClick={scrollToUserFeedback}
                 >
                   <button className="menu-button">
                     <svg className="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M3 3v18h18" />
-                      <path d="M9 9l3 3 3-3" />
-                      <path d="M9 15l3-3 3 3" />
+                      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
                     </svg>
                     <span className="menu-text">User Feedback</span>
                   </button>
                 </li>
                 <li 
                   className="menu-item"
-                  onClick={() => onScrollToSection('content-sections')}
+                  onClick={scrollToPromptControl}
                 >
                   <button className="menu-button">
                     <svg className="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
