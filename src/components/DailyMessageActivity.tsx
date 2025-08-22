@@ -1,120 +1,143 @@
+// src/components/DailyMessageActivity.tsx
 import React, { useState, useEffect } from 'react';
-import { getAuthToken } from '../services/auth';
-import { fetchSessions } from '../services/sessions';
-import { fetchSessionRequests } from '../services/requests';
 
-interface MessageData {
-  date: string;
-  count: number;
+interface MessageData { date: string; count: number }
+interface DailyMessageActivityProps {
+  startDate?: string;
+  endDate?: string;
+  sessions?: any[];
+  sessionRequests?: Record<string, any[]>;
 }
 
-const DailyMessageActivity: React.FC = () => {
+const DailyMessageActivity: React.FC<DailyMessageActivityProps> = ({
+  startDate, endDate, sessions = [], sessionRequests = {}
+}) => {
   const [messageData, setMessageData] = useState<MessageData[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedPeriod, setSelectedPeriod] = useState('7days');
+  const [totalMessages, setTotalMessages] = useState(0);
 
-  // Content.tsx와 정확히 동일한 방식으로 데이터 가져오기
-  const fetchDailyMessageData = async () => {
-    try {
-      setLoading(true);
-      const token = await getAuthToken();
-      
-      // Content.tsx와 동일한 날짜 형식 사용
-      const today = new Date();
-      const startDate = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-      
-      // Content.tsx의 formatDateForAPI 함수와 동일한 방식
-      const formatDateForAPI = (d: Date, isEndDate: boolean = false): string => {
-        const localDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-        
-        if (isEndDate) {
-          localDate.setHours(23, 59, 59, 999);
-        } else {
-          localDate.setHours(0, 0, 0, 0);
-        }
-        
-        const koreaOffset = 9 * 60;
-        const localOffset = localDate.getTimezoneOffset();
-        const offsetDifference = koreaOffset + localOffset;
-        const koreaTime = new Date(localDate.getTime() + (offsetDifference * 60 * 1000));
-        
-        const year = koreaTime.getFullYear();
-        const month = String(koreaTime.getMonth() + 1).padStart(2, '0');
-        const day = String(koreaTime.getDate()).padStart(2, '0');
-        const hours = String(koreaTime.getHours()).padStart(2, '0');
-        const minutes = String(koreaTime.getMinutes()).padStart(2, '0');
-        const seconds = String(koreaTime.getSeconds()).padStart(2, '0');
-        
-        return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-      };
-      
-      // Content.tsx와 동일한 API 호출
-      const apiStartDate = formatDateForAPI(startDate, false);
-      const apiEndDate = formatDateForAPI(today, true);
-      
-      console.log('API call dates:', { apiStartDate, apiEndDate }); // 디버깅용
-      
-      const sessionsResponse = await fetchSessions(token, apiStartDate, apiEndDate);
-      
-      // 일별 메시지 카운트 계산
-      const dailyCounts: Record<string, number> = {};
-      
-      for (const session of sessionsResponse.sessions || []) {
-        const requests = await fetchSessionRequests(token, session.sessionId, apiStartDate, apiEndDate);
-        const requestCount = requests.requests?.length || 0;
-        
-        const date = new Date(session.createdAt).toISOString().split('T')[0];
-        dailyCounts[date] = (dailyCounts[date] || 0) + requestCount;
-      }
-      
-      // 7일 데이터만 UI에 표시
-      const displayData: MessageData[] = [];
-      for (let i = 6; i >= 0; i--) {
-        const date = new Date(today.getTime() - i * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-        displayData.push({
-          date: date,
-          count: dailyCounts[date] || 0
-        });
-      }
-      
-      setMessageData(displayData);
-    } catch (error) {
-      console.error('Failed to fetch daily message data:', error);
-      setMessageData([]); // 에러 시 빈 배열로 설정
-    } finally {
-      setLoading(false);
-    }
+  // 로컬 날짜 키 (YYYY-MM-DD)
+  const localDateKey = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
   };
 
+  // 데이터 집계: "요청(createdAt)" 기준 + 로컬 날짜 + 기간 필터
   useEffect(() => {
-    fetchDailyMessageData();
-  }, [selectedPeriod]);
+    if (!startDate || !endDate) return;
+
+    const start = new Date(`${startDate}T00:00:00`);
+    const end = new Date(`${endDate}T23:59:59`);
+
+    const dailyCounts: Record<string, number> = {};
+    let totalCount = 0;
+
+    sessions.forEach(session => {
+      const sessionId = session?.sessionId || session?.id;
+      const requests = (sessionRequests[sessionId] || []) as Array<{ createdAt?: string }>;
+
+      requests.forEach(req => {
+        if (!req?.createdAt) return;
+        const t = new Date(req.createdAt); // 로컬 Date
+        if (t < start || t > end) return;
+        const key = localDateKey(t);
+        dailyCounts[key] = (dailyCounts[key] || 0) + 1;
+        totalCount += 1;
+      });
+    });
+
+    // 기간의 모든 날짜 채우기
+    const display: MessageData[] = [];
+    const cur = new Date(start);
+    while (cur <= end) {
+      const key = localDateKey(cur);
+      display.push({ date: key, count: dailyCounts[key] || 0 });
+      cur.setDate(cur.getDate() + 1);
+    }
+
+    setMessageData(display);
+    setTotalMessages(totalCount);
+  }, [startDate, endDate, sessions, sessionRequests]);
+
+  // Y축 범위 계산 (nice yMax)
+  const rawMax = Math.max(...messageData.map(d => d.count), 0);
+  const niceStep = (max: number) => {
+    if (max <= 0) return 1;
+    const pow = Math.pow(10, Math.floor(Math.log10(max)));
+    const m = max / pow;
+    const unit = m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10;
+    return unit * pow;
+  };
+  const step = niceStep(rawMax || 1);
+  const yMax = Math.max(1, Math.ceil((rawMax || 1) / step) * step);
+
+  // 눈금(라인/라벨) — 동일 퍼센트 좌표 사용 (중복 key 방지)
+  const tickCount = 6;
+  const ticks = Array.from({ length: tickCount }, (_, i) => ({
+    key: i,
+    pct: (i / (tickCount - 1)) * 100,               // 0%~100% 균등
+    label: Math.round((yMax * i) / (tickCount - 1)) // 표시 숫자
+  }));
 
   return (
     <div className="daily-message-section">
       <div className="section-header">
         <h2 className="section-title">Daily Message Activity</h2>
-        <div className="period-selector">
-          <select value={selectedPeriod} onChange={(e) => setSelectedPeriod(e.target.value)}>
-            <option value="7days">Last 7 Days</option>
-            <option value="14days">Last 14 Days</option>
-            <option value="30days">Last 30 Days</option>
-          </select>
+        <div className="summary-text">
+          Total: {totalMessages} messages | Avg: {messageData.length ? Math.round((totalMessages / messageData.length) * 10) / 10 : 0}/day
         </div>
       </div>
-      
-      {loading ? (
-        <div className="loading">Loading...</div>
-      ) : (
-        <div className="chart-container">
-          {messageData.map((data, index) => (
-            <div key={data.date} className="chart-bar">
-              <div className="bar-value" style={{ height: `${(data.count / Math.max(...messageData.map(d => d.count), 1)) * 100}%` }}></div>
-              <div className="bar-label">{new Date(data.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
+
+      <div className="period-info">
+        <span className="period-text">
+          Based on Recent Conversations: {startDate} to {endDate}
+        </span>
+      </div>
+
+      <div className="performance-timeline-chart dma-chart">
+        {/* 좌측 Y축 (라벨을 라인과 같은 퍼센트로) */}
+        <div className="dma-yaxis-abs">
+          {ticks.map(t => (
+            <div key={`yt-${t.key}`} className="dma-tick" style={{ bottom: `${t.pct}%` }}>
+              <span className="dma-ylabel">{t.label}</span>
             </div>
           ))}
         </div>
-      )}
+
+        {/* 플롯 */}
+        <div className="dma-plot">
+          {/* 수평 그리드 라인 (라벨과 같은 퍼센트) */}
+          <div className="dma-grid-abs">
+            {ticks.map(t => (
+              <div key={`gl-${t.key}`} className="dma-hline" style={{ bottom: `${t.pct}%` }} />
+            ))}
+          </div>
+
+          {/* Bars */}
+          <div className="dma-bars">
+            {messageData.map(d => {
+              const barHeight = yMax > 0 ? (d.count / yMax) * 100 : 0; // 0이면 0%
+              const dayLabel = new Date(d.date).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
+
+              return (
+                <div className="dma-barwrap" key={d.date} title={`${dayLabel}: ${d.count}`}>
+                  {/* 막대 전용 영역 */}
+                  <div className="dma-barstack">
+                    <div className="dma-bar" style={{ height: `${barHeight}%` }}>
+                      {d.count > 0 && <div className="dma-valuebubble">{d.count}</div>}
+                      <div className="dma-barfill" />
+                    </div>
+                  </div>
+                  {/* X라벨 */}
+                  <div className="dma-xlabel">{dayLabel}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
     </div>
   );
 };

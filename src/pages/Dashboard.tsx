@@ -15,6 +15,7 @@ import PerformanceTimeline from '../components/PerformanceTimeline'
 import SystemStatus from '../components/SystemStatus'
 import EnvironmentControls from '../components/EnvironmentControls'
 import Content from './Content' // Content.tsx import 추가
+import DailyMessageActivity from '../components/DailyMessageActivity' // DailyMessageActivity 컴포넌트 추가
 
 import '../styles/dashboard.css'
 import '../styles/performance-radar.css'
@@ -166,49 +167,83 @@ export default function Dashboard() {
 	const [customStartDate, setCustomStartDate] = useState('')
 	const [customEndDate, setCustomEndDate] = useState('')
 
-	// Daily Message Activity 전용 상태
-	const [dailyMessageData, setDailyMessageData] = useState<MessageCount[]>([])
-	const [isLoadingDailyMessages, setIsLoadingDailyMessages] = useState(false)
-	const [dailyMessageStats, setDailyMessageStats] = useState({
-		total: 0,
-		average: 0
-	})
-
 	// 초기 날짜 설정을 위한 useEffect (가장 먼저 실행)
-	useEffect(() => {
-		const today = new Date()
-		const defaultStart = new Date()
-		defaultStart.setDate(today.getDate() - 6) // 7일 (오늘 포함)
-		
-		const startStr = formatDate(defaultStart)
-		const endStr = formatDate(today)
-		
-		console.log(`Setting initial dates: ${startStr} to ${endStr}`)
-		
-		setStartDate(startStr)
-		setEndDate(endStr)
-	}, [])
+	// [KEEP] 세션/요청 로딩: 세션은 -14일 버퍼, 요청은 정확한 기간
+useEffect(() => {
+	if (!authToken || !startDate || !endDate) return;
+  
+	let cancelled = false;
+  
+	async function loadSessions() {
+	  setIsLoadingSessions(true)
+	  try {
+		// 시작일을 -14일 버퍼
+		const startObj = new Date(startDate)
+		startObj.setDate(startObj.getDate() - 14)
+		const startForSessions = formatDate(startObj)
+  
+		const response = await fetchSessions(authToken!, startForSessions, endDate)
+		if (cancelled) return
+  
+		const sessionsList = response.sessions || []
+		setSessions(sessionsList)
+  
+		const requestPromises = sessionsList
+		  .filter(s => s.sessionId)
+		  .map(s =>
+			fetchSessionRequests(authToken!, s.sessionId, startDate, endDate)
+			  .catch(err => console.error(`Failed to fetch requests for ${s.sessionId}:`, err))
+		  )
+  
+		const requestResponses = await Promise.all(requestPromises)
+		const sessionRequestsMap: Record<string, any[]> = {}
+		const allRequestIds: string[] = []
+  
+		requestResponses.forEach((reqRes, idx) => {
+		  const sessionId = sessionsList[idx]?.sessionId
+		  if (reqRes && reqRes.requests && sessionId) {
+			sessionRequestsMap[sessionId] = reqRes.requests
+			reqRes.requests.forEach((r: any) => {
+			  if (r.requestId || r.id) allRequestIds.push(r.requestId || r.id)
+			})
+		  }
+		})
+  
+		setSessionRequests(sessionRequestsMap)
+  
+		if (allRequestIds.length > 0) {
+		  const detailPromises = allRequestIds.map(id =>
+			fetchRequestDetail(authToken!, id).catch(err => console.error(`Failed detail for ${id}:`, err))
+		  )
+		  const detailResponses = await Promise.all(detailPromises)
+		  const detailsMap: Record<string, any> = {}
+		  detailResponses.forEach((dr, i) => {
+			if (dr && dr.request) {
+			  const id = allRequestIds[i]
+			  detailsMap[id] = dr.request
+			}
+		  })
+		  setRequestDetails(detailsMap)
+		}
+	  } catch (e) {
+		if (!cancelled) {
+		  console.error('Failed to fetch sessions:', e)
+		  setSessions([])
+		}
+	  } finally {
+		if (!cancelled) setIsLoadingSessions(false)
+	  }
+	}
+  
+	loadSessions()
+	return () => { cancelled = true }
+  }, [authToken, startDate, endDate])
 
 	// Daily Message Activity 데이터 가져오기
-	const loadDailyMessages = async (start: string, end: string) => {
-		if (!authToken) return
-		
-		console.log(`Loading daily messages: ${start} to ${end}`)
-		
-		setIsLoadingDailyMessages(true)
-		try {
-			const data = await fetchDailyMessageActivity(authToken, start, end)
-			setDailyMessageData(data.messageCounts)
-			setDailyMessageStats({
-				total: data.totalMessages,
-				average: data.averageMessages
-			})
-		} catch (error) {
-			console.error('Failed to fetch daily messages:', error)
-		} finally {
-			setIsLoadingDailyMessages(false)
-		}
-	}
+	// loadDailyMessages 함수 제거 (DailyMessageActivity가 자체적으로 처리)
+	// useEffect(() => {
+	//   loadDailyMessages();
+	// }, []);
 
 	// 기간 변경 시 데이터 새로 가져오기
 	const handlePeriodChange = (days: number) => {
@@ -228,7 +263,7 @@ export default function Dashboard() {
 		setStartDate(startStr)
 		setEndDate(endStr)
 		
-		loadDailyMessages(startStr, endStr)
+		// loadDailyMessages(startStr, endStr) // 이 부분은 DailyMessageActivity가 처리
 	}
 
 	// Custom Range 적용 시
@@ -239,7 +274,7 @@ export default function Dashboard() {
 			setShowCustomRangeModal(false)
 			
 			// Daily Message Activity 데이터 새로 가져오기
-			await loadDailyMessages(customStartDate, customEndDate)
+			// await loadDailyMessages(customStartDate, customEndDate) // 이 부분은 DailyMessageActivity가 처리
 		}
 	}
 
@@ -268,94 +303,14 @@ export default function Dashboard() {
 	}, [])
 
 	// authToken과 날짜가 설정되면 데이터 로드
-	useEffect(() => {
-		if (authToken && startDate && endDate) {
-			console.log(`Loading  ${startDate} to ${endDate}`)
-			loadDailyMessages(startDate, endDate)
-		}
-	}, [authToken, startDate, endDate])
+	// useEffect(() => {
+	//   if (authToken && startDate && endDate) {
+	//     console.log(`Loading  ${startDate} to ${endDate}`)
+	//     loadDailyMessages(startDate, endDate)
+	//   }
+	// }, [authToken, startDate, endDate]) // 이 부분은 DailyMessageActivity가 처리
 
-	// Fetch sessions when token is available or dates change
-	useEffect(() => {
-		if (!authToken || !startDate || !endDate) return
-
-		let cancelled = false
-		
-		async function loadSessions() {
-			setIsLoadingSessions(true)
-			try {
-				const response = await fetchSessions(authToken!, startDate, endDate)
-				if (!cancelled) {
-					setSessions(response.sessions || [])
-					
-					// Fetch requests for all sessions simultaneously
-					const sessions = response.sessions || []
-					const requestPromises = sessions
-						.filter(session => session.sessionId)
-						.map(session => 
-							fetchSessionRequests(authToken!, session.sessionId, startDate, endDate)
-								.catch(error => console.error(`Failed to fetch requests for session ${session.sessionId}:`, error))
-						)
-
-					const requestResponses = await Promise.all(requestPromises)
-					
-					// Store session requests and collect all request IDs
-					const sessionRequestsMap: Record<string, any[]> = {}
-					const allRequestIds: string[] = []
-					
-					requestResponses.forEach((requestResponse, index) => {
-						const sessionId = sessions[index]?.sessionId
-						if (requestResponse && requestResponse.requests && sessionId) {
-							sessionRequestsMap[sessionId] = requestResponse.requests
-							requestResponse.requests.forEach((request: any) => {
-								if (request.requestId || request.id) {
-									allRequestIds.push(request.requestId || request.id)
-								}
-							})
-						}
-					})
-					
-					setSessionRequests(sessionRequestsMap)
-
-					// Fetch details for all requests simultaneously
-					if (allRequestIds.length > 0) {
-						const detailPromises = allRequestIds.map(requestId => 
-							fetchRequestDetail(authToken!, requestId)
-								.catch(error => console.error(`Failed to fetch detail for request ${requestId}:`, error))
-						)
-						
-						const detailResponses = await Promise.all(detailPromises)
-						
-						// Store request details
-						const requestDetailsMap: Record<string, any> = {}
-						detailResponses.forEach((detailResponse, index) => {
-							if (detailResponse && detailResponse.request) {
-								const requestId = allRequestIds[index]
-								requestDetailsMap[requestId] = detailResponse.request
-							}
-						})
-						
-						setRequestDetails(requestDetailsMap)
-					}
-				}
-			} catch (error) {
-				if (!cancelled) {
-					console.error('Failed to fetch sessions:', error)
-					setSessions([])
-				}
-			} finally {
-				if (!cancelled) {
-					setIsLoadingSessions(false)
-				}
-			}
-		}
-		
-		loadSessions()
-		
-		return () => {
-			cancelled = true
-		}
-	}, [authToken, startDate, endDate])
+	
 
 	// Sign out function
 	const signOut = () => {
@@ -532,6 +487,15 @@ export default function Dashboard() {
 	// 스크롤 버튼 상태 추가
 	const [showScrollTop, setShowScrollTop] = useState(false);
 
+	// [ADD] 초기 날짜 설정: 오늘 포함 최근 7일
+useEffect(() => {
+	const today = new Date()
+	const start = new Date()
+	start.setDate(today.getDate() - 6) // 최근 7일(오늘 포함)
+	setStartDate(formatDate(start))
+	setEndDate(formatDate(today))
+  }, [])
+
 	// 스크롤 이벤트 리스너 추가
 	useEffect(() => {
 	  const handleScroll = () => {
@@ -589,113 +553,13 @@ export default function Dashboard() {
 							/>
 							</div>
 
-							{/* Daily Message Activity - Performance Radar와 동일한 스타일 */}
-							<div id="daily-message-activity" className="daily-message-section">
-							<div className="daily-message-header">
-								<h2 className="daily-message-title panel-title">Daily Message Activity</h2>
-								<p className="daily-message-summary panel-subtitle">
-									Total: {dailyMessageStats.total} messages | Avg: {dailyMessageStats.average}/day
-								</p>
-							</div>
-								
-								<div className="daily-message-content">
-									<div className="period-filters">
-										{periods.map(period => (
-											<button
-												key={period.label}
-												className={`period-btn ${selectedPeriod === period.days ? 'active' : ''}`}
-												onClick={() => period.days > 0 ? handlePeriodChange(period.days) : handleCustomRangeClick()}
-											>
-												{period.label}
-											</button>
-										))}
-									</div>
-									
-									<div className="activity-chart">
-										{isLoadingDailyMessages ? (
-											<div className="loading-state">
-												<div className="loading-spinner"></div>
-												<p>Loading message data...</p>
-											</div>
-										) : dailyMessageData.length > 0 ? (
-											<div className="bar-chart">
-												{dailyMessageData.map((dayData, i) => {
-													const maxValue = Math.max(...dailyMessageData.map(d => d.count))
-													const height = maxValue > 0 ? (dayData.count / maxValue) * 100 : 0
-													const date = new Date(dayData.date)
-													const dayLabel = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-													
-													return (
-														<div key={i} className="bar-item">
-															<div className="bar" style={{ height: `${height}%` }}>
-																<span className="bar-value">{dayData.count}</span>
-															</div>
-															<span className="bar-label">{dayLabel}</span>
-														</div>
-													)
-												})}
-											</div>
-										) : (
-											<div className="no-data">
-												<div className="no-data-icon">📈</div>
-												<p>No message data available for selected period</p>
-											</div>
-										)}
-									</div>
-								</div>
-							</div>
-
-							{/* Custom Range 모달 */}
-							{showCustomRangeModal && (
-								<div className="custom-range-modal">
-									<div className="modal-content">
-										<div className="modal-header">
-											<h3>Select Custom Date Range</h3>
-											<button 
-												className="modal-close"
-												onClick={() => setShowCustomRangeModal(false)}
-											>
-												×
-											</button>
-										</div>
-										<div className="modal-body">
-											<div className="date-inputs">
-												<label className="date-field">
-													<span>Start Date</span>
-													<input 
-														type="date" 
-														value={customStartDate}
-														onChange={(e) => setCustomStartDate(e.target.value)}
-													/>
-												</label>
-												<label className="date-field">
-													<span>End Date</span>
-													<input 
-														type="date" 
-														value={customEndDate}
-														onChange={(e) => setCustomEndDate(e.target.value)}
-													/>
-												</label>
-											</div>
-										</div>
-										<div className="modal-footer">
-											<button 
-												className="btn-cancel"
-												onClick={() => setShowCustomRangeModal(false)}
-											>
-												Cancel
-											</button>
-											<button 
-												className="btn-apply"
-												onClick={applyCustomRange}
-												disabled={!customStartDate || !customEndDate}
-											>
-												Apply
-											</button>
-										</div>
-									</div>
-								</div>
-							)}
+							{/* DailyMessageActivity 컴포넌트에 props 전달 */}
+							<DailyMessageActivity 
+								startDate={startDate}
+								endDate={endDate}
+								sessions={sessions}
+								sessionRequests={sessionRequests}
+							/>
 						</div>
 
 						<div className="grid-right">
