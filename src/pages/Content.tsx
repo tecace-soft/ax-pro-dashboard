@@ -109,13 +109,16 @@ export default function Content() {
 	const [endDate, setEndDate] = useState<string>(formatDate(today))
 	
 	// Helper functions to format dates for API calls with proper UTC time
+	// Add one day to compensate for timezone offset issues
 	const getApiStartDate = (startDateString: string): string => {
 		const startDateObj = new Date(startDateString)
+		startDateObj.setDate(startDateObj.getDate() + 1) // Add one day
 		return formatDateForAPI(startDateObj, false)
 	}
 	
 	const getApiEndDate = (endDateString: string): string => {
 		const endDateObj = new Date(endDateString)
+		endDateObj.setDate(endDateObj.getDate() + 1) // Add one day
 		return formatDateForAPI(endDateObj, true)
 	}
 
