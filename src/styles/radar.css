@@ -802,3 +802,172 @@ input:checked + .toggle-slider:before {
   border: 1px solid rgba(59, 230, 255, 0.3);
   backdrop-filter: blur(8px);
 } 
+
+/* Module Control - 컴팩트하게 수정 */
+.module-control {
+  background: rgba(18, 27, 61, 0.6);
+  border: 1px solid rgba(59, 230, 255, 0.15);
+  border-radius: 12px;
+  margin-top: 24px;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.module-control-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  cursor: pointer;
+  background: rgba(18, 27, 61, 0.8);
+  border-bottom: 1px solid rgba(59, 230, 255, 0.1);
+  transition: background-color 0.2s ease;
+}
+
+.module-control-header:hover {
+  background: rgba(18, 27, 61, 0.9);
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.module-control h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #ffffff;
+  margin: 0;
+}
+
+.control-badge {
+  background: rgba(59, 230, 255, 0.2);
+  color: #3be6ff;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.expand-icon {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+  transition: transform 0.3s ease;
+}
+
+.expand-icon.expanded {
+  transform: rotate(180deg);
+}
+
+.module-control-content {
+  padding: 20px;
+  background: rgba(18, 27, 61, 0.4);
+}
+
+.control-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.control-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  border: 1px solid rgba(59, 230, 255, 0.1);
+}
+
+.control-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.control-icon {
+  font-size: 16px;
+  width: 20px;
+  text-align: center;
+}
+
+.control-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.control-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.control-description {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* Toggle Switch - 더 작게 */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+  cursor: pointer;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 20px;
+  transition: 0.3s;
+}
+
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 16px;
+  width: 16px;
+  left: 2px;
+  bottom: 2px;
+  background: white;
+  border-radius: 50%;
+  transition: 0.3s;
+}
+
+input:checked + .toggle-slider {
+  background: #3be6ff;
+}
+
+input:checked + .toggle-slider:before {
+  transform: translateX(16px);
+}
+
+/* 반응형 */
+@media (max-width: 768px) {
+  .control-list {
+    grid-template-columns: 1fr;
+  }
+  
+  .module-control-header {
+    padding: 14px 16px;
+  }
+  
+  .module-control-content {
+    padding: 16px;
+  }
+} 

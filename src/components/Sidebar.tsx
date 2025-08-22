@@ -65,10 +65,10 @@ export default function Sidebar({
 
   // 검색 범위 옵션
   const searchScopes = [
-    { id: 'all', label: 'All Sources', icon: '🔍', description: 'Search everywhere' },
-    { id: 'conversations', label: 'Recent Conversations', icon: '💬', description: 'Search chat history' },
-    { id: 'feedback', label: 'User Feedback', icon: '📝', description: 'Search feedback data' },
-    { id: 'knowledge', label: 'Knowledge Base', icon: '📚', description: 'Search documents & policies' }
+    { key: 'all', label: 'All Sources', icon: '🔍', description: 'Search everywhere' },
+    { key: 'conversations', label: 'Recent Conversations', icon: '💬', description: 'Search chat history' },
+    { key: 'feedback', label: 'User Feedback', icon: '📝', description: 'Search feedback data' },
+    { key: 'knowledge', label: 'Knowledge Base', icon: '📚', description: 'Search documents & policies' }
   ]
 
   // 검색 실행 함수 - 범위별 검색
@@ -305,6 +305,11 @@ export default function Sidebar({
     }
   }
 
+  // Style 관련 함수 주석 처리
+  // const handleStyleClick = () => {
+  //   // Style 관련 로직
+  // }
+
   return (
     <aside className={`dashboard-sidebar ${isCollapsed ? 'collapsed' : ''}`}>
       <div className="sidebar-toggle" onClick={onToggleCollapse}>
@@ -361,14 +366,14 @@ export default function Sidebar({
                   </>
                 ) : (
                   <>
-                    <h3 className="profile-name">{profileData.name}</h3>
-                    <p className="profile-role">{profileData.role}</p>
+                    <h3 className="profile-name">TecAce Ax Pro</h3>
+                    <p className="profile-role">Main AI Assistant for HR Support</p>
                   </>
                 )}
                 
                 <div className="profile-metrics">
                   <div className="profile-metric">
-                    <span className="profile-metric-value">{profileData.performance}%</span>
+                    <span className="profile-metric-value">87%</span>
                     <span className="profile-metric-label">Performance</span>
                   </div>
                   <div className="profile-metric-divider"></div>
@@ -401,10 +406,11 @@ export default function Sidebar({
                       <IconCamera size={12} />
                       Photo
                     </button>
-                    <button className="btn-small">
+                    {/* Style 버튼 주석 처리 */}
+                    {/* <button className="btn-small">
                       <IconPalette size={12} />
                       Style
-                    </button>
+                    </button> */}
                   </>
                 )}
               </div>
@@ -412,7 +418,8 @@ export default function Sidebar({
           </div>
 
           {/* Quick Stats */}
-          <div className="quick-stats">
+          {/* System Status 관련 Quick Stats 주석 처리 */}
+          {/* <div className="quick-stats">
             <div className="stat-item" onClick={handleConversationsClick}>
               <span className="stat-value">{conversations.toLocaleString()}</span>
               <span className="stat-label">Conversations</span>
@@ -421,25 +428,34 @@ export default function Sidebar({
               <span className="stat-value">{satisfaction}%</span>
               <span className="stat-label">Satisfaction</span>
             </div>
-          </div>
+          </div> */}
 
           {/* Search Section - 범위 선택 UI 추가 */}
           <div className="search-section">
             {/* 검색 범위 선택 */}
             <div className="search-scope-selector">
-              <label className="scope-label">Search in:</label>
+              <label className="scope-label">Search In:</label>
               <div className="scope-options">
-                {searchScopes.map((scope) => (
-                  <button
-                    key={scope.id}
-                    className={`scope-option ${searchScope === scope.id ? 'active' : ''}`}
-                    onClick={() => setSearchScope(scope.id as any)}
-                    title={scope.description}
-                  >
-                    <span className="scope-icon">{scope.icon}</span>
-                    <span className="scope-text">{scope.label}</span>
-                  </button>
-                ))}
+                <div className={`scope-option ${searchScope === 'all' ? 'active' : ''}`} onClick={() => setSearchScope('all')}>
+                  <div className="scope-checkbox"></div>
+                  <div className="scope-icon">🔍</div>
+                  <span className="scope-text">All Sources</span>
+                </div>
+                <div className={`scope-option ${searchScope === 'conversations' ? 'active' : ''}`} onClick={() => setSearchScope('conversations')}>
+                  <div className="scope-checkbox"></div>
+                  <div className="scope-icon">💬</div>
+                  <span className="scope-text">Recent Conversations</span>
+                </div>
+                <div className={`scope-option ${searchScope === 'feedback' ? 'active' : ''}`} onClick={() => setSearchScope('feedback')}>
+                  <div className="scope-checkbox"></div>
+                  <div className="scope-icon">📝</div>
+                  <span className="scope-text">User Feedback</span>
+                </div>
+                <div className={`scope-option ${searchScope === 'knowledge' ? 'active' : ''}`} onClick={() => setSearchScope('knowledge')}>
+                  <div className="scope-checkbox"></div>
+                  <div className="scope-icon">📚</div>
+                  <span className="scope-text">Knowledge Base</span>
+                </div>
               </div>
             </div>
 
@@ -448,7 +464,7 @@ export default function Sidebar({
               <input
                 type="text"
                 className="search-input"
-                placeholder={`Search in ${searchScopes.find(s => s.id === searchScope)?.label.toLowerCase()}...`}
+                placeholder={`Search in ${searchScopes.find(s => s.key === searchScope)?.label.toLowerCase()}...`}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -481,17 +497,11 @@ export default function Sidebar({
             )}
           </div>
 
-          {/* Search Results Popup - 범위별 결과 표시 */}
+          {/* Search Results Popup */}
           {showSearchResults && (
             <div className="search-results-popup">
               <div className="popup-header">
-                <h3>
-                  Search Results 
-                  <span className="search-scope-badge">
-                    {searchScopes.find(s => s.id === searchScope)?.icon} 
-                    {searchScopes.find(s => s.id === searchScope)?.label}
-                  </span>
-                </h3>
+                <h3>Search Results</h3>
                 <button 
                   className="popup-close"
                   onClick={() => setShowSearchResults(false)}
@@ -499,41 +509,31 @@ export default function Sidebar({
                   ×
                 </button>
               </div>
-              
               <div className="popup-content">
                 {isSearching ? (
                   <div className="search-loading">
                     <div className="loading-spinner"></div>
-                    <p>Searching in {searchScopes.find(s => s.id === searchScope)?.label.toLowerCase()}...</p>
+                    <p>Searching...</p>
                   </div>
                 ) : searchResults.length > 0 ? (
                   <div className="search-results-list">
-                    {searchResults.map((result) => (
-                      <div key={result.id} className="search-result-item">
+                    {searchResults.map((result, index) => (
+                      <div key={index} className="search-result-item">
                         <div className="result-header">
-                          <span className="result-source">{result.source}</span>
-                          <span className="result-session">Session: {result.sessionId}</span>
+                          <span className="result-session">{result.sessionId}</span>
                           <span className="result-timestamp">{result.timestamp}</span>
-                          <span className={`result-match ${result.matchType}`}>
-                            {result.matchType === 'userMessage' ? 'User' : 'AI'}
-                          </span>
                         </div>
-                        <div className="result-content">
-                          <div className="result-message">
-                            <strong>Message:</strong> {result.userMessage}
-                          </div>
-                          {result.aiResponse && (
-                            <div className="result-response">
-                              <strong>Response:</strong> {result.aiResponse}
-                            </div>
-                          )}
+                        <div className="result-match">
+                          <span className="result-content">{result.userMessage}</span>
+                          <span className="result-message">{result.aiResponse}</span>
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
                   <div className="no-results">
-                    <p>No results found in {searchScopes.find(s => s.id === searchScope)?.label.toLowerCase()}.</p>
+                    <div className="no-results-icon"></div>
+                    <p>No results found in {searchScope === 'all' ? 'all sources' : searchScope}.</p>
                     <p className="no-results-hint">Try adjusting your search terms or search in a different scope.</p>
                   </div>
                 )}
@@ -541,7 +541,7 @@ export default function Sidebar({
             </div>
           )}
 
-          {/* Filters */}
+          {/* Filters
           <div className="filters-section">
             {filters.map(filter => (
               <button
@@ -552,7 +552,44 @@ export default function Sidebar({
                 {filter.label} ({filter.count})
               </button>
             ))}
-          </div>
+          </div> */}
+
+          {/* Content Filters 섹션 주석 처리 */}
+          {/* <div className="filters-section">
+            <h3>Content Filters</h3>
+            <div className="filter-buttons">
+              <button 
+                className={`filter-btn ${activeFilters.includes('all') ? 'active' : ''}`}
+                onClick={() => handleFilterChange('all')}
+              >
+                All (156)
+              </button>
+              <button 
+                className={`filter-btn ${activeFilters.includes('policies') ? 'active' : ''}`}
+                onClick={() => handleFilterChange('policies')}
+              >
+                Policies (45)
+              </button>
+              <button 
+                className={`filter-btn ${activeFilters.includes('benefits') ? 'active' : ''}`}
+                onClick={() => handleFilterChange('benefits')}
+              >
+                Benefits (32)
+              </button>
+              <button 
+                className={`filter-btn ${activeFilters.includes('training') ? 'active' : ''}`}
+                onClick={() => handleFilterChange('training')}
+              >
+                Training (28)
+              </button>
+              <button 
+                className={`filter-btn ${activeFilters.includes('payroll') ? 'active' : ''}`}
+                onClick={() => handleFilterChange('payroll')}
+              >
+                Payroll (21)
+              </button>
+            </div>
+          </div> */}
 
           {/* 사이드바 메뉴 항목들 */}
           <div className="sidebar-menu">
@@ -584,7 +621,8 @@ export default function Sidebar({
                     <span className="menu-text">Daily Message Activity</span>
                   </button>
                 </li>
-                <li className="menu-item">
+                {/* System Status 주석 처리 */}
+                {/* <li className="menu-item">
                   <button 
                     className="menu-button"
                     onClick={() => onScrollToSection('system-status')}
@@ -596,8 +634,9 @@ export default function Sidebar({
                     </svg>
                     <span className="menu-text">System Status</span>
                   </button>
-                </li>
-                <li className="menu-item">
+                </li> */}
+                {/* Environment Controls 주석 처리 */}
+                {/* <li className="menu-item">
                   <button 
                     className="menu-button"
                     onClick={() => onScrollToSection('environment-controls')}
@@ -608,7 +647,7 @@ export default function Sidebar({
                     </svg>
                     <span className="menu-text">Environment Controls</span>
                   </button>
-                </li>
+                </li> */}
               </ul>
             </div>
 

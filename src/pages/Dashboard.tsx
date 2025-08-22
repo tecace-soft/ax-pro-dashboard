@@ -17,6 +17,7 @@ import EnvironmentControls from '../components/EnvironmentControls'
 import Content from './Content' // Content.tsx import 추가
 
 import '../styles/dashboard.css'
+import '../styles/performance-radar.css'
 
 // 로컬 시간 기준 날짜 포맷팅 함수 (모든 곳에서 통일 사용)
 function formatDate(d: Date): string {
@@ -530,7 +531,7 @@ export default function Dashboard() {
 
 	return (
 		<div className="dashboard-layout">
-			<Header performanceScore={91} currentTime={currentTime} onSignOut={signOut} />
+			<Header performanceScore={87} currentTime={currentTime} onSignOut={signOut} />
 			
 			<div className="dashboard-content">
 				<Sidebar
@@ -553,73 +554,72 @@ export default function Dashboard() {
 				<main className="dashboard-main">
 					<div className="dashboard-grid">
 						<div className="grid-left">
-							<div id="performance-radar" className="performance-section">
-								<h2>Performance Radar</h2>
-								<p className="section-subtitle">
-									AI 응답 품질과 보안 성능을 6가지 핵심 지표로 실시간 모니터링하여 최적의 사용자 경험을 제공합니다
-								</p>
-								
-								<PerformanceRadar
-									relevance={85}
-									tone={78}
-									length={82}
-									accuracy={92}
-									toxicity={95}
-									promptInjection={88}
-								/>
+						<div id="performance-radar" className="performance-section">
+							{/* 통일된 타이틀/서브타이틀 (CSS에서 panel-title / panel-subtitle로 통일 스타일 적용) */}
+
+							<PerformanceRadar
+								relevance={85}
+								tone={78}
+								length={82}
+								accuracy={92}
+								toxicity={95}
+								promptInjection={88}
+							/>
 							</div>
 
-							{/* Daily Message Activity - 새로운 API 사용 */}
-							<div id="daily-message-activity" className="message-activity-section">
-								<div className="section-header">
-									<h2>Daily Message Activity</h2>
-									<div className="activity-summary">
-										Total: {dailyMessageStats.total} messages | Avg: {dailyMessageStats.average}/day
+							{/* Daily Message Activity - Performance Radar와 동일한 스타일 */}
+							<div id="daily-message-activity" className="daily-message-section">
+							<div className="daily-message-header">
+								<h2 className="daily-message-title panel-title">Daily Message Activity</h2>
+								<p className="daily-message-summary panel-subtitle">
+									Total: {dailyMessageStats.total} messages | Avg: {dailyMessageStats.average}/day
+								</p>
+							</div>
+								
+								<div className="daily-message-content">
+									<div className="period-filters">
+										{periods.map(period => (
+											<button
+												key={period.label}
+												className={`period-btn ${selectedPeriod === period.days ? 'active' : ''}`}
+												onClick={() => period.days > 0 ? handlePeriodChange(period.days) : handleCustomRangeClick()}
+											>
+												{period.label}
+											</button>
+										))}
 									</div>
-								</div>
-								
-								<div className="period-filters">
-									{periods.map(period => (
-										<button
-											key={period.label}
-											className={`period-btn ${selectedPeriod === period.days ? 'active' : ''}`}
-											onClick={() => period.days > 0 ? handlePeriodChange(period.days) : handleCustomRangeClick()}
-										>
-											{period.label}
-										</button>
-									))}
-								</div>
-								
-								<div className="activity-chart">
-									{isLoadingDailyMessages ? (
-										<div className="loading-state">
-											<div className="loading-spinner"></div>
-											<p>Loading message data...</p>
-										</div>
-									) : dailyMessageData.length > 0 ? (
-										<div className="bar-chart">
-											{dailyMessageData.map((dayData, i) => {
-												const maxValue = Math.max(...dailyMessageData.map(d => d.count))
-												const height = maxValue > 0 ? (dayData.count / maxValue) * 100 : 0
-												const date = new Date(dayData.date)
-												const dayLabel = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-												
-												return (
-													<div key={i} className="bar-item">
-														<div className="bar" style={{ height: `${height}%` }}>
-															<span className="bar-value">{dayData.count}</span>
+									
+									<div className="activity-chart">
+										{isLoadingDailyMessages ? (
+											<div className="loading-state">
+												<div className="loading-spinner"></div>
+												<p>Loading message data...</p>
+											</div>
+										) : dailyMessageData.length > 0 ? (
+											<div className="bar-chart">
+												{dailyMessageData.map((dayData, i) => {
+													const maxValue = Math.max(...dailyMessageData.map(d => d.count))
+													const height = maxValue > 0 ? (dayData.count / maxValue) * 100 : 0
+													const date = new Date(dayData.date)
+													const dayLabel = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+													
+													return (
+														<div key={i} className="bar-item">
+															<div className="bar" style={{ height: `${height}%` }}>
+																<span className="bar-value">{dayData.count}</span>
+															</div>
+															<span className="bar-label">{dayLabel}</span>
 														</div>
-														<span className="bar-label">{dayLabel}</span>
-													</div>
-												)
-											})}
-										</div>
-									) : (
-										<div className="no-data">
-											<div className="no-data-icon">📈</div>
-											<p>No message data available for selected period</p>
-										</div>
-									)}
+													)
+												})}
+											</div>
+										) : (
+											<div className="no-data">
+												<div className="no-data-icon">📈</div>
+												<p>No message data available for selected period</p>
+											</div>
+										)}
+									</div>
 								</div>
 							</div>
 
@@ -677,17 +677,19 @@ export default function Dashboard() {
 						</div>
 
 						<div className="grid-right">
-							<div id="system-status">
+							{/* System Status 주석 처리 */}
+							{/* <div id="system-status">
 								<SystemStatus
 									coreSystems={87}
 									security={75}
 									network={84}
 								/>
-							</div>
+							</div> */}
 
-							<div id="environment-controls">
+							{/* Environment Controls 주석 처리 */}
+							{/* <div id="environment-controls">
 								<EnvironmentControls />
-							</div>
+							</div> */}
 						</div>
 					</div>
 
