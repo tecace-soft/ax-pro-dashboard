@@ -625,7 +625,7 @@ input:checked + .toggle-slider:before {
 }
 
 /* Toggle Switch */
-.toggle-switch {
+/* .toggle-switch {
   position: relative;
   display: inline-block;
   width: 44px;
@@ -669,7 +669,7 @@ input:checked + .toggle-slider {
 
 input:checked + .toggle-slider:before {
   transform: translateX(20px);
-} 
+}  */
 
 /* 모듈 컨트롤 항목 높이 조정 */
 .control-item {
@@ -724,42 +724,7 @@ input:checked + .toggle-slider:before {
   line-height: 1.1;
 }
 
-/* Toggle Switch 크기 조정 */
-.toggle-switch {
-  position: relative;
-  display: inline-block;
-  width: 40px; /* 크기 줄임 */
-  height: 22px; /* 높이 줄임 */
-  cursor: pointer;
-  flex-shrink: 0;
-}
 
-.toggle-slider {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 22px;
-  transition: 0.3s;
-}
-
-.toggle-slider:before {
-  position: absolute;
-  content: "";
-  height: 16px; /* 크기 줄임 */
-  width: 16px; /* 크기 줄임 */
-  left: 3px;
-  bottom: 3px;
-  background: white;
-  border-radius: 50%;
-  transition: 0.3s;
-}
-
-input:checked + .toggle-slider:before {
-  transform: translateX(18px); /* 이동 거리 조정 */
-}
 
 /* 모듈 컨트롤 전체 패딩 조정 */
 .module-control {
@@ -911,51 +876,7 @@ input:checked + .toggle-slider:before {
   color: rgba(255, 255, 255, 0.6);
 }
 
-/* Toggle Switch - 더 작게 */
-.toggle-switch {
-  position: relative;
-  display: inline-block;
-  width: 36px;
-  height: 20px;
-  cursor: pointer;
-}
 
-.toggle-switch input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-.toggle-slider {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 20px;
-  transition: 0.3s;
-}
-
-.toggle-slider:before {
-  position: absolute;
-  content: "";
-  height: 16px;
-  width: 16px;
-  left: 2px;
-  bottom: 2px;
-  background: white;
-  border-radius: 50%;
-  transition: 0.3s;
-}
-
-input:checked + .toggle-slider {
-  background: #3be6ff;
-}
-
-input:checked + .toggle-slider:before {
-  transform: translateX(16px);
-}
 
 /* 반응형 */
 @media (max-width: 768px) {

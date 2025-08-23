@@ -751,8 +751,9 @@ to{ opacity: 0;
 .dashboard-grid{ display: grid;
   grid-template-columns: 1fr;
   /* ì˜¤ë¥¸ìª½ íŒ¨ë„ ì œê±°ë¡œ 1frë¡œ ë³€ê²½ */
-  gap: 24px;
-  margin-bottom: 32px; }
+  /* gap: 24px; */
+  /* margin-bottom: 32px;  */
+}
 .performance-section{ background: linear-gradient(180deg, rgba(18,27,61,0.4), rgba(13,20,44,0.4));
   border: 1px solid rgba(59,230,255,0.1);
   border-radius: 12px;
@@ -981,7 +982,7 @@ input:checked + .toggle-slider::before {
   gap: 2px;
   height: 100%;
   min-width: 0; }
-.chart-bar{ flex: 1;
+/* .chart-bar{ flex: 1;
   background: linear-gradient(to top, #3be6ff, #7c8cff);
   border-radius: 2px 2px 0 0;
   position: relative;
@@ -991,7 +992,7 @@ input:checked + .toggle-slider::before {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-end; }
+  justify-content: flex-end; } */
 .chart-bar.no-data{ background: rgba(59,230,255,0.1);
   border: 1px dashed rgba(59,230,255,0.3); }
 .chart-bar:hover{ background: linear-gradient(to top, #4ade80, #22c55e);
@@ -1058,7 +1059,7 @@ input:checked + .toggle-slider::before {
   text-align: right; }
 .grid-left{ display: flex;
   flex-direction: column;
-  gap: 24px; }
+  }
 .grid-right{ display: flex;
   flex-direction: column;
   gap: 16px; }
@@ -1281,14 +1282,14 @@ input:checked + .toggle-slider::before {
   flex: 1;
   max-width: 60px;
   /* ë§‰ëŒ€ ìµœëŒ€ ë„ˆë¹„ ì œí•œ */: ; }
-.chart-bar{ width: 100%;
+/* .chart-bar{ width: 100%;
   background: linear-gradient(180deg, #3be6ff, #7c8cff);
   border-radius: 4px 4px 0 0;
   position: relative;
   min-height: 4px;
   transition: all 0.3s ease;
   /* ìµœì†Œ ë†'ì´ ë³´ìž¥ */
-  min-height: 4px; }
+  min-height: 4px; } */
 .chart-bar:hover{ background: linear-gradient(180deg, #4df7ff, #8d9dff);
   transform: scaleY(1.05); }
 .bar-value{ position: absolute;
@@ -3791,3 +3792,857 @@ input:checked + .toggle-slider::before {
   margin-bottom: 12px;
   padding: 0 12px;
 }
+
+/* 스크롤 버튼 스타일 */
+.scroll-to-top-btn {
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  width: 50px;
+  height: 50px;
+  background: rgba(59, 230, 255, 0.9);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.scroll-to-top-btn:hover {
+  background: rgba(59, 230, 255, 1);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+}
+
+.scroll-to-top-btn:active {
+  transform: translateY(0);
+}
+
+.scroll-icon {
+  width: 24px;
+  height: 24px;
+  color: #ffffff;
+  stroke-width: 2;
+}
+
+/* 반응형 조정 */
+@media (max-width: 768px) {
+  .scroll-to-top-btn {
+    bottom: 20px;
+    right: 20px;
+    width: 45px;
+    height: 45px;
+  }
+  
+  .scroll-icon {
+    width: 20px;
+    height: 20px;
+  }
+}
+
+/* Daily Message Activity 차트 스타일 - 완전 수정 */
+.chart-container {
+  width: 100%;
+  padding: 20px;
+  background: rgba(18, 27, 61, 0.3);
+  border-radius: 12px;
+  margin-top: 16px;
+  min-height: 280px;
+}
+
+.chart-bars {
+  display: flex;
+  gap: 16px;
+  align-items: flex-end;
+  height: 200px;
+  padding: 30px 20px 20px 20px;
+  position: relative;
+}
+
+/* .chart-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  position: relative;
+} */
+
+.bar-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.bar-count {
+  position: absolute;
+  top: -35px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+  background: rgba(59, 230, 255, 0.9);
+  padding: 6px 10px;
+  border-radius: 8px;
+  white-space: nowrap;
+  z-index: 10;
+  min-width: 24px;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* .bar-value {
+  width: 100%;
+  max-width: 50px;
+  min-height: 8px;
+  background: linear-gradient(180deg, #3be6ff 0%, #1a8ba8 100%);
+  border-radius: 8px 8px 0 0;
+  position: relative;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: flex-end;
+  box-shadow: 0 4px 12px rgba(59, 230, 255, 0.3);
+  border: 1px solid rgba(59, 230, 255, 0.4);
+} */
+
+.bar-value.has-data {
+  box-shadow: 0 6px 16px rgba(59, 230, 255, 0.5);
+  border: 2px solid rgba(59, 230, 255, 0.8);
+}
+
+.bar-value.no-data {
+  background: rgba(59, 230, 255, 0.1);
+  border: 1px solid rgba(59, 230, 255, 0.2);
+  box-shadow: none;
+  min-height: 8px;
+}
+
+.bar-fill {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(180deg, #3be6ff 0%, #1a8ba8 100%);
+  border-radius: 8px 8px 0 0;
+}
+
+.bar-label {
+  margin-top: 16px;
+  font-size: 13px;
+  color: #8b9bb4;
+  text-align: center;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+/* 디버그 정보 스타일 (실제로 유지) */
+.debug-info {
+  padding: 12px 16px;
+  background: rgba(59, 230, 255, 0.1);
+  border: 1px solid rgba(59, 230, 255, 0.3);
+  border-radius: 8px;
+  margin: 16px 0;
+  font-size: 12px;
+  color: #8b9bb4;
+  line-height: 1.4;
+}
+
+.debug-info strong {
+  color: #3be6ff;
+  font-weight: 600;
+}
+
+/* 기간 정보 및 새로고침 버튼 */
+.period-info {
+  margin: 16px 0;
+  padding: 12px 16px;
+  background: rgba(59, 230, 255, 0.1);
+  border-radius: 8px;
+  border-left: 3px solid #3be6ff;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.period-text {
+  font-size: 13px;
+  color: #8b9bb4;
+  font-style: italic;
+}
+
+.refresh-btn {
+  background: rgba(59, 230, 255, 0.2);
+  border: 1px solid rgba(59, 230, 255, 0.4);
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 16px;
+}
+
+.refresh-btn:hover {
+  background: rgba(59, 230, 255, 0.3);
+  border-color: rgba(59, 230, 255, 0.6);
+}
+
+/* 반응형 조정 */
+@media (max-width: 768px) {
+  .chart-bars {
+    gap: 12px;
+    height: 160px;
+    padding: 25px 15px 15px 15px;
+  }
+  
+  .bar-count {
+    font-size: 12px;
+    padding: 4px 8px;
+    top: -30px;
+  }
+  
+  .bar-label {
+    font-size: 12px;
+    margin-top: 12px;
+  }
+  
+  .period-info {
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-start;
+  }
+}
+
+/* Daily Message Activity 전용 클래스명으로 변경 */
+.daily-message-section .chart-container {
+  width: 100%;
+  padding: 20px;
+  background: rgba(18, 27, 61, 0.3);
+  border-radius: 12px;
+  margin-top: 16px;
+  min-height: 280px;
+}
+
+.daily-message-section .chart-bars {
+  display: flex;
+  gap: 16px;
+  align-items: flex-end;
+  height: 200px;
+  padding: 30px 20px 20px 20px;
+  position: relative;
+}
+
+.daily-message-section .chart-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  position: relative;
+}
+
+.daily-message-section .bar-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.daily-message-section .bar-count {
+  position: absolute;
+  top: -35px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+  background: rgba(59, 230, 255, 0.9);
+  padding: 6px 10px;
+  border-radius: 8px;
+  white-space: nowrap;
+  z-index: 10;
+  min-width: 24px;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.daily-message-section .bar-value {
+  width: 100% !important;
+  /* max-width: 50px !important;
+  min-height: 8px !important; */
+  background: linear-gradient(180deg, #3be6ff 0%, #1a8ba8 100%) !important;
+  border-radius: 8px 8px 0 0 !important;
+  position: relative !important;
+  transition: all 0.3s ease !important;
+  display: flex !important;
+  align-items: flex-end !important;
+  box-shadow: 0 4px 12px rgba(59, 230, 255, 0.3) !important;
+  border: 1px solid rgba(59, 230, 255, 0.4) !important;
+}
+
+.daily-message-section .bar-value.has-data {
+  box-shadow: 0 6px 16px rgba(59, 230, 255, 0.5);
+  border: 2px solid rgba(59, 230, 255, 0.8);
+}
+
+.daily-message-section .bar-value.no-data {
+  background: rgba(59, 230, 255, 0.1);
+  border: 1px solid rgba(59, 230, 255, 0.2);
+  box-shadow: none;
+  min-height: 8px;
+}
+
+.daily-message-section .bar-fill {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(180deg, #3be6ff 0%, #1a8ba8 100%);
+  border-radius: 8px 8px 0 0;
+}
+
+.daily-message-section .bar-label {
+  margin-top: 16px;
+  font-size: 13px;
+  color: #8b9bb4;
+  text-align: center;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+/* 기존 .chart-bar 관련 스타일들을 모두 주석 처리하거나 제거 */
+/* .chart-bar { ... } - 이 스타일들을 모두 제거 */
+
+/* Daily Message Activity 전용 차트 스타일 */
+.daily-message-section .chart-container {
+  width: 100%;
+  padding: 20px;
+  background: rgba(18, 27, 61, 0.3);
+  border-radius: 12px;
+  margin-top: 16px;
+  min-height: 280px;
+}
+
+.daily-message-section .chart-bars {
+  display: flex;
+  gap: 16px;
+  align-items: flex-end;
+  height: 200px;
+  padding: 30px 20px 20px 20px;
+  position: relative;
+}
+
+.daily-message-section .chart-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  position: relative;
+}
+
+.daily-message-section .bar-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.daily-message-section .bar-count {
+  position: absolute;
+  top: -35px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+  background: rgba(59, 230, 255, 0.9);
+  padding: 6px 10px;
+  border-radius: 8px;
+  white-space: nowrap;
+  z-index: 10;
+  min-width: 24px;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.daily-message-section .bar-value {
+  width: 100%;
+  max-width: 50px;
+  min-height: 8px;
+  background: linear-gradient(180deg, #3be6ff 0%, #1a8ba8 100%);
+  border-radius: 8px 8px 0 0;
+  position: relative;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: flex-end;
+  box-shadow: 0 4px 12px rgba(59, 230, 255, 0.3);
+  border: 1px solid rgba(59, 230, 255, 0.4);
+}
+
+.daily-message-section .bar-value.has-data {
+  box-shadow: 0 6px 16px rgba(59, 230, 255, 0.5);
+  border: 2px solid rgba(59, 230, 255, 0.8);
+}
+
+.daily-message-section .bar-value.no-data {
+  background: rgba(59, 230, 255, 0.1);
+  border: 1px solid rgba(59, 230, 255, 0.2);
+  box-shadow: none;
+  min-height: 8px;
+}
+
+.daily-message-section .bar-fill {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(180deg, #3be6ff 0%, #1a8ba8 100%);
+  border-radius: 8px 8px 0 0;
+}
+
+.daily-message-section .bar-label {
+  margin-top: 16px;
+  font-size: 13px;
+  color: #8b9bb4;
+  text-align: center;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+
+
+/* 반응형 */
+@media (max-width: 768px) {
+  .daily-message-section .performance-timeline-chart {
+    height: 250px;
+  }
+  
+  .daily-message-section .chart-container {
+    padding-left: 40px;
+    padding-right: 15px;
+  }
+  
+  .daily-message-section .bar-value {
+    max-width: 25px;
+  }
+}
+
+/* !important로 강제 적용 */
+.daily-message-section .bar-value {
+  width: 100% !important;
+  max-width: 30px !important;
+  min-height: 4px !important;
+  background: linear-gradient(to top, #3be6ff, #7c8cff) !important;
+  border-radius: 4px 4px 0 0 !important;
+  position: relative !important;
+  transition: all 0.3s ease !important;
+  display: flex !important;
+  align-items: flex-end !important;
+  box-shadow: 0 2px 8px rgba(59, 230, 255, 0.3) !important;
+}
+
+/* Daily Message Activity - Performance Timeline 스타일 */
+.daily-message-section .performance-timeline-chart {
+  position: relative;
+  width: 100%;
+  height: 300px;
+  background: rgba(18, 27, 61, 0.3);
+  border-radius: 12px;
+  margin-top: 16px;
+  padding: 20px;
+}
+
+/* Y축 그리드 */
+.daily-message-section .y-axis-grid {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.daily-message-section .grid-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: rgba(59, 230, 255, 0.2);
+  z-index: 1;
+}
+
+.daily-message-section .grid-label {
+  position: absolute;
+  left: -40px;
+  top: -8px;
+  font-size: 11px;
+  color: #8b9bb4;
+  background: rgba(18, 27, 61, 0.8);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* 차트 컨테이너 */
+.daily-message-section .chart-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  padding-left: 50px;
+  padding-right: 20px;
+  padding-top: 20px;
+  padding-bottom: 40px;
+}
+
+.daily-message-section .chart-bars {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  height: 100%;
+  position: relative;
+}
+
+.daily-message-section .chart-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  position: relative;
+}
+
+/* 바 위의 값 라벨 */
+.daily-message-section .bar-value-label {
+  position: absolute;
+  top: -25px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #ffffff;
+  background: rgba(59, 230, 255, 0.9);
+  padding: 4px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  z-index: 10;
+  min-width: 20px;
+  text-align: center;
+}
+
+/* 바 차트 */
+.daily-message-section .bar-value {
+  width: 100%;
+  max-width: 30px;
+  min-height: 4px;
+  background: linear-gradient(to top, #3be6ff, #7c8cff);
+  border-radius: 4px 4px 0 0;
+  position: relative;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: flex-end;
+  box-shadow: 0 2px 8px rgba(59, 230, 255, 0.3);
+}
+
+.daily-message-section .bar-fill {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(to top, #3be6ff, #7c8cff);
+  border-radius: 4px 4px 0 0;
+}
+
+/* 날짜 라벨 */
+.daily-message-section .bar-date-label {
+  margin-top: 12px;
+  font-size: 11px;
+  color: #8b9bb4;
+  text-align: center;
+  white-space: nowrap;
+  transform: rotate(-45deg);
+  transform-origin: center top;
+  width: 40px;
+}
+
+/* 반응형 */
+@media (max-width: 768px) {
+  .daily-message-section .performance-timeline-chart {
+    height: 250px;
+  }
+  
+  .daily-message-section .chart-container {
+    padding-left: 40px;
+    padding-right: 15px;
+  }
+  
+  .daily-message-section .bar-value {
+    max-width: 25px;
+  }
+}
+
+/* 바 차트 - min-height 제거하고 height 계산 수정 */
+.daily-message-section .bar-value {
+  width: 100%;
+  max-width: 30px;
+  /* min-height: 4px; 제거 */
+  background: linear-gradient(to top, #3be6ff, #7c8cff);
+  border-radius: 4px 4px 0 0;
+  position: relative;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: flex-end;
+  box-shadow: 0 2px 8px rgba(59, 230, 255, 0.3);
+}
+
+.daily-message-section .bar-value {
+  width: 100%;
+  max-width: 30px;
+  background: linear-gradient(to top, #3be6ff, #7c8cff);
+  border-radius: 4px 4px 0 0;
+  position: relative;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: flex-end;
+  box-shadow: 0 2px 8px rgba(59, 230, 255, 0.3);
+  /* 디버깅을 위한 임시 스타일 */
+  border: 1px solid red; /* 바의 경계를 명확하게 보기 위해 */
+}
+
+.bar-fill-wrapper {
+  width: 100%;
+  max-width: 50px;
+  background: linear-gradient(180deg, #3be6ff 0%, #1a8ba8 100%);
+  border-radius: 8px 8px 0 0;
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(59, 230, 255, 0.3);
+  border: 1px solid rgba(59, 230, 255, 0.4);
+}
+
+.bar-column {
+  width: 100%;
+  max-width: 50px;
+  background: linear-gradient(180deg, #3be6ff 0%, #1a8ba8 100%);
+  border-radius: 8px 8px 0 0;
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(59, 230, 255, 0.3);
+  border: 1px solid rgba(59, 230, 255, 0.4);
+}
+
+/* ===== Daily Message Activity (standard bar chart) ===== */
+
+/* 레이아웃 */
+.dma-chart{
+  position: relative;
+  display: grid;
+  grid-template-columns: 40px 1fr; /* 좌측 Y축 라벨 40px */
+  height: 260px;
+  margin-top: 8px;
+}
+
+/* === Y축 · 그리드 정렬 보정 (drop-in replace) === */
+
+/* 플롯 영역 패딩(위 8px, 아래 28px)과 정확히 동일하게 맞춥니다. */
+.dma-yaxis-abs{
+  position: relative;
+  height: 100%;
+  padding: 8px 8px 28px 0;   /* ← .dma-plot 과 동일 */
+  box-sizing: border-box;    /* padding 포함해 퍼센트 좌표 일치 */
+}
+
+.dma-tick{
+  position: absolute;
+  left: 0;
+  right: 0;
+  /* bottom:% 는 TSX에서 지정 */
+}
+
+/* 라벨은 라인 중앙에 앉힙니다(시각적 중앙) */
+.dma-ylabel{
+  position: absolute;
+  right: 8px;
+  transform: translateY(50%);  /* 라인의 중심선 */
+  font-size: 12px;
+  color: rgba(255,255,255,0.7);
+  line-height: 1;
+  display: none;
+}
+
+/* 플롯도 기존과 동일 패딩 유지 */
+.dma-plot{
+  position: relative;
+  height: 100%;
+  padding: 8px 0 34px ;      /* ← 위/아래가 Y축과 동일해야 함 */
+}
+/* 좌측 Y축 컨테이너도 같은 내부 영역을 쓰게(라벨 숨김이어도 영역만 맞추기) */
+.dma-yaxis-abs{
+  position: relative;
+  height: 100%;
+  padding: 8px 8px 28px 0; /* ⬅︎ 위 .dma-plot 과 ‘동일’ */
+  box-sizing: border-box;
+}
+/* 수평 라인: 좌표만 공유, 추가 보정 없음 */
+/* 수평 그리드 라인: 막대와 같은 내부 영역에 정렬 */
+/* 수평 그리드 라인: 막대와 ‘같은’ 내부영역에 맞추기 */
+.dma-grid-abs{
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 8px;        /* ⬅︎ .dma-plot top padding 과 동일 */
+  bottom: 28px;    /* ⬅︎ .dma-plot bottom padding 과 동일 */
+  pointer-events: none;
+}
+.dma-hline{
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: rgba(59,230,255,0.18);
+  /* border-bottom: 1px solid rgba(3,8,28,0.25);  ⬅︎ 제거 */
+  transform: translateY(0.5px); /* 레티나에서도 또렷하게 */
+}
+/* 바 영역: 바닥(0%)에서 성장 */
+.dma-bars{
+  position: relative;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;       /* 바닥 기준 */
+  justify-content: space-around;
+  gap: 16px;
+}
+
+.dma-barwrap{
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 28px;
+}
+
+.dma-barstack{
+  position: relative;
+  flex: 1;                     /* 막대 전용 영역이 전체 높이를 가짐 */
+  width: 100%;
+  display: flex;
+  align-items: flex-end;       /* 바닥에서부터 자람 */
+  justify-content: center;
+}
+
+/* 막대 본체 */
+.dma-bar{
+  position: relative;
+  width: 40px;
+  max-width: 48px;
+  min-width: 24px;
+  border-radius: 10px 10px 0 0;
+  background: linear-gradient(180deg, rgba(59,230,255,0.25), rgba(124,140,255,0.2));
+  border: 1px solid rgba(59,230,255,0.35);
+  box-shadow: inset 0 -30px 40px rgba(59,230,255,0.25);
+  display: flex;
+  align-items: flex-end;
+  transition: transform .2s ease, box-shadow .2s ease;
+}
+.dma-bar:hover{
+  transform: translateY(-2px);
+  box-shadow: inset 0 -36px 48px rgba(59,230,255,0.35), 0 6px 16px rgba(0,0,0,0.25);
+}
+
+/* 실제 채움 */
+.dma-barfill{
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(180deg, #7c8cff 0%, #3be6ff 85%);
+  border-radius: 10px 10px 0 0;
+}
+
+/* 값 버블: 레이아웃에 영향 없도록 절대배치 */
+.dma-valuebubble{
+  position: absolute;
+  top: -16px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  font-weight: 700;
+  background: #27e1ff;
+  color: #002332;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+/* X축 라벨 */
+.dma-xlabel{
+  margin-top: 8px;
+  color: rgba(255,255,255,0.75);
+  font-size: 12px;
+  transform: rotate(-30deg);
+  transform-origin: top right;
+  white-space: nowrap;
+}
+
+/* ===== DMA horizontal overflow handling ===== */
+/* 플롯 영역: 위/아래 padding “단일 소스” */
+.dma-plot{
+  position: relative;
+  height: 100%;
+  padding: 8px 0 28px 0;   /* ⬅︎ 여기 값이 표준입니다 (top=8, bottom=28) */
+}
+
+/* 차트 내부만 가로 스크롤 */
+.dma-scroll {
+  position: relative;
+  height: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+/* 스크롤바는 얇게 (선택) */
+.dma-scroll::-webkit-scrollbar {
+  height: 8px;
+}
+.dma-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.12);
+  border-radius: 8px;
+}
+.dma-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* 막대 컨테이너: 기본은 현재와 동일 */
+.dma-bars {
+  position: relative;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-around; /* 스크롤 필요 없을 때 자동 분배 */
+  gap: var(--bar-gap, 16px);
+}
+
+/* 스크롤 모드일 때는 왼쪽부터 촘촘히 배치 */
+.dma-bars.scrollable {
+  justify-content: flex-start;
+}
+
+/* 막대 너비를 CSS 변수로 제어 */
+.dma-bar {
+  width: var(--bar-w, 40px);
+  max-width: 48px;
+  min-width: 24px;
+}
+
+/* 바 전체 폭을 명시해서 내부만 스크롤되게 */
+.dma-bars-inner {
+  height: 100%;
+}
+
+/* X 라벨 회전 유지 */
+.dma-xlabel{
+  margin-top: 8px;
+  color: rgba(255,255,255,0.75);
+  font-size: 12px;
+  transform: rotate(-30deg);
+  transform-origin: top right;
+  white-space: nowrap;
+}
+
