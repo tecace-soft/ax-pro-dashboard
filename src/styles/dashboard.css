@@ -751,8 +751,9 @@ to{ opacity: 0;
 .dashboard-grid{ display: grid;
   grid-template-columns: 1fr;
   /* ì˜¤ë¥¸ìª½ íŒ¨ë„ ì œê±°ë¡œ 1frë¡œ ë³€ê²½ */
-  gap: 24px;
-  margin-bottom: 32px; }
+  /* gap: 24px; */
+  /* margin-bottom: 32px;  */
+}
 .performance-section{ background: linear-gradient(180deg, rgba(18,27,61,0.4), rgba(13,20,44,0.4));
   border: 1px solid rgba(59,230,255,0.1);
   border-radius: 12px;
@@ -1058,7 +1059,7 @@ input:checked + .toggle-slider::before {
   text-align: right; }
 .grid-left{ display: flex;
   flex-direction: column;
-  gap: 24px; }
+  }
 .grid-right{ display: flex;
   flex-direction: column;
   gap: 16px; }
@@ -4466,19 +4467,31 @@ input:checked + .toggle-slider::before {
   font-size: 12px;
   color: rgba(255,255,255,0.7);
   line-height: 1;
+  display: none;
 }
 
 /* 플롯도 기존과 동일 패딩 유지 */
 .dma-plot{
   position: relative;
   height: 100%;
-  padding: 8px 0 28px 0;      /* ← 위/아래가 Y축과 동일해야 함 */
+  padding: 8px 0 34px ;      /* ← 위/아래가 Y축과 동일해야 함 */
 }
-
+/* 좌측 Y축 컨테이너도 같은 내부 영역을 쓰게(라벨 숨김이어도 영역만 맞추기) */
+.dma-yaxis-abs{
+  position: relative;
+  height: 100%;
+  padding: 8px 8px 28px 0; /* ⬅︎ 위 .dma-plot 과 ‘동일’ */
+  box-sizing: border-box;
+}
 /* 수평 라인: 좌표만 공유, 추가 보정 없음 */
+/* 수평 그리드 라인: 막대와 같은 내부 영역에 정렬 */
+/* 수평 그리드 라인: 막대와 ‘같은’ 내부영역에 맞추기 */
 .dma-grid-abs{
   position: absolute;
-  inset: 0;
+  left: 0;
+  right: 0;
+  top: 8px;        /* ⬅︎ .dma-plot top padding 과 동일 */
+  bottom: 28px;    /* ⬅︎ .dma-plot bottom padding 과 동일 */
   pointer-events: none;
 }
 .dma-hline{
@@ -4487,8 +4500,8 @@ input:checked + .toggle-slider::before {
   right: 0;
   height: 1px;
   background: rgba(59,230,255,0.18);
-  border-bottom: 1px solid rgba(3,8,28,0.25);
-  /* bottom:% 는 TSX에서 지정 */
+  /* border-bottom: 1px solid rgba(3,8,28,0.25);  ⬅︎ 제거 */
+  transform: translateY(0.5px); /* 레티나에서도 또렷하게 */
 }
 /* 바 영역: 바닥(0%)에서 성장 */
 .dma-bars{
@@ -4567,3 +4580,69 @@ input:checked + .toggle-slider::before {
   transform-origin: top right;
   white-space: nowrap;
 }
+
+/* ===== DMA horizontal overflow handling ===== */
+/* 플롯 영역: 위/아래 padding “단일 소스” */
+.dma-plot{
+  position: relative;
+  height: 100%;
+  padding: 8px 0 28px 0;   /* ⬅︎ 여기 값이 표준입니다 (top=8, bottom=28) */
+}
+
+/* 차트 내부만 가로 스크롤 */
+.dma-scroll {
+  position: relative;
+  height: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+/* 스크롤바는 얇게 (선택) */
+.dma-scroll::-webkit-scrollbar {
+  height: 8px;
+}
+.dma-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.12);
+  border-radius: 8px;
+}
+.dma-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* 막대 컨테이너: 기본은 현재와 동일 */
+.dma-bars {
+  position: relative;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-around; /* 스크롤 필요 없을 때 자동 분배 */
+  gap: var(--bar-gap, 16px);
+}
+
+/* 스크롤 모드일 때는 왼쪽부터 촘촘히 배치 */
+.dma-bars.scrollable {
+  justify-content: flex-start;
+}
+
+/* 막대 너비를 CSS 변수로 제어 */
+.dma-bar {
+  width: var(--bar-w, 40px);
+  max-width: 48px;
+  min-width: 24px;
+}
+
+/* 바 전체 폭을 명시해서 내부만 스크롤되게 */
+.dma-bars-inner {
+  height: 100%;
+}
+
+/* X 라벨 회전 유지 */
+.dma-xlabel{
+  margin-top: 8px;
+  color: rgba(255,255,255,0.75);
+  font-size: 12px;
+  transform: rotate(-30deg);
+  transform-origin: top right;
+  white-space: nowrap;
+}
+

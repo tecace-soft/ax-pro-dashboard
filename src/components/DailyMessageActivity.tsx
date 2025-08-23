@@ -127,26 +127,67 @@ interface DailyMessageActivityProps {
           </div>
 
           {/* Bars */}
-          <div className="dma-bars">
-            {messageData.map(d => {
-              const barHeight = yMax > 0 ? (d.count / yMax) * 100 : 0; // 0이면 0%
-              const dayLabel = new Date(d.date).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
+{(() => {
+  const n = messageData.length;
+  const MAX_NO_SCROLL = 10;             // 10개까지는 스크롤 없이
+  const needsScroll = n > MAX_NO_SCROLL;
 
-              return (
-                <div className="dma-barwrap" key={d.date} title={`${dayLabel}: ${d.count}`}>
-                  {/* 막대 전용 영역 */}
-                  <div className="dma-barstack">
-                    <div className="dma-bar" style={{ height: `${barHeight}%` }}>
-                      {d.count > 0 && <div className="dma-valuebubble">{d.count}</div>}
-                      <div className="dma-barfill" />
-                    </div>
-                  </div>
-                  {/* X라벨 */}
-                  <div className="dma-xlabel">{dayLabel}</div>
+  const BAR_W = needsScroll ? 40 : undefined;  // 막대 최소너비
+  const GAP   = needsScroll ? 14 : 16;         // 간격
+
+  const innerWidth = needsScroll
+    ? (n * (BAR_W as number)) + ((n - 1) * GAP) + 16
+    : undefined;
+
+  return (
+    <div
+      className="dma-bars-scroll"
+      style={{
+        height: '100%',
+        overflowX: needsScroll ? 'auto' : 'hidden',
+        overflowY: 'hidden',
+      }}
+    >
+      <div
+        className="dma-bars"
+        style={{
+          height: '100%',
+          display: 'flex',
+          alignItems: 'flex-end',
+          justifyContent: needsScroll ? 'flex-start' : 'space-around',
+          gap: `${GAP}px`,
+          width: needsScroll ? `${innerWidth}px` : '100%',
+        }}
+      >
+        {messageData.map(d => {
+          const barHeight = yMax > 0 ? (d.count / yMax) * 100 : 0;
+          const dayLabel = new Date(d.date).toLocaleDateString('ko-KR', {
+            month: 'short',
+            day: 'numeric',
+          });
+
+          return (
+            <div className="dma-barwrap" key={d.date} title={`${dayLabel}: ${d.count}`}>
+              <div className="dma-barstack">
+                <div
+                  className="dma-bar"
+                  style={{
+                    height: `${barHeight}%`,
+                    width: BAR_W ? `${BAR_W}px` : undefined,
+                  }}
+                >
+                  {d.count > 0 && <div className="dma-valuebubble">{d.count}</div>}
+                  <div className="dma-barfill" />
                 </div>
-              );
-            })}
-          </div>
+              </div>
+              <div className="dma-xlabel">{dayLabel}</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+})()}
         </div>
       </div>
 
