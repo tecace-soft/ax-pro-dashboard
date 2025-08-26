@@ -640,12 +640,8 @@ useEffect(() => {
 
 					{/* Content.tsx 모듈을 그대로 유지 */}
 					<div className="content-module">
-  <Content 
-    startDate={startDate} 
-    endDate={endDate} 
-    onChangeRange={handleRangeChange} 
-  />
-</div>
+						<Content />
+					</div>
 
 				</main>
 			</div>
