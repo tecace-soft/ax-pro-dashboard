@@ -7,7 +7,7 @@ import { fetchRequestDetail } from '../services/requestDetails'
 import { getAdminFeedbackBatch, saveAdminFeedback, updateAdminFeedback, deleteAdminFeedback } from '../services/adminFeedback'
 import { ensureChatDataExists } from '../services/chatData'
 import { AdminFeedbackData } from '../services/supabase'
-// import { updatePromptWithFeedback } from '../services/promptUpdater' // Temporarily disabled for debugging
+import { updatePromptWithFeedback } from '../services/promptUpdater'
 
 import PromptControl from '../components/PromptControl'
 import UserFeedback from '../components/UserFeedback'
@@ -16,12 +16,6 @@ import '../styles/radar.css'
 import '../styles/prompt.css'
 import '../styles/userFeedback.css'
 import '../styles/tabs.css'
-
-interface ContentProps {
-	startDate?: string;
-	endDate?: string;
-	onChangeRange?: (start: string, end: string) => void;
-  }
 
 function formatDate(d: Date): string {
 	const year = d.getFullYear()
@@ -68,11 +62,7 @@ function formatDateForAPI(d: Date, isEndDate: boolean = false): string {
 	return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
 }
 
-export default function Content({
-  startDate: extStartDate,
-  endDate: extEndDate,
-  onChangeRange,
-}: ContentProps) {
+export default function Content() {
 	const [authToken, setAuthToken] = useState<string | null>(null)
 	const [sessions, setSessions] = useState<any[]>([])
 	const [isLoadingSessions, setIsLoadingSessions] = useState(false)
@@ -111,46 +101,29 @@ export default function Content({
 		onConfirm: null
 	})
 
+	// Add state to trigger prompt refresh
+	const [promptRefreshTrigger, setPromptRefreshTrigger] = useState(0)
+
+	// Function to trigger prompt refresh
+	const triggerPromptRefresh = () => {
+		setPromptRefreshTrigger(prev => prev + 1)
+	}
+
 	// Date filters: default to [today-7, today]
 	const today = new Date()
 	const sevenDaysAgo = new Date()
 	sevenDaysAgo.setDate(today.getDate() - 7)
 	const [startDate, setStartDate] = useState<string>(formatDate(sevenDaysAgo))
 	const [endDate, setEndDate] = useState<string>(formatDate(today))
-
-	// 날짜 변경 시, 내부 state 업데이트 + 부모에 알리기
-const changeStart = (v: string) => {
-	setStartDate(v)
-	if (onChangeRange) onChangeRange(v, endDate)
-  }
-  
-  const changeEnd = (v: string) => {
-	setEndDate(v)
-	if (onChangeRange) onChangeRange(startDate, v)
-  }
 	
-	// 외부에서 내려오는 기간을 내부 state에 반영
-	useEffect(() => {
-		if (extStartDate && extStartDate !== startDate) setStartDate(extStartDate)
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [extStartDate])
-  
-  useEffect(() => {
-	if (extEndDate && extEndDate !== endDate) setEndDate(extEndDate)
-	// eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [extEndDate])
-
 	// Helper functions to format dates for API calls with proper UTC time
-	// Add one day to compensate for timezone offset issues
 	const getApiStartDate = (startDateString: string): string => {
 		const startDateObj = new Date(startDateString)
-		startDateObj.setDate(startDateObj.getDate() + 1) // Add one day
 		return formatDateForAPI(startDateObj, false)
 	}
 	
 	const getApiEndDate = (endDateString: string): string => {
 		const endDateObj = new Date(endDateString)
-		endDateObj.setDate(endDateObj.getDate() + 1) // Add one day
 		return formatDateForAPI(endDateObj, true)
 	}
 
@@ -304,21 +277,15 @@ const changeStart = (v: string) => {
 					onConfirm: () => switchToNegativeFeedback(requestId)
 				})
 			} else if (type === 'negative' && existingFeedback.feedback_verdict === 'bad') {
-				// Red thumbs down clicked again - toggle form visibility
-				if (expandedFeedbackForms.has(requestId)) {
-					// If form is already open, close it
-					closeFeedbackForm(requestId)
-				} else {
-					// If form is closed, open it with existing data for editing/deleting
-					setExpandedFeedbackForms(prev => new Set(prev).add(requestId))
-					setFeedbackFormData(prev => ({
-						...prev,
-						[requestId]: { 
-							text: existingFeedback.feedback_text || '', 
-							preferredResponse: existingFeedback.corrected_response || '' 
-						}
-					}))
-				}
+				// Red thumbs down clicked again - show form with existing data for editing/deleting
+				setExpandedFeedbackForms(prev => new Set(prev).add(requestId))
+				setFeedbackFormData(prev => ({
+					...prev,
+					[requestId]: { 
+						text: existingFeedback.feedback_text || '', 
+						preferredResponse: existingFeedback.corrected_response || '' 
+					}
+				}))
 			}
 		} else if (type === 'positive') {
 			// Auto-submit positive feedback with empty text
@@ -543,7 +510,10 @@ const changeStart = (v: string) => {
 			})
 			
 			// Update prompt with new negative feedback
-			// await updatePromptWithFeedback() // Temporarily disabled for debugging
+			await updatePromptWithFeedback()
+			
+			// Trigger prompt refresh in PromptControl component
+			triggerPromptRefresh()
 		} catch (error) {
 			console.error('Failed to submit negative feedback override:', error)
 		} finally {
@@ -663,7 +633,10 @@ const changeStart = (v: string) => {
 			closeFeedbackForm(requestId)
 			
 			// Update prompt with new negative feedback
-			// await updatePromptWithFeedback() // Temporarily disabled for debugging
+			await updatePromptWithFeedback()
+			
+			// Trigger prompt refresh in PromptControl component
+			triggerPromptRefresh()
 			
 		} catch (error) {
 			console.error('Failed to submit inline feedback:', error)
@@ -728,7 +701,10 @@ const changeStart = (v: string) => {
 			
 			// Update prompt with new negative feedback (only for bad feedback)
 			if (verdict === 'bad') {
-				// await updatePromptWithFeedback() // Temporarily disabled for debugging
+				await updatePromptWithFeedback()
+				
+				// Trigger prompt refresh in PromptControl component
+				triggerPromptRefresh()
 			}
 		} catch (error) {
 			console.error('Failed to submit feedback:', error)
@@ -750,21 +726,11 @@ const changeStart = (v: string) => {
 								<div className="date-controls">
 									<label className="date-field">
 										<span>Start Date</span>
-										<input
-  type="date"
-  className="input date-input"
-  value={startDate}
-  onChange={(e) => changeStart(e.target.value)}
-/>
+										<input type="date" className="input date-input" value={startDate} onChange={(e)=>setStartDate(e.target.value)} />
 									</label>
 									<label className="date-field">
 										<span>End Date</span>
-										<input
-  type="date"
-  className="input date-input"
-  value={endDate}
-  onChange={(e) => changeEnd(e.target.value)}
-/>
+										<input type="date" className="input date-input" value={endDate} onChange={(e)=>setEndDate(e.target.value)} />
 									</label>
 								</div>
 							</div>
@@ -855,14 +821,7 @@ const changeStart = (v: string) => {
 																				</div>
 																			</div>
 																			
-																			{detail && (
-																				<>
-																					<div className="conversation-text user">{detail.inputText}</div>
-																					<div className="conversation-text assistant">{detail.outputText}</div>
-																				</>
-																			)}
-																			
-																			{/* Inline feedback form for negative feedback - positioned BELOW chat messages */}
+																			{/* Inline feedback form for negative feedback - positioned after header */}
 																			{expandedFeedbackForms.has(requestId) && (
 																				<div className={`inline-feedback-form ${closingFeedbackForms.has(requestId) ? 'closing' : ''}`}>
 																					<div className="feedback-form-fields">
@@ -880,7 +839,7 @@ const changeStart = (v: string) => {
 																									}
 																								}))}
 																								placeholder="Explain what was wrong with this response..."
-																								rows={2}
+																								rows={3}
 																							/>
 																						</div>
 																						<div className="feedback-field">
@@ -897,7 +856,7 @@ const changeStart = (v: string) => {
 																									}
 																								}))}
 																								placeholder="Enter the corrected response..."
-																								rows={2}
+																								rows={4}
 																							/>
 																						</div>
 																					</div>
@@ -930,9 +889,20 @@ const changeStart = (v: string) => {
 																							disabled={!feedbackFormData[requestId]?.text?.trim() || submittingFeedbackRequests.has(requestId)}
 																						>
 																							{submittingFeedbackRequests.has(requestId) ? 'Submitting...' : 'Submit'}
-																							</button>
+																						</button>
 																					</div>
 																				</div>
+																			)}
+																			
+																			{detail && (
+																				<>
+																					<div className="conversation-item user">
+																						<div className="conversation-text">{detail.inputText}</div>
+																					</div>
+																					<div className="conversation-item assistant">
+																						<div className="conversation-text">{detail.outputText}</div>
+																					</div>
+																				</>
 																			)}
 																		</div>
 																	)
@@ -960,7 +930,7 @@ const changeStart = (v: string) => {
 
 					{/* Prompt Control Section */}
 					<div className="content-section">
-						<PromptControl />
+						<PromptControl key={promptRefreshTrigger} />
 					</div>
 				</div>
 			</main>

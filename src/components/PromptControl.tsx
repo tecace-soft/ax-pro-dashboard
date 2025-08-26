@@ -30,6 +30,13 @@ export default function PromptControl() {
     loadSystemPrompt()
   }, [])
 
+  // Auto-refresh when key changes (triggered by admin feedback submission)
+  useEffect(() => {
+    if (!isLoading) {
+      handleRefresh()
+    }
+  }, []) // This will run when the component re-mounts due to key change
+
   const handleRefresh = async () => {
     setIsRefreshing(true)
     try {
