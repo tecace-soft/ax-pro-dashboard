@@ -1,7 +1,6 @@
 import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
-import Content from './pages/Content'
 
 function useIsAuthenticated(): boolean {
 	return typeof window !== 'undefined' && sessionStorage.getItem('axAccess') === 'tecace'
@@ -22,7 +21,6 @@ export default function App() {
 			<Route path="/" element={<Login />} />
 			<Route element={<Protected />}>
 				<Route path="/dashboard" element={<Dashboard />} />
-				<Route path="/content" element={<Content />} />
 			</Route>
 			<Route path="*" element={<Navigate to="/" replace />} />
 		</Routes>
