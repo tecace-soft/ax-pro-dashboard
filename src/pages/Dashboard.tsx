@@ -35,6 +35,7 @@ function localDateKey(d: Date): string {
   }
   
   // 하루별 카운트 생성 (선택 기간 inclusive, Content와 동일 기준)
+  // API가 하루 앞서므로 +1일 추가
   function buildDailyMessageData(
 	startDate: string,
 	endDate: string,
@@ -42,8 +43,11 @@ function localDateKey(d: Date): string {
   ): { data: { date: string; count: number }[]; total: number } {
 	if (!startDate || !endDate) return { data: [], total: 0 };
   
+	// Add 1 day to compensate for API being a day ahead
 	const start = new Date(`${startDate}T00:00:00`);
+	start.setDate(start.getDate() + 1)
 	const end = new Date(`${endDate}T23:59:59`);
+	end.setDate(end.getDate() + 1)
   
 	const counts: Record<string, number> = {};
 	let total = 0;
@@ -219,15 +223,16 @@ useEffect(() => {
 	async function loadSessions() {
 	  setIsLoadingSessions(true)
 	  try {
-		// 시작일을 -14일 버퍼
+		// 시작일을 -14일 버퍼 (API가 하루 앞서므로 +1일 추가)
 		const startObj = new Date(startDate)
-		startObj.setDate(startObj.getDate() - 14)
+		startObj.setDate(startObj.getDate() - 14 + 1) // -14 + 1 = -13 days
 		const startForSessions = formatDate(startObj)
 
 		// 세션/요청 로딩 useEffect 안에서, startForSessions 만든 바로 아래에 추가
-const endObj = new Date(endDate);
-endObj.setDate(endObj.getDate() + 2);
-const endExclusive = formatDate(endObj); // 서버가 end를 exclusive로 처리하는 경우 대비
+		// API가 하루 앞서므로 +1일 추가
+		const endObj = new Date(endDate);
+		endObj.setDate(endObj.getDate() + 2 + 1); // +2 + 1 = +3 days
+		const endExclusive = formatDate(endObj); // 서버가 end를 exclusive로 처리하는 경우 대비
   
 		// 세션은 넉넉히 (-14일 ~ endExclusive)
 const response = await fetchSessions(authToken!, startForSessions, endExclusive);
@@ -237,13 +242,19 @@ const response = await fetchSessions(authToken!, startForSessions, endExclusive)
 		const sessionsList = response.sessions || []
 		setSessions(sessionsList)
   
-		// 각 세션의 요청도 startDate ~ endExclusive 로 조회
-const requestPromises = sessionsList
-.filter(s => s.sessionId)
-.map(s =>
-  fetchSessionRequests(authToken!, s.sessionId, startDate, endExclusive)
-	.catch(err => console.error(`Failed to fetch requests for ${s.sessionId}:`, err))
-);
+				// 각 세션의 요청도 startDate ~ endExclusive 로 조회 (API가 하루 앞서므로 +1일 추가)
+		const requestPromises = sessionsList
+		.filter(s => s.sessionId)
+		.map(s => {
+			// Add 1 day to compensate for API being a day ahead
+			const adjustedStartDate = new Date(startDate)
+			adjustedStartDate.setDate(adjustedStartDate.getDate() + 1)
+			const adjustedEndDate = new Date(endExclusive)
+			adjustedEndDate.setDate(adjustedEndDate.getDate() + 1)
+			
+			return fetchSessionRequests(authToken!, s.sessionId, formatDate(adjustedStartDate), formatDate(adjustedEndDate))
+				.catch(err => console.error(`Failed to fetch requests for ${s.sessionId}:`, err))
+		});
   
 		const requestResponses = await Promise.all(requestPromises)
 		const sessionRequestsMap: Record<string, any[]> = {}
@@ -465,12 +476,16 @@ const requestPromises = sessionsList
 	}
 
 	// 필터링된 세션 데이터를 가져오는 함수
+	// API가 하루 앞서므로 +1일 추가
 	const getFilteredSessions = () => {
 		// Content 모듈의 필터링 로직과 동일하게 적용
 		if (!startDate || !endDate) return sessions
 		
+		// Add 1 day to compensate for API being a day ahead
 		const start = new Date(startDate)
+		start.setDate(start.getDate() + 1)
 		const end = new Date(endDate)
+		end.setDate(end.getDate() + 1)
 		
 		return sessions.filter(session => {
 			const sessionDate = new Date(session.createdAt || Date.now())
@@ -638,7 +653,11 @@ useEffect(() => {
 
 					{/* Content.tsx 모듈을 그대로 유지 */}
 					<div className="content-module">
-						<Content />
+						<Content 
+							startDate={startDate}
+							endDate={endDate}
+							onDateChange={handleRangeChange}
+						/>
 					</div>
 
 				</main>
