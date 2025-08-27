@@ -571,7 +571,7 @@ export default function Content() {
 
 	const submitInlineFeedback = async (requestId: string) => {
 		const formData = feedbackFormData[requestId]
-		if (!formData || !formData.text.trim()) {
+		if (!formData || (!formData.text.trim() && !formData.preferredResponse.trim())) {
 			return
 		}
 
@@ -881,13 +881,13 @@ export default function Content() {
 																								Cancel
 																							</button>
 																						)}
-																						<button 
-																							className="btn submit-inline-feedback-btn"
-																							onClick={() => submitInlineFeedback(requestId)}
-																							disabled={!feedbackFormData[requestId]?.text?.trim() || submittingFeedbackRequests.has(requestId)}
-																						>
-																							{submittingFeedbackRequests.has(requestId) ? 'Submitting...' : 'Submit'}
-																						</button>
+																																				<button 
+															className="btn submit-inline-feedback-btn"
+															onClick={() => submitInlineFeedback(requestId)}
+															disabled={(!feedbackFormData[requestId]?.text?.trim() && !feedbackFormData[requestId]?.preferredResponse?.trim()) || submittingFeedbackRequests.has(requestId)}
+														>
+															{submittingFeedbackRequests.has(requestId) ? 'Submitting...' : 'Submit'}
+														</button>
 																					</div>
 																				</div>
 																			)}
