@@ -473,7 +473,7 @@ input:checked + .toggle-slider:before {
 /* 반응형 브레이크포인트 */
 @media (max-width: 1200px) {
   .performance-radar-section {
-    max-width: 1000px;
+    /* max-width: 1000px; REMOVED - Fixed width constraint causing zoom misalignment */
   }
   
   .control-list {
@@ -538,7 +538,7 @@ input:checked + .toggle-slider:before {
 /* 초대형 화면 대응 */
 @media (min-width: 1400px) {
   .performance-radar-section {
-    max-width: 1400px;
+    /* max-width: 1400px; REMOVED - Fixed width constraint causing zoom misalignment */
   }
   
   .radar-chart-large {
@@ -553,7 +553,7 @@ input:checked + .toggle-slider:before {
 
 @media (min-width: 1800px) {
   .performance-radar-section {
-    max-width: 1600px;
+    /* max-width: 1600px; REMOVED - Fixed width constraint causing zoom misalignment */
   }
   
   .radar-chart-large {

@@ -9,21 +9,6 @@
   cursor: pointer; }
 
 
-@keyframes slideDown {
-}
-
-@keyframes slideUp {
-}
-
-.search-input input {width: 100%; .icon-btn{ display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  background: transparent;
-  border: none;
-  cursor: pointer; }
 .icon-btn:hover svg path{ stroke: var(--text); }
 .icon-btn:hover{ background: rgba(124,140,255,0.08); }
 .modal-backdrop{ position: fixed;
@@ -54,7 +39,7 @@
   align-items: center;
   gap: 8px; }
 .section-title::before{ font-size: 18px; }
-.conversations-title::before{ content: "ðŸ'¬"; }
+
 .date-controls{ display: flex;
   gap: 12px; }
 .date-field{ display: flex;
@@ -68,11 +53,7 @@
   color: var(--text-muted); }
 
 
-@keyframes slideDown {
-}
-
-@keyframes slideUp {
-}.search-input input{ width: 100%;
+.search-input input{ width: 100%;
   padding: 10px 12px 10px 36px;
   border: 1px solid rgba(59,230,255,0.2);
   border-radius: 8px;
@@ -448,8 +429,17 @@ to{ opacity: 0;
 /* Content sections layout for Content.tsx */ .content-sections{ display: flex;
   flex-direction: column;
   gap: 24px;
-  padding: 24px; }
-.content-section{ width: 100%; }
+  padding: 0;
+  width: 100%;
+  /* Force same width behavior as dashboard sections */
+  flex: 1;
+  min-width: 0; }
+.content-section{ width: 100%;
+  background: linear-gradient(180deg, rgba(18,27,61,0.4), rgba(13,20,44,0.4));
+  border: 1px solid rgba(59,230,255,0.1);
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 24px; }
 /* Custom Scrollbar Styling - Hide ugly default scrollbars */ .dashboard-sidebar::-webkit-scrollbar, .dashboard-main::-webkit-scrollbar, .sessions-content::-webkit-scrollbar, .timeline-chart::-webkit-scrollbar{ width: 0;
   height: 0; }
 .dashboard-sidebar::-webkit-scrollbar-track, .dashboard-main::-webkit-scrollbar-track, .sessions-content::-webkit-scrollbar-track, .timeline-chart::-webkit-scrollbar-track{ background: transparent; }
@@ -750,17 +740,15 @@ to{ opacity: 0;
   letter-spacing: 0.5px; }
 .dashboard-grid{ display: grid;
   grid-template-columns: 1fr;
-  /* ì˜¤ë¥¸ìª½ íŒ¨ë„ ì œê±°ë¡œ 1frë¡œ ë³€ê²½ */
-  /* gap: 24px; */
+  width: 100%;
+  /* ì˜¤ë¥¸ìª½ íŒ¨ë„Œ ì œê±°ë¡œ 1frë¡œ ë³€ê²½ */
+  /* gap: 1rem; */
   /* margin-bottom: 32px;  */
 }
 .performance-section{ background: linear-gradient(180deg, rgba(18,27,61,0.4), rgba(13,20,44,0.4));
   border: 1px solid rgba(59,230,255,0.1);
   border-radius: 12px;
-  /* padding: 24px;
-  */
-  /* margin-bottom: 24px;
-  */: ; }
+  width: 100%; }
 .performance-section h2{ font-size: 18px;
   font-weight: 700;
   margin: 0 0 8px 0; }
@@ -1059,10 +1047,11 @@ input:checked + .toggle-slider::before {
   text-align: right; }
 .grid-left{ display: flex;
   flex-direction: column;
+  width: 100%;
   }
-.grid-right{ display: flex;
+/* .grid-right{ display: flex;
   flex-direction: column;
-  gap: 16px; }
+  gap: 16px; } */
 /* Full width section for Recent Conversations */ .full-width{ grid-column: 1 / -1;
   margin-top: 24px;
   flex: 1;
@@ -1726,7 +1715,8 @@ input:checked + .toggle-slider::before {
   /* ì‚¬ì´ë"œë°" ì—¬ë°± ì œê±° */
     width: 100%;
   /* ì „ì²´ ë„ˆë¹„ ì‚¬ìš© */: ; }
-.dashboard-grid{ padding: 1rem;
+.dashboard-grid{ 
+  /* padding: 1rem; REMOVED - Now using 0 24px to match content-module */
   gap: 1rem; }
 .performance-section{ padding: 1rem; }
 .performance-section h2{ font-size: 18px; }
@@ -1739,7 +1729,8 @@ input:checked + .toggle-slider::before {
 }
 
 /* ë" ìž'ì€ ëª¨ë°"ì¼ í™"ë©´ */
-@media (max-width: 480px) {.dashboard-grid{ padding: 0.5rem;
+@media (max-width: 480px) {.dashboard-grid{ 
+  /* padding: 0.5rem; REMOVED - Now using 0 24px to match content-module */
   gap: 0.5rem; }
 .performance-section{ padding: 0.5rem; }
 .performance-section h2{ font-size: 16px; }
@@ -2339,8 +2330,8 @@ input:checked + .toggle-slider::before {
   color: #3be6ff;
   border-left: 3px solid #3be6ff; }
 /* ì„¹ì…˜ ID ìŠ¤íƒ€ì¼ */ #performance-radar, #daily-message-activity, #system-status, #environment-controls, #content-module{ scroll-margin-top: 20px; }
-/* Content ì„¹ì…˜ë"¤ ìŠ¤íƒ€ì¼ */ .content-section, .conversations-section, .prompt-control-section{ background: rgba(18, 27, 61, 0.6);
-  border: 1px solid rgba(59, 230, 255, 0.15);
+/* Content ì„¹ì…˜ë"¤ ìŠ¤íƒ€ì¼ */ .content-section, .conversations-section, .prompt-control-section{ background: linear-gradient(180deg, rgba(18,27,61,0.4), rgba(13,20,44,0.4));
+  border: 1px solid rgba(59,230,255,0.1);
   border-radius: 12px;
   padding: 24px;
   margin-bottom: 24px; }
@@ -2372,12 +2363,16 @@ input:checked + .toggle-slider::before {
 .date-input:focus{ outline: none;
   border-color: #3be6ff;
   box-shadow: 0 0 0 2px rgba(59, 230, 255, 0.2); }
-/* ì„¹ì…˜ ID ìŠ¤íƒ€ì¼ */ #content-module, #recent-conversations, #prompt-control{ scroll-margin-top: 20px; }
-/* Content ëª¨ë"ˆ ìŠ¤íƒ€ì¼ */ .content-module{ margin-top: 24px;
-  scroll-margin-top: 20px; }
-/* Content.tsx ë‚´ë¶€ ìš"ì†Œë"¤ì˜ ìŠ¤í¬ë¡¤ ë§ˆì§„ ì„¤ì • */ .conversations-module, .prompt-control-module{ scroll-margin-top: 20px; }
-/* ì¤'ë³µëœ ê°œë³„ ì„¹ì…˜ ìŠ¤íƒ€ì¼ë"¤ ì œê±° */ /* .content-section, .conversations-section, .prompt-control-section ìŠ¤íƒ€ì¼ ì œê±° */ /* Search Section ìŠ¤íƒ€ì¼ */ .search-section{ margin: 24px 16px; }
-/* Search Scope Selectorë¥¼ ì²´í¬ë°•ìŠ¤ ìŠ¤íƒ€ì¼ë¡œ ë³€ê²½ */ .search-scope-selector{ margin-bottom: 20px; }
+#content-module, #recent-conversations, #prompt-control{ scroll-margin-top: 20px; }
+.content-module{ 
+
+  width: 100%;
+}
+
+
+.conversations-module, .prompt-control-module{ scroll-margin-top: 20px; }
+.search-section{ margin: 24px 16px; }
+.search-scope-selector{ margin-bottom: 20px; }
 .scope-label{ display: block;
   font-size: 12px;
   font-weight: 600;
@@ -4480,12 +4475,12 @@ input:checked + .toggle-slider::before {
 .dma-yaxis-abs{
   position: relative;
   height: 100%;
-  padding: 8px 8px 28px 0; /* ⬅︎ 위 .dma-plot 과 ‘동일’ */
+  padding: 8px 8px 28px 0; /* ⬅︎ 위 .dma-plot 과 '동일' */
   box-sizing: border-box;
 }
 /* 수평 라인: 좌표만 공유, 추가 보정 없음 */
 /* 수평 그리드 라인: 막대와 같은 내부 영역에 정렬 */
-/* 수평 그리드 라인: 막대와 ‘같은’ 내부영역에 맞추기 */
+/* 수평 그리드 라인: 막대와 '같은' 내부영역에 맞추기 */
 .dma-grid-abs{
   position: absolute;
   left: 0;
@@ -4582,7 +4577,7 @@ input:checked + .toggle-slider::before {
 }
 
 /* ===== DMA horizontal overflow handling ===== */
-/* 플롯 영역: 위/아래 padding “단일 소스” */
+/* 플롯 영역: 위/아래 padding "단일 소스" */
 .dma-plot{
   position: relative;
   height: 100%;
@@ -4646,3 +4641,4 @@ input:checked + .toggle-slider::before {
   white-space: nowrap;
 }
 
+ 
