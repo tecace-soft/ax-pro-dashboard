@@ -358,6 +358,12 @@ export default function Content() {
 				delete newState[requestId]
 				return newState
 			})
+			
+			// Update system prompt to reflect the deletion
+			await updatePromptWithFeedback()
+			
+			// Trigger prompt refresh in PromptControl component
+			triggerPromptRefresh()
 		} catch (error) {
 			console.error('Failed to remove positive feedback:', error)
 		} finally {
@@ -382,6 +388,12 @@ export default function Content() {
 				...prev,
 				[requestId]: savedFeedback
 			}))
+			
+			// Update system prompt to reflect the deletion of negative feedback
+			await updatePromptWithFeedback()
+			
+			// Trigger prompt refresh in PromptControl component
+			triggerPromptRefresh()
 			
 			// Close confirmation modal
 			setConfirmationModal({
@@ -430,6 +442,12 @@ export default function Content() {
 				delete newState[requestId]
 				return newState
 			})
+			
+			// Update system prompt to reflect the deletion
+			await updatePromptWithFeedback()
+			
+			// Trigger prompt refresh in PromptControl component
+			triggerPromptRefresh()
 			
 			// Close the form and modal
 			closeFeedbackForm(requestId)
@@ -571,7 +589,7 @@ export default function Content() {
 
 	const submitInlineFeedback = async (requestId: string) => {
 		const formData = feedbackFormData[requestId]
-		if (!formData || !formData.text.trim()) {
+		if (!formData || (!formData.text.trim() && !formData.preferredResponse.trim())) {
 			return
 		}
 
@@ -881,13 +899,13 @@ export default function Content() {
 																								Cancel
 																							</button>
 																						)}
-																						<button 
-																							className="btn submit-inline-feedback-btn"
-																							onClick={() => submitInlineFeedback(requestId)}
-																							disabled={!feedbackFormData[requestId]?.text?.trim() || submittingFeedbackRequests.has(requestId)}
-																						>
-																							{submittingFeedbackRequests.has(requestId) ? 'Submitting...' : 'Submit'}
-																						</button>
+																																				<button 
+															className="btn submit-inline-feedback-btn"
+															onClick={() => submitInlineFeedback(requestId)}
+															disabled={(!feedbackFormData[requestId]?.text?.trim() && !feedbackFormData[requestId]?.preferredResponse?.trim()) || submittingFeedbackRequests.has(requestId)}
+														>
+															{submittingFeedbackRequests.has(requestId) ? 'Submitting...' : 'Submit'}
+														</button>
 																					</div>
 																				</div>
 																			)}
