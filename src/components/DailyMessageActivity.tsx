@@ -39,10 +39,13 @@ interface DailyMessageActivityProps {
     }
   
     // 2) 외부 데이터가 없을 때만 기존 방식으로 집계
+    // API가 하루 앞서므로 +1일 추가
     if (!startDate || !endDate) return;
   
     const start = new Date(`${startDate}T00:00:00`);
+    start.setDate(start.getDate() + 1) // Add 1 day
     const end = new Date(`${endDate}T23:59:59`);
+    end.setDate(end.getDate() + 1) // Add 1 day
   
     const dailyCounts: Record<string, number> = {};
     let totalCount = 0;

@@ -60,7 +60,13 @@ function formatDateForAPI(d: Date, isEndDate: boolean = false): string {
 	return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
 }
 
-export default function Content() {
+interface ContentProps {
+	startDate: string
+	endDate: string
+	onDateChange: (start: string, end: string) => void
+}
+
+export default function Content({ startDate, endDate, onDateChange }: ContentProps) {
 	const [authToken, setAuthToken] = useState<string | null>(null)
 	const [sessions, setSessions] = useState<any[]>([])
 	const [isLoadingSessions, setIsLoadingSessions] = useState(false)
@@ -107,21 +113,19 @@ export default function Content() {
 		setPromptRefreshTrigger(prev => prev + 1)
 	}
 
-	// Date filters: default to [today-7, today]
-	const today = new Date()
-	const sevenDaysAgo = new Date()
-	sevenDaysAgo.setDate(today.getDate() - 7)
-	const [startDate, setStartDate] = useState<string>(formatDate(sevenDaysAgo))
-	const [endDate, setEndDate] = useState<string>(formatDate(today))
+	// Date filters now come from props (Dashboard.tsx)
 	
 	// Helper functions to format dates for API calls with proper UTC time
+	// Add 1 day to compensate for API being a day ahead
 	const getApiStartDate = (startDateString: string): string => {
 		const startDateObj = new Date(startDateString)
+		startDateObj.setDate(startDateObj.getDate() + 1) // Add 1 day
 		return formatDateForAPI(startDateObj, false)
 	}
 	
 	const getApiEndDate = (endDateString: string): string => {
 		const endDateObj = new Date(endDateString)
+		endDateObj.setDate(endDateObj.getDate() + 1) // Add 1 day
 		return formatDateForAPI(endDateObj, true)
 	}
 
@@ -742,11 +746,11 @@ export default function Content() {
 								<div className="date-controls">
 									<label className="date-field">
 										<span>Start Date</span>
-										<input type="date" className="input date-input" value={startDate} onChange={(e)=>setStartDate(e.target.value)} />
+										<input type="date" className="input date-input" value={startDate} onChange={(e)=>onDateChange(e.target.value, endDate)} />
 									</label>
 									<label className="date-field">
 										<span>End Date</span>
-										<input type="date" className="input date-input" value={endDate} onChange={(e)=>setEndDate(e.target.value)} />
+										<input type="date" className="input date-input" value={endDate} onChange={(e)=>onDateChange(startDate, e.target.value)} />
 									</label>
 								</div>
 							</div>
