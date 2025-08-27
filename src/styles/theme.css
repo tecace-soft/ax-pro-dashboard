@@ -39,7 +39,10 @@ body{
 }
 .brand{ font-weight:700; letter-spacing:0.3px; color: var(--primary); }
 
-.content{ padding: 24px; max-width: 1200px; width: 100%; margin: 0 auto; }
+.content{ 
+  width: min(90%, 1800px) !important;     /* 가용폭의 90%, 상한 1800px */
+  margin: clamp(20px, 3vh, 40px) auto !important;
+}
 
 .card{
   background: linear-gradient(180deg, rgba(18,27,61,0.9), rgba(13,20,44,0.9));

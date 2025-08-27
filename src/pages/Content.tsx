@@ -12,10 +12,8 @@ import { updatePromptWithFeedback } from '../services/promptUpdater'
 import PromptControl from '../components/PromptControl'
 import UserFeedback from '../components/UserFeedback'
 import '../styles/dashboard.css'
-import '../styles/radar.css'
 import '../styles/prompt.css'
 import '../styles/userFeedback.css'
-import '../styles/tabs.css'
 
 function formatDate(d: Date): string {
 	const year = d.getFullYear()

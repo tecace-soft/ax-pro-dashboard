@@ -11,9 +11,7 @@ import { fetchDailyMessageActivity, fetchMessageCounts } from '../services/daily
 import Header from '../components/Header'
 import Sidebar from '../components/Sidebar'
 import PerformanceRadar from '../components/PerformanceRadar'
-import PerformanceTimeline from '../components/PerformanceTimeline'
-import SystemStatus from '../components/SystemStatus'
-import EnvironmentControls from '../components/EnvironmentControls'
+
 import Content from './Content' // Content.tsx import 추가
 import DailyMessageActivity from '../components/DailyMessageActivity' // DailyMessageActivity 컴포넌트 추가
 
@@ -620,8 +618,8 @@ useEffect(() => {
   totalOverride={dailyTotal} // ✅ 총합도 함께 전달
 />
 						</div>
-
-						<div className="grid-right">
+{/* 
+						<div className="grid-right"> */}
 							{/* System Status 주석 처리 */}
 							{/* <div id="system-status">
 								<SystemStatus
@@ -635,7 +633,7 @@ useEffect(() => {
 							{/* <div id="environment-controls">
 								<EnvironmentControls />
 							</div> */}
-						</div>
+						{/* </div> */}
 					</div>
 
 					{/* Content.tsx 모듈을 그대로 유지 */}
@@ -719,3 +717,4 @@ useEffect(() => {
 		</div>
 	)
 }
+ 
