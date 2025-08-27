@@ -371,6 +371,15 @@ const response = await fetchSessions(authToken!, startForSessions, endExclusive)
 	//   }
 	// }, [authToken, startDate, endDate]) // 이 부분은 DailyMessageActivity가 처리
 
+	// 데이터 로딩 상태 확인을 위한 로그 추가
+useEffect(() => {
+  console.log('=== Dashboard Debug ===');
+  console.log('Sessions:', sessions);
+  console.log('SessionRequests:', sessionRequests);
+  console.log('StartDate:', startDate);
+  console.log('EndDate:', endDate);
+}, [sessions, sessionRequests, startDate, endDate]);
+
 	
 
 	// Sign out function
@@ -626,11 +635,11 @@ useEffect(() => {
 							</div>
 
 							{/* DailyMessageActivity 컴포넌트에 props 전달 */}
-							<DailyMessageActivity
+							<DailyMessageActivity 
   startDate={startDate}
   endDate={endDate}
-  data={dailyData}           // ✅ Dashboard에서 계산한 값을 그대로 전달
-  totalOverride={dailyTotal} // ✅ 총합도 함께 전달
+  sessions={sessions}           // 이 값이 비어있음
+  sessionRequests={sessionRequests}  // 이 값도 비어있음
 />
 						</div>
 {/* 

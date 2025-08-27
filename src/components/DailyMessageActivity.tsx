@@ -1,5 +1,5 @@
 // src/components/DailyMessageActivity.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 
 interface MessageData { date: string; count: number }
 interface DailyMessageActivityProps {
@@ -16,8 +16,9 @@ interface DailyMessageActivityProps {
   }) => {
   const [messageData, setMessageData] = useState<MessageData[]>([]);
   const [totalMessages, setTotalMessages] = useState(0);
+  const [lastUpdate, setLastUpdate] = useState<string>('');
 
-  // 로컬 날짜 키 (YYYY-MM-DD)
+  // 로컬 날짜 키 생성 함수 수정
   const localDateKey = (d: Date) => {
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -25,55 +26,74 @@ interface DailyMessageActivityProps {
     return `${y}-${m}-${day}`;
   };
 
-  // 데이터 집계: "요청(createdAt)" 기준 + 로컬 날짜 + 기간 필터
+  // sessionRequests를 useMemo로 최적화
+  const memoizedSessionRequests = useMemo(() => sessionRequests, [sessionRequests]);
+
+  // Recent Conversations의 데이터를 직접 사용하도록 수정
   useEffect(() => {
-    // 1) 외부에서 이미 계산된 데이터가 오면 그대로 사용
-    if (data && data.length) {
-      setMessageData(data);
-      setTotalMessages(
-        typeof totalOverride === 'number'
-          ? totalOverride
-          : data.reduce((s, d) => s + (d.count || 0), 0)
-      );
-      return; // ✅ 내부 집계 스킵
-    }
-  
-    // 2) 외부 데이터가 없을 때만 기존 방식으로 집계
-    // API가 하루 앞서므로 +1일 추가
     if (!startDate || !endDate) return;
-  
-    const start = new Date(`${startDate}T00:00:00`);
-    start.setDate(start.getDate() + 1) // Add 1 day
-    const end = new Date(`${endDate}T23:59:59`);
-    end.setDate(end.getDate() + 1) // Add 1 day
-  
+    
+    // 동일한 데이터로 중복 업데이트 방지
+    const updateKey = `${startDate}-${endDate}-${sessions.length}-${JSON.stringify(sessionRequests)}`;
+    if (updateKey === lastUpdate) return;
+    
+    setLastUpdate(updateKey);
+
+    console.log('=== DailyMessageActivity Debug ===');
+    console.log('Date range:', { startDate, endDate });
+    console.log('Sessions count:', sessions.length);
+
     const dailyCounts: Record<string, number> = {};
     let totalCount = 0;
-  
+
     sessions.forEach(session => {
-      const sessionId = session.sessionId || session.id;
+      const sessionId = session?.sessionId || session?.id;
       const requests = (sessionRequests[sessionId] || []) as Array<{ createdAt?: string }>;
+      
+      console.log(`Session ${sessionId}:`, {
+        sessionDate: session?.createdAt,
+        requestsCount: requests.length
+      });
+
       requests.forEach(req => {
         if (!req?.createdAt) return;
-        const t = new Date(req.createdAt);
-        if (t < start || t > end) return;
-        const key = `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`;
-        dailyCounts[key] = (dailyCounts[key] || 0) + 1;
+        
+        // 날짜를 정확하게 처리 - 시간대 문제 해결
+        const requestDate = new Date(req.createdAt);
+        // UTC 시간을 로컬 시간으로 정확하게 변환
+        const localDate = new Date(requestDate.getTime() - (requestDate.getTimezoneOffset() * 60000));
+        const dateKey = localDate.toISOString().split('T')[0];
+        
+        dailyCounts[dateKey] = (dailyCounts[dateKey] || 0) + 1;
         totalCount += 1;
       });
     });
-  
-    const display: {date: string; count: number}[] = [];
-    const cur = new Date(start);
-    while (cur <= end) {
-      const key = `${cur.getFullYear()}-${String(cur.getMonth()+1).padStart(2,'0')}-${String(cur.getDate()).padStart(2,'0')}`;
-      display.push({ date: key, count: dailyCounts[key] || 0 });
-      cur.setDate(cur.getDate() + 1);
+
+    console.log('Daily counts:', dailyCounts);
+    console.log('Total count:', totalCount);
+
+    // 날짜 범위를 정확하게 계산 - endDate까지 포함
+    const start = new Date(startDate + 'T00:00:00');
+    const end = new Date(endDate + 'T23:59:59');
+    
+    const display: MessageData[] = [];
+    const current = new Date(start);
+    
+    while (current <= end) {
+      const dateKey = current.toISOString().split('T')[0];
+      display.push({ 
+        date: dateKey, 
+        count: dailyCounts[dateKey] || 0 
+      });
+      current.setDate(current.getDate() + 1);
     }
-  
+
+    console.log('Display data:', display);
+    console.log('Total count:', totalCount);
+    
     setMessageData(display);
     setTotalMessages(totalCount);
-  }, [startDate, endDate, sessions, sessionRequests, data, totalOverride]);
+  }, [startDate, endDate, sessions, sessionRequests]);
 
   // Y축 범위 계산 (nice yMax)
   const rawMax = Math.max(...messageData.map(d => d.count), 0);
@@ -164,25 +184,26 @@ interface DailyMessageActivityProps {
       >
         {messageData.map(d => {
           const barHeight = yMax > 0 ? (d.count / yMax) * 100 : 0;
-          const dayLabel = new Date(d.date).toLocaleDateString('ko-KR', {
-            month: 'short',
-            day: 'numeric',
-          });
+          
+          // 날짜를 정확하게 파싱하여 라벨 생성
+          const date = new Date(d.date + 'T00:00:00'); // 시간을 명시적으로 설정
+          const month = date.getMonth() + 1;
+          const day = date.getDate();
+          const weekday = date.toLocaleDateString('en-US', { weekday: 'short' });
+          const dayLabel = `${month}/${day} ${weekday}`;
+
+          console.log(`Date: ${d.date} -> Label: ${dayLabel}`);
 
           return (
             <div className="dma-barwrap" key={d.date} title={`${dayLabel}: ${d.count}`}>
+              {/* 막대 전용 영역 */}
               <div className="dma-barstack">
-                <div
-                  className="dma-bar"
-                  style={{
-                    height: `${barHeight}%`,
-                    width: BAR_W ? `${BAR_W}px` : undefined,
-                  }}
-                >
+                <div className="dma-bar" style={{ height: `${barHeight}%` }}>
                   {d.count > 0 && <div className="dma-valuebubble">{d.count}</div>}
                   <div className="dma-barfill" />
                 </div>
               </div>
+              {/* X라벨 */}
               <div className="dma-xlabel">{dayLabel}</div>
             </div>
           );
