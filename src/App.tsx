@@ -1,6 +1,7 @@
 import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
+import { ProfileProvider } from './contexts/ProfileContext';
 
 function useIsAuthenticated(): boolean {
 	return typeof window !== 'undefined' && sessionStorage.getItem('axAccess') === 'tecace'
