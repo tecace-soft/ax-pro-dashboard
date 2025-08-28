@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { IconX } from '../ui/icons'
 import { getAuthToken } from '../services/auth'
 import { fetchSessions } from '../services/sessions'
@@ -734,6 +734,19 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 		}
 	}
 
+	// 총 메시지 수 계산 (Recent Conversations용)
+	const totalMessages = useMemo(() => {
+		let total = 0;
+		if (sessions && sessionRequests) {
+			sessions.forEach(session => {
+				const sessionId = session?.sessionId || session?.id;
+				const requests = sessionRequests[sessionId] || [];
+				total += requests.length;
+			});
+		}
+		return total;
+	}, [sessions, sessionRequests]);
+
 	return (
 		<div className="screen">
 			<main className="content">
@@ -742,7 +755,10 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 					<div className="content-section">
 						<div className="card section" aria-labelledby="recent-conv-title">
 							<div className="section-header">
-								<div id="recent-conv-title" className="section-title conversations-title">Recent Conversations</div>
+								<div id="recent-conv-title" className="section-title conversations-title">
+									Recent Conversations 
+									<span className="section-counter">({totalMessages} messages)</span>
+								</div>
 								<div className="date-controls">
 									<label className="date-field">
 										<span>Start Date</span>
