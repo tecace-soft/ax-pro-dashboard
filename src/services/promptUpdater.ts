@@ -274,15 +274,38 @@ export async function updatePromptWithFeedback(): Promise<void> {
     })
     
     // Build new supervisor feedback sections from database data (oldest first), starting from F5
+    const seenRequestIds = new Map<string, string>() // Map request_id to feedback text
+    
     for (const feedback of sortedFeedbackForF) {
       // Add to supervisor feedback (Section 4) if feedback_text exists
       if (feedback.feedback_text && feedback.feedback_text.trim()) {
         const normalizedText = feedback.feedback_text.trim().replace(/\s+/g, ' ')
+        const requestId = feedback.request_id
+        
+        // Check if we already have feedback for this request_id
+        if (seenRequestIds.has(requestId)) {
+          const existingText = seenRequestIds.get(requestId)!
+          // Only skip if the text is exactly the same (true duplicate)
+          if (existingText === normalizedText) {
+            continue
+          }
+          // If text is different, it's an update - replace the existing entry
+          // Remove the previous entry from newFSections
+          const indexToRemove = newFSections.findIndex(section => {
+            const sectionText = section.replace(/^F\d+\.\s*/, '').trim().replace(/\s+/g, ' ')
+            return sectionText === existingText
+          })
+          if (indexToRemove !== -1) {
+            newFSections.splice(indexToRemove, 1)
+            fIndex-- // Decrease index since we removed an entry
+          }
+        }
         
         // Check if this feedback already exists in original static content OR if we've already added it in this run
         if (!seenFeedbackTexts.has(normalizedText)) {
           newFSections.push(generateFSection(fIndex, feedback.feedback_text))
           seenFeedbackTexts.add(normalizedText)
+          seenRequestIds.set(requestId, normalizedText)
           fIndex++
         }
       }
@@ -315,6 +338,8 @@ export async function updatePromptWithFeedback(): Promise<void> {
     })
     
     // Now add new corrected responses from database, starting from Q16 (oldest first)
+    const seenQRequestIds = new Map<string, string>() // Map request_id to Q&A key
+    
     for (const feedback of sortedFeedback) {
       if (feedback.corrected_response && feedback.corrected_response.trim() && 
           feedback.chat_data?.input_text) {
@@ -322,6 +347,32 @@ export async function updatePromptWithFeedback(): Promise<void> {
         const normalizedQuestion = feedback.chat_data.input_text.trim().replace(/\s+/g, ' ')
         const normalizedAnswer = feedback.corrected_response.trim().replace(/\s+/g, ' ')
         const qnaKey = `${normalizedQuestion}|${normalizedAnswer}`
+        const requestId = feedback.request_id
+        
+        // Check if we already have feedback for this request_id
+        if (seenQRequestIds.has(requestId)) {
+          const existingQnaKey = seenQRequestIds.get(requestId)!
+          // Only skip if the Q&A is exactly the same (true duplicate)
+          if (existingQnaKey === qnaKey) {
+            continue
+          }
+          // If Q&A is different, it's an update - replace the existing entry
+          // Remove the previous entry from newQSections
+          const indexToRemove = newQSections.findIndex(section => {
+            const lines = section.split('\n')
+            const question = lines[0]?.replace(/^Q\d+\.\s*/, '').trim().replace(/\s+/g, ' ')
+            const answer = lines.find(line => line.startsWith('답변:'))?.replace(/^답변:\s*/, '').trim().replace(/\s+/g, ' ')
+            if (question && answer) {
+              const sectionQnaKey = `${question}|${answer}`
+              return sectionQnaKey === existingQnaKey
+            }
+            return false
+          })
+          if (indexToRemove !== -1) {
+            newQSections.splice(indexToRemove, 1)
+            qIndex-- // Decrease index since we removed an entry
+          }
+        }
         
         // Check if this Q&A already exists in original static content
         if (!seenQNAs.has(qnaKey)) {
@@ -331,6 +382,7 @@ export async function updatePromptWithFeedback(): Promise<void> {
             feedback.corrected_response
           ))
           seenQNAs.add(qnaKey)
+          seenQRequestIds.set(requestId, qnaKey)
           qIndex++
         }
       }

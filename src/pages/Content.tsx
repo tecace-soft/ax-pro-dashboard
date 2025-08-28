@@ -719,7 +719,7 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 			
 			closeFeedbackModal()
 			
-			// Update prompt with new negative feedback (only for bad feedback)
+			// Update prompt with new/updated feedback (only for bad feedback)
 			if (verdict === 'bad') {
 				await updatePromptWithFeedback()
 				
@@ -908,7 +908,10 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 															onClick={() => submitInlineFeedback(requestId)}
 															disabled={(!feedbackFormData[requestId]?.text?.trim() && !feedbackFormData[requestId]?.preferredResponse?.trim()) || submittingFeedbackRequests.has(requestId)}
 														>
-															{submittingFeedbackRequests.has(requestId) ? 'Submitting...' : 'Submit'}
+															{submittingFeedbackRequests.has(requestId) ? 
+																(adminFeedback[requestId]?.feedback_verdict === 'bad' ? 'Updating...' : 'Submitting...') : 
+																(adminFeedback[requestId]?.feedback_verdict === 'bad' ? 'Update' : 'Submit')
+															}
 														</button>
 																					</div>
 																				</div>
