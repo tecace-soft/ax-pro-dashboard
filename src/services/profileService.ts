@@ -1,11 +1,12 @@
-import { getAuthToken } from './authService';
+import { getAuthToken } from './auth';
+import { UserProfile } from '../types/profile';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5173/api';
 
 export const profileService = {
   // 프로필 가져오기
   async getProfile(userId: string): Promise<UserProfile> {
-    const token = getAuthToken();
+    const token = await getAuthToken();
     const response = await fetch(`${API_BASE_URL}/profiles/${userId}`, {
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -22,7 +23,7 @@ export const profileService = {
 
   // 프로필 업데이트
   async updateProfile(userId: string, profileData: Partial<UserProfile>): Promise<UserProfile> {
-    const token = getAuthToken();
+    const token = await getAuthToken();
     const response = await fetch(`${API_BASE_URL}/profiles/${userId}`, {
       method: 'PUT',
       headers: {
@@ -41,7 +42,7 @@ export const profileService = {
 
   // 아바타 업로드
   async uploadAvatar(userId: string, file: File): Promise<{ avatarUrl: string }> {
-    const token = getAuthToken();
+    const token = await getAuthToken();
     const formData = new FormData();
     formData.append('avatar', file);
     

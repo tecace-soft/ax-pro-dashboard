@@ -191,6 +191,7 @@
   align-items: center;
   gap: 6px;
   transition: color 0.2s ease;
+  line-height: 1;
 }
 
 .force-reload-link:hover {
@@ -210,7 +211,7 @@
   justify-content: center;
   width: 16px;
   height: 16px;
-  line-height: 1;
+  flex-shrink: 0;
 }
 
 .status-icon.success {
