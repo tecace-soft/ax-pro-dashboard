@@ -10,6 +10,7 @@ export default function PromptControl() {
   const [isResizing, setIsResizing] = useState(false)
   const [showConfirmation, setShowConfirmation] = useState(false)
   const [isUpdating, setIsUpdating] = useState(false)
+  const [forceReloadStatus, setForceReloadStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
 
   useEffect(() => {
     async function loadSystemPrompt() {
@@ -71,6 +72,35 @@ export default function PromptControl() {
 
   const handleCancelUpdate = () => {
     setShowConfirmation(false)
+  }
+
+  const handleForceReload = async () => {
+    setForceReloadStatus('loading')
+    
+    try {
+      const response = await fetch('/prompt-api/force-prompt-reload', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+      
+      if (!response.ok) {
+        setForceReloadStatus('error')
+        return
+      }
+      
+      const data = await response.json()
+      
+      if (data.status === 'Complete prompt reload successful') {
+        setForceReloadStatus('success')
+      } else {
+        setForceReloadStatus('error')
+      }
+    } catch (error) {
+      console.error('Failed to force prompt reload:', error)
+      setForceReloadStatus('error')
+    }
   }
 
 
@@ -157,8 +187,20 @@ export default function PromptControl() {
             onClick={handleUpdate}
             disabled={isLoading || isUpdating}
           >
-            {isLoading ? 'Loading...' : isUpdating ? 'Updating...' : 'Update'}
+            {isLoading ? 'Loading...' : isUpdating ? 'Saving...' : 'Save'}
           </button>
+          
+          <div className="force-reload-section">
+            <button 
+              className="force-reload-link"
+              onClick={handleForceReload}
+              disabled={forceReloadStatus === 'loading'}
+            >
+              {forceReloadStatus === 'success' && <span className="status-icon success">✓</span>}
+              {forceReloadStatus === 'error' && <span className="status-icon error">✗</span>}
+              {forceReloadStatus === 'loading' ? 'Loading...' : 'Update chatbot system prompt to most recently saved version'}
+            </button>
+          </div>
         </div>
       </div>
 
