@@ -444,7 +444,7 @@ to{ opacity: 0;
   height: 0; }
 .dashboard-sidebar::-webkit-scrollbar-track, .dashboard-main::-webkit-scrollbar-track, .sessions-content::-webkit-scrollbar-track, .timeline-chart::-webkit-scrollbar-track{ background: transparent; }
 .dashboard-sidebar::-webkit-scrollbar-thumb, .dashboard-main::-webkit-scrollbar-thumb, .sessions-content::-webkit-scrollbar-thumb, .timeline-chart::-webkit-scrollbar-thumb{ background: transparent; }
-/* Firefox scrollbar hiding */ .dashboard-sidebar, .dashboard-main, .sessions-content, .timeline-chart{ scrollbar-width: none;
+/* Firefox scrollbar hiding */ .dashboard-sidebar, .dashboard-main, .timeline-chart{ scrollbar-width: none;
   -ms-overflow-style: none; }
 /* Enhanced Dashboard Layout with Responsive Design */ .dashboard-layout{ min-height: 100vh;
   background: var(--bg);
@@ -1466,7 +1466,7 @@ input:checked + .toggle-slider::before {
   box-shadow: 0 0 0 2px rgba(59,230,255,0.2); }
 .sessions-content{ max-height: 600px;
   overflow-y: auto;
-  padding-right: 4px; }
+  padding-right: 8px; }
 .sessions-list{ display: flex;
   flex-direction: column;
   gap: 12px; }
@@ -4641,4 +4641,164 @@ input:checked + .toggle-slider::before {
   white-space: nowrap;
 }
 
- 
+/* 섹션 제목 옆 카운터 스타일 */
+.section-counter {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.6);
+  font-weight: 400;
+  margin-left: 12px;
+}
+
+.conversations-title {
+  display: flex;
+  align-items: center;
+}
+
+/* Info tooltip styles - 완전히 수정된 버전 */
+.info-tooltip {
+  position: relative;
+  display: inline-block;
+  margin-left: 12px;
+}
+
+.info-icon {
+  width: 24px;
+  height: 24px;
+  color: #7c8cff;
+  cursor: help;
+  transition: all 0.2s ease;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+}
+
+.info-icon:hover {
+  color: #9ba7ff;
+  transform: scale(1.1);
+}
+
+.tooltip-content {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  
+  background: linear-gradient(135deg, #2a2f4c 0%, #1a1f3c 100%);
+  color: white;
+  padding: 12px 16px; /* 패딩 줄임 */
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.4; /* 줄 간격 줄임 */
+  
+  /* 넓이 제한 및 최적화 */
+  max-width: 240px; /* 최대 넓이 줄임 */
+  min-width: 200px; /* 최소 넓이 설정 */
+  width: auto; /* 자동 넓이 */
+  
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease;
+  z-index: 9999;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(124, 140, 255, 0.2);
+  border: 1px solid rgba(124, 140, 255, 0.3);
+  
+  /* 텍스트 줄바꿈 최적화 */
+  word-wrap: break-word;
+  hyphens: auto;
+}
+
+.tooltip-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px; /* 마진 줄임 */
+  font-weight: 600;
+  color: #9ba7ff;
+  font-size: 13px; /* 폰트 크기 줄임 */
+}
+
+.tooltip-body {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 12px;
+  line-height: 1.3; /* 줄 간격 줄임 */
+}
+
+/* 더 컴팩트한 버전 (선택사항) */
+.tooltip-content.compact {
+  max-width: 200px;
+  padding: 10px 14px;
+  font-size: 12px;
+}
+
+.tooltip-content.compact .tooltip-header {
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.tooltip-content.compact .tooltip-body {
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+/* 위쪽 공간이 부족할 때 아래쪽에 배치 */
+.tooltip-content.bottom {
+  bottom: auto;
+  top: calc(100% + 10px);
+}
+
+.tooltip-content.bottom::after {
+  bottom: auto;
+  top: -8px;
+  border-top-color: transparent;
+  border-bottom-color: #2a2f4c;
+}
+
+.tooltip-content::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 8px solid transparent;
+  border-top-color: #2a2f4c;
+}
+
+.tooltip-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: #9ba7ff;
+  font-size: 14px;
+}
+
+.tooltip-body {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 12px;
+}
+
+.info-tooltip:hover .tooltip-content {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(-4px);
+}
+
+/* Period info layout adjustment */
+.period-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 20px;
+  position: relative;
+}
+
+.period-text {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+}
+
+/* daily-message-section에 overflow 설정 추가 */
+.daily-message-section {
+  position: relative;
+  overflow: visible; /* 팝업이 잘리지 않도록 */
+}
+
