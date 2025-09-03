@@ -4802,3 +4802,108 @@ input:checked + .toggle-slider::before {
   overflow: visible; /* 팝업이 잘리지 않도록 */
 }
 
+/* Admin Feedback Actions - 하단 버튼들 */
+.admin-feedback-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.admin-feedback-export {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: 10px; /* 왼쪽 끝으로 밀어내기 */
+}
+
+.export-format-select {
+  min-width: 60px !important;
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(59, 230, 255, 0.3);
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: #ffffff;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.export-format-select:focus {
+  outline: none;
+  border-color: rgba(59, 230, 255, 0.6);
+  box-shadow: 0 0 0 2px rgba(59, 230, 255, 0.1);
+}
+
+.export-btn {
+  font-size: 12px;
+  padding: 8px 12px;
+  white-space: nowrap;
+  background: linear-gradient(135deg, #3be6ff 0%, #1aa7df 100%);
+  border: none;
+  border-radius: 6px;
+  color: #ffffff;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(59, 230, 255, 0.2);
+}
+
+.export-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(59, 230, 255, 0.3);
+  background: linear-gradient(135deg, #4deeff 0%, #2bb7ef 100%);
+}
+
+.export-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.update-prompt-btn {
+  font-size: 12px;
+  padding: 8px 12px;
+  background: linear-gradient(135deg, #3be6ff 0%, #1aa7df 100%);
+  border: none;
+  border-radius: 6px;
+  color: #ffffff;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(59, 230, 255, 0.2);
+}
+
+.update-prompt-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(59, 230, 255, 0.3);
+  background: linear-gradient(135deg, #4deeff 0%, #2bb7ef 100%);
+}
+
+/* 반응형 디자인 - 모바일 */
+@media (max-width: 768px) {
+  .admin-feedback-actions {
+    flex-direction: column;
+    gap: 12px;
+    align-items: stretch;
+  }
+  
+  .admin-feedback-export {
+    justify-content: center;
+    margin-right: 0;
+  }
+  
+  .export-format-select {
+    min-width: 80px !important;
+  }
+}
+
+/* 호버 효과 */
+.admin-feedback-export:hover .export-format-select {
+  border-color: rgba(59, 230, 255, 0.5);
+  background: rgba(255, 255, 255, 0.1);
+}
+

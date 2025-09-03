@@ -8,6 +8,7 @@ import { getAdminFeedbackBatch, getAllAdminFeedback, saveAdminFeedback, updateAd
 import { ensureChatDataExists } from '../services/chatData'
 import { AdminFeedbackData } from '../services/supabase'
 import { updatePromptWithFeedback } from '../services/promptUpdater'
+import { downloadAdminFeedbackData } from '../services/adminFeedbackExport'
 
 import PromptControl from '../components/PromptControl'
 import UserFeedback from '../components/UserFeedback'
@@ -873,6 +874,27 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 		return negativeFeedback;
 	}, [adminFeedback, adminFeedbackFilter, adminFeedbackSortBy, requestDetails]);
 
+	const [isExportingAdminFeedback, setIsExportingAdminFeedback] = useState(false)
+	const [adminFeedbackExportFormat, setAdminFeedbackExportFormat] = useState<'csv' | 'excel' | 'json' | 'docx'>('csv')
+
+	const handleAdminFeedbackExport = async () => {
+		setIsExportingAdminFeedback(true)
+		try {
+			// Admin Feedback 데이터를 배열로 변환
+			const adminFeedbackArray = Object.entries(adminFeedback).map(([requestId, feedback]) => ({
+				...feedback,
+				requestId,
+				requestDetail: requestDetails[requestId] || null
+			}))
+			
+			await downloadAdminFeedbackData(adminFeedbackArray, adminFeedbackExportFormat)
+		} catch (error) {
+			console.error('Admin feedback export failed:', error)
+		} finally {
+			setIsExportingAdminFeedback(false)
+		}
+	}
+
 	return (
 		<div className="screen">
 			<main className="content">
@@ -1220,6 +1242,25 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 								)}
 							</div>
 							<div className="admin-feedback-actions">
+								<div className="admin-feedback-export">
+									<select 
+										value={adminFeedbackExportFormat} 
+										onChange={(e) => setAdminFeedbackExportFormat(e.target.value as any)}
+										className="input select-input export-format-select"
+									>
+										<option value="csv">CSV</option>
+										<option value="excel">Excel</option>
+										<option value="json">JSON</option>
+										<option value="docx">DOCX</option>
+									</select>
+									<button 
+										className="btn btn-primary export-btn" 
+										onClick={handleAdminFeedbackExport}
+										disabled={isExportingAdminFeedback || filteredAndSortedAdminFeedback.length === 0}
+									>
+										{isExportingAdminFeedback ? 'Exporting...' : 'Export'}
+									</button>
+								</div>
 								<button 
 									className="btn btn-primary update-prompt-btn"
 									onClick={async () => {
