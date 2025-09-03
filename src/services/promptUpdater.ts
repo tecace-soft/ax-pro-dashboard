@@ -8,11 +8,12 @@ interface FeedbackWithChat extends AdminFeedbackData {
 // Get all negative admin feedback with their associated chat data
 export async function getAllNegativeFeedback(): Promise<FeedbackWithChat[]> {
   try {
-    // First get all negative feedback
+    // First get all negative feedback where prompt_apply is true
     const { data: feedbackData, error: feedbackError } = await supabase
       .from('admin_feedback')
       .select('*')
       .eq('feedback_verdict', 'bad')
+      .eq('prompt_apply', true)
 
     if (feedbackError) throw feedbackError
 

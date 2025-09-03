@@ -164,63 +164,22 @@
 
 .prompt-actions {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
+  justify-content: flex-end;
   gap: 12px;
 }
 
 .update-btn {
   min-width: 120px;
   height: 44px;
-}
-
-.force-reload-section {
   display: flex;
-  justify-content: flex-end;
-}
-
-.force-reload-link {
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
-  font-size: 12px;
-  text-decoration: underline;
-  cursor: pointer;
-  padding: 4px 0;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  transition: color 0.2s ease;
-  line-height: 1;
-}
-
-.force-reload-link:hover {
-  color: var(--text);
-}
-
-.force-reload-link:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.status-icon {
-  font-size: 14px;
-  font-weight: bold;
-  display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
-  flex-shrink: 0;
+  position: relative;
 }
 
-.status-icon.success {
-  color: #10b981;
-}
 
-.status-icon.error {
-  color: #ef4444;
-}
+
+
 
 
 
