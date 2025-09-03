@@ -1,6 +1,6 @@
 import { AdminFeedbackData } from './supabase'
 
-export type ExportFormat = 'csv' | 'excel' | 'json' | 'docx'
+export type ExportFormat = 'csv' | 'excel' | 'json'
 
 export interface AdminFeedbackWithDetails extends AdminFeedbackData {
   requestId: string
@@ -22,8 +22,6 @@ export async function downloadAdminFeedbackData(
       return downloadAsExcel(adminFeedbacks)
     case 'json':
       return downloadAsJSON(adminFeedbacks)
-    case 'docx':
-      return downloadAsDOCX(adminFeedbacks)
     default:
       throw new Error(`Unsupported format: ${format}`)
   }
@@ -64,6 +62,7 @@ function downloadAsJSON(data: AdminFeedbackWithDetails[]): void {
 async function downloadAsExcel(data: AdminFeedbackWithDetails[]): Promise<void> {
   const XLSX = await import('xlsx')
   
+  // 데이터를 Excel 형식에 맞게 변환
   const excelData = data.map(item => ({
     'Request ID': item.requestId,
     'Feedback Verdict': item.feedback_verdict,
@@ -84,84 +83,6 @@ async function downloadAsExcel(data: AdminFeedbackWithDetails[]): Promise<void> 
   const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
   
   downloadBlob(blob, 'admin-feedback.xlsx')
-}
-
-// DOCX 다운로드 (RAG용 문서화)
-async function downloadAsDOCX(data: AdminFeedbackWithDetails[]): Promise<void> {
-  const { Document, Packer, Paragraph, TextRun, HeadingLevel } = await import('docx')
-  
-  const doc = new Document({
-    sections: [{
-      properties: {},
-      children: [
-        new Paragraph({
-          text: "Admin Feedback Report",
-          heading: HeadingLevel.TITLE,
-        }),
-        new Paragraph({
-          text: `Generated on: ${new Date().toLocaleString()}`,
-        }),
-        new Paragraph({
-          text: `Total feedback entries: ${data.length}`,
-        }),
-        new Paragraph({ text: "" }),
-        ...data.flatMap((item, index) => [
-          new Paragraph({
-            text: `Feedback Entry ${index + 1}`,
-            heading: HeadingLevel.HEADING_2,
-          }),
-          new Paragraph({
-            children: [
-              new TextRun({ text: "Request ID: ", bold: true }),
-              new TextRun({ text: item.requestId }),
-            ],
-          }),
-          new Paragraph({
-            children: [
-              new TextRun({ text: "Verdict: ", bold: true }),
-              new TextRun({ text: item.feedback_verdict }),
-            ],
-          }),
-          ...(item.feedback_text ? [new Paragraph({
-            children: [
-              new TextRun({ text: "Supervisor Feedback: ", bold: true }),
-              new TextRun({ text: item.feedback_text }),
-            ],
-          })] : []),
-          ...(item.corrected_response ? [new Paragraph({
-            children: [
-              new TextRun({ text: "Corrected Response: ", bold: true }),
-              new TextRun({ text: item.corrected_response }),
-            ],
-          })] : []),
-          ...(item.requestDetail?.inputText ? [new Paragraph({
-            children: [
-              new TextRun({ text: "User Message: ", bold: true }),
-              new TextRun({ text: item.requestDetail.inputText }),
-            ],
-          })] : []),
-          ...(item.requestDetail?.outputText ? [new Paragraph({
-            children: [
-              new TextRun({ text: "AI Response: ", bold: true }),
-              new TextRun({ text: item.requestDetail.outputText }),
-            ],
-          })] : []),
-          new Paragraph({
-            children: [
-              new TextRun({ text: "Apply to Prompt: ", bold: true }),
-              new TextRun({ text: item.prompt_apply ? 'Yes' : 'No' }),
-            ],
-          }),
-          new Paragraph({ text: "" }),
-        ]),
-      ],
-    }],
-  })
-
-  const buffer = await Packer.toBuffer(doc)
-  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })
-  
-  downloadBlob(blob, 'admin-feedback.docx')
 }
 
 // 공통 다운로드 함수들

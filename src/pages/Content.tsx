@@ -875,7 +875,7 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 	}, [adminFeedback, adminFeedbackFilter, adminFeedbackSortBy, requestDetails]);
 
 	const [isExportingAdminFeedback, setIsExportingAdminFeedback] = useState(false)
-	const [adminFeedbackExportFormat, setAdminFeedbackExportFormat] = useState<'csv' | 'excel' | 'json' | 'docx'>('csv')
+	const [adminFeedbackExportFormat, setAdminFeedbackExportFormat] = useState<'csv' | 'excel' | 'json'>('csv')
 
 	const handleAdminFeedbackExport = async () => {
 		setIsExportingAdminFeedback(true)
@@ -1251,7 +1251,6 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 										<option value="csv">CSV</option>
 										<option value="excel">Excel</option>
 										<option value="json">JSON</option>
-										<option value="docx">DOCX</option>
 									</select>
 									<button 
 										className="btn btn-primary export-btn" 
