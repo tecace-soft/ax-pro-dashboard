@@ -10,7 +10,15 @@ export default function PromptControl() {
   const [isResizing, setIsResizing] = useState(false)
   const [showConfirmation, setShowConfirmation] = useState(false)
   const [isUpdating, setIsUpdating] = useState(false)
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle')
+  const [responseModal, setResponseModal] = useState<{
+    isOpen: boolean
+    message: string
+    isSuccess: boolean
+  }>({
+    isOpen: false,
+    message: '',
+    isSuccess: false
+  })
 
   useEffect(() => {
     async function loadSystemPrompt() {
@@ -58,7 +66,6 @@ export default function PromptControl() {
   const handleConfirmUpdate = async () => {
     setIsUpdating(true)
     setShowConfirmation(false)
-    setSaveStatus('idle')
     
     try {
       // Step 1: Save the system prompt
@@ -79,7 +86,11 @@ export default function PromptControl() {
       
       if (!response.ok) {
         console.error('❌ Force reload HTTP error:', response.status, response.statusText)
-        setSaveStatus('error')
+        setResponseModal({
+          isOpen: true,
+          message: `HTTP Error: ${response.status} ${response.statusText}`,
+          isSuccess: false
+        })
         return
       }
       
@@ -92,22 +103,28 @@ export default function PromptControl() {
         console.log('📋 Force reload parsed data:', data)
       } catch (parseError) {
         console.error('❌ Failed to parse force reload JSON:', parseError)
-        setSaveStatus('error')
+        setResponseModal({
+          isOpen: true,
+          message: 'Failed to parse server response',
+          isSuccess: false
+        })
         return
       }
       
-      // Check if force reload was successful
-      if (data.status === 'Complete prompt reload successful') {
-        console.log('✅ Force reload successful!')
-        setSaveStatus('success')
-      } else {
-        console.log('❌ Force reload failed with status:', data.status)
-        setSaveStatus('error')
-      }
+      // Show the response message in modal
+      setResponseModal({
+        isOpen: true,
+        message: data.message || 'No message received',
+        isSuccess: data.status === 'Complete prompt reload successful'
+      })
       
     } catch (error) {
       console.error('❌ Save operation failed:', error)
-      setSaveStatus('error')
+      setResponseModal({
+        isOpen: true,
+        message: error instanceof Error ? error.message : 'An unexpected error occurred',
+        isSuccess: false
+      })
     } finally {
       setIsUpdating(false)
     }
@@ -115,6 +132,14 @@ export default function PromptControl() {
 
   const handleCancelUpdate = () => {
     setShowConfirmation(false)
+  }
+
+  const handleCloseResponseModal = () => {
+    setResponseModal({
+      isOpen: false,
+      message: '',
+      isSuccess: false
+    })
   }
 
 
@@ -203,20 +228,7 @@ export default function PromptControl() {
             onClick={handleUpdate}
             disabled={isLoading || isUpdating}
           >
-            {saveStatus === 'success' && (
-              <span className="status-icon success">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                  <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/>
-                </svg>
-              </span>
-            )}
-            {saveStatus === 'error' && (
-              <span className="status-icon error">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                  <path d="M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8 2.146 2.854Z"/>
-                </svg>
-              </span>
-            )}
+
             {isLoading ? 'Loading...' : isUpdating ? 'Saving...' : 'Save'}
           </button>
         </div>
@@ -239,6 +251,22 @@ export default function PromptControl() {
               onClick={handleConfirmUpdate}
             >
               Yes
+            </button>
+          </div>
+        </div>
+      )}
+
+      {responseModal.isOpen && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true">
+          <div className="confirmation-modal card">
+            <div className="confirmation-content">
+              <p>{responseModal.message}</p>
+            </div>
+            <button 
+              className="btn btn-primary confirmation-yes-btn" 
+              onClick={handleCloseResponseModal}
+            >
+              Close
             </button>
           </div>
         </div>

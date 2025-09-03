@@ -179,27 +179,7 @@
 
 
 
-.status-icon {
-  font-size: 14px;
-  font-weight: bold;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
-  position: absolute;
-  left: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-}
 
-.status-icon.success {
-  color: inherit;
-}
-
-.status-icon.error {
-  color: inherit;
-}
 
 
 
