@@ -10,8 +10,7 @@ export default function PromptControl() {
   const [isResizing, setIsResizing] = useState(false)
   const [showConfirmation, setShowConfirmation] = useState(false)
   const [isUpdating, setIsUpdating] = useState(false)
-  const [forceReloadStatus, setForceReloadStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
-  const [lastResponse, setLastResponse] = useState<any>(null)
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle')
 
   useEffect(() => {
     async function loadSystemPrompt() {
@@ -59,13 +58,56 @@ export default function PromptControl() {
   const handleConfirmUpdate = async () => {
     setIsUpdating(true)
     setShowConfirmation(false)
+    setSaveStatus('idle')
     
     try {
+      // Step 1: Save the system prompt
+      console.log('💾 Saving system prompt...')
       await updateSystemPrompt(promptText)
-      // Success feedback could be added here
+      console.log('✅ System prompt saved successfully')
+      
+      // Step 2: Force reload the chatbot with the new prompt
+      console.log('🔄 Force reloading chatbot...')
+      const response = await fetch('/prompt-api/force-prompt-reload', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+      
+      console.log('📊 Force reload response status:', response.status)
+      
+      if (!response.ok) {
+        console.error('❌ Force reload HTTP error:', response.status, response.statusText)
+        setSaveStatus('error')
+        return
+      }
+      
+      const responseText = await response.text()
+      console.log('📄 Force reload response text:', responseText)
+      
+      let data
+      try {
+        data = JSON.parse(responseText)
+        console.log('📋 Force reload parsed data:', data)
+      } catch (parseError) {
+        console.error('❌ Failed to parse force reload JSON:', parseError)
+        setSaveStatus('error')
+        return
+      }
+      
+      // Check if force reload was successful
+      if (data.status === 'Complete prompt reload successful') {
+        console.log('✅ Force reload successful!')
+        setSaveStatus('success')
+      } else {
+        console.log('❌ Force reload failed with status:', data.status)
+        setSaveStatus('error')
+      }
+      
     } catch (error) {
-      console.error('Failed to update system prompt:', error)
-      // Error handling could be improved here
+      console.error('❌ Save operation failed:', error)
+      setSaveStatus('error')
     } finally {
       setIsUpdating(false)
     }
@@ -75,71 +117,7 @@ export default function PromptControl() {
     setShowConfirmation(false)
   }
 
-  const handleForceReload = async () => {
-    console.log('🔄 Starting force prompt reload...')
-    setForceReloadStatus('loading')
-    
-    try {
-      const url = '/prompt-api/force-prompt-reload'
-      console.log('📡 Making POST request to:', url)
-      
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
-      
-      console.log('📊 Response status:', response.status)
-      console.log('📊 Response statusText:', response.statusText)
-      console.log('📊 Response headers:', Object.fromEntries(response.headers.entries()))
-      
-      if (!response.ok) {
-        console.error('❌ HTTP error:', response.status, response.statusText)
-        setForceReloadStatus('error')
-        return
-      }
-      
-      const responseText = await response.text()
-      console.log('📄 Raw response text:', responseText)
-      
-      let data
-      try {
-        data = JSON.parse(responseText)
-        console.log('📋 Parsed response data:', data)
-      } catch (parseError) {
-        console.error('❌ Failed to parse JSON response:', parseError)
-        console.log('📄 Raw response that failed to parse:', responseText)
-        setForceReloadStatus('error')
-        return
-      }
-      
-      console.log('🔍 Checking status field:', data.status)
-      console.log('🔍 Status type:', typeof data.status)
-      console.log('🔍 Expected status:', 'Complete prompt reload successful')
-      console.log('🔍 Status match:', data.status === 'Complete prompt reload successful')
-      
-      // Store the response for debugging
-      setLastResponse(data)
-      
-      if (data.status === 'Complete prompt reload successful') {
-        console.log('✅ Force prompt reload successful!')
-        setForceReloadStatus('success')
-      } else {
-        console.log('❌ Unexpected status:', data.status)
-        console.log('📋 Full response data:', data)
-        setForceReloadStatus('error')
-      }
-    } catch (error) {
-      console.error('❌ Network or other error during force prompt reload:', error)
-      console.error('❌ Error details:', {
-        name: error instanceof Error ? error.name : 'Unknown',
-        message: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined
-      })
-      setForceReloadStatus('error')
-    }
-  }
+
 
 
 
@@ -225,27 +203,22 @@ export default function PromptControl() {
             onClick={handleUpdate}
             disabled={isLoading || isUpdating}
           >
+            {saveStatus === 'success' && (
+              <span className="status-icon success">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/>
+                </svg>
+              </span>
+            )}
+            {saveStatus === 'error' && (
+              <span className="status-icon error">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8 2.146 2.854Z"/>
+                </svg>
+              </span>
+            )}
             {isLoading ? 'Loading...' : isUpdating ? 'Saving...' : 'Save'}
           </button>
-          
-          <div className="force-reload-section">
-            <button 
-              className="force-reload-link"
-              onClick={handleForceReload}
-              disabled={forceReloadStatus === 'loading'}
-            >
-              {forceReloadStatus === 'success' && <span className="status-icon success">✓</span>}
-              {forceReloadStatus === 'error' && <span className="status-icon error">✗</span>}
-              {forceReloadStatus === 'loading' ? 'Loading...' : 'Update chatbot system prompt to most recently saved version'}
-            </button>
-            {lastResponse && forceReloadStatus === 'error' && (
-              <div className="debug-info">
-                <small style={{color: '#ef4444', fontSize: '10px', display: 'block', marginTop: '4px'}}>
-                  Debug: Status received: "{lastResponse.status}" | Expected: "Complete prompt reload successful"
-                </small>
-              </div>
-            )}
-          </div>
         </div>
       </div>
 
