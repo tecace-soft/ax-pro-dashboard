@@ -4,7 +4,7 @@ import { getAuthToken } from '../services/auth'
 import { fetchSessions } from '../services/sessions'
 import { fetchSessionRequests } from '../services/requests'
 import { fetchRequestDetail } from '../services/requestDetails'
-import { getAdminFeedbackBatch, saveAdminFeedback, updateAdminFeedback, deleteAdminFeedback } from '../services/adminFeedback'
+import { getAdminFeedbackBatch, getAllAdminFeedback, saveAdminFeedback, updateAdminFeedback, deleteAdminFeedback, updateAdminFeedbackPromptApply } from '../services/adminFeedback'
 import { ensureChatDataExists } from '../services/chatData'
 import { AdminFeedbackData } from '../services/supabase'
 import { updatePromptWithFeedback } from '../services/promptUpdater'
@@ -107,10 +107,71 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 
 	// Add state to trigger prompt refresh
 	const [promptRefreshTrigger, setPromptRefreshTrigger] = useState(0)
+	const [adminFeedbackSortBy, setAdminFeedbackSortBy] = useState<'requestId' | 'date'>('date')
+	const [adminFeedbackFilter, setAdminFeedbackFilter] = useState('')
+	const [deleteAdminFeedbackModal, setDeleteAdminFeedbackModal] = useState<{
+		isOpen: boolean,
+		requestId: string | null,
+		feedbackText: string
+	}>({
+		isOpen: false,
+		requestId: null,
+		feedbackText: ''
+	})
+
+	const [updatePromptSuccessModal, setUpdatePromptSuccessModal] = useState<{
+		isOpen: boolean
+	}>({
+		isOpen: false
+	})
 
 	// Function to trigger prompt refresh
 	const triggerPromptRefresh = () => {
 		setPromptRefreshTrigger(prev => prev + 1)
+	}
+
+	const handleDeleteAdminFeedback = async (requestId: string) => {
+		try {
+			await deleteAdminFeedback(requestId)
+			
+			// Update local state
+			setAdminFeedback(prev => {
+				const newState = { ...prev }
+				delete newState[requestId]
+				return newState
+			})
+			
+			// Update system prompt to reflect the deletion
+			await updatePromptWithFeedback()
+			
+			// Trigger prompt refresh in PromptControl component
+			triggerPromptRefresh()
+			
+			// Close modal
+			setDeleteAdminFeedbackModal({
+				isOpen: false,
+				requestId: null,
+				feedbackText: ''
+			})
+		} catch (error) {
+			console.error('Failed to delete admin feedback:', error)
+		}
+	}
+
+	const handleTogglePromptApply = async (requestId: string, currentValue: boolean) => {
+		try {
+			const newValue = !currentValue
+			await updateAdminFeedbackPromptApply(requestId, newValue)
+			setAdminFeedback(prev => ({
+				...prev,
+				[requestId]: {
+					...prev[requestId],
+					prompt_apply: newValue
+				}
+			}))
+		} catch (error) {
+			console.error('Failed to update prompt_apply:', error)
+		}
 	}
 
 	// Date filters now come from props (Dashboard.tsx)
@@ -224,6 +285,43 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 						} catch (error) {
 							console.error('Failed to fetch admin feedback:', error)
 						}
+					}
+					
+					// Fetch ALL admin feedback entries regardless of current sessions
+					try {
+						const allFeedbackMap = await getAllAdminFeedback()
+						setAdminFeedback(allFeedbackMap)
+						
+						// Fetch request details for all admin feedback entries
+						const allFeedbackRequestIds = Object.keys(allFeedbackMap)
+						if (allFeedbackRequestIds.length > 0) {
+							const detailPromises = allFeedbackRequestIds.map(requestId => 
+								fetchRequestDetail(authToken!, requestId)
+									.catch(error => {
+										console.error(`Failed to fetch detail for request ${requestId}:`, error)
+										return null
+									})
+							)
+							
+							const detailResponses = await Promise.all(detailPromises)
+							
+							// Update request details with admin feedback request details
+							const adminRequestDetailsMap: Record<string, any> = {}
+							detailResponses.forEach((detailResponse, index) => {
+								if (detailResponse && detailResponse.request) {
+									const requestId = allFeedbackRequestIds[index]
+									adminRequestDetailsMap[requestId] = detailResponse.request
+								}
+							})
+							
+							// Merge with existing request details
+							setRequestDetails(prev => ({
+								...prev,
+								...adminRequestDetailsMap
+							}))
+						}
+					} catch (error) {
+						console.error('Failed to fetch all admin feedback:', error)
 					}
 				}
 			} catch (error) {
@@ -747,6 +845,34 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 		return total;
 	}, [sessions, sessionRequests]);
 
+	// Filter and sort admin feedback
+	const filteredAndSortedAdminFeedback = useMemo(() => {
+		const negativeFeedback = Object.entries(adminFeedback)
+			.filter(([requestId, feedback]) => feedback.feedback_verdict === 'bad')
+			.filter(([requestId, feedback]) => {
+				if (!adminFeedbackFilter.trim()) return true;
+				const filterLower = adminFeedbackFilter.toLowerCase();
+				return (
+					requestId.toLowerCase().includes(filterLower) ||
+					feedback.feedback_text?.toLowerCase().includes(filterLower) ||
+					feedback.corrected_response?.toLowerCase().includes(filterLower) ||
+					requestDetails[requestId]?.inputText?.toLowerCase().includes(filterLower) ||
+					requestDetails[requestId]?.outputText?.toLowerCase().includes(filterLower)
+				);
+			})
+			.sort(([requestIdA, feedbackA], [requestIdB, feedbackB]) => {
+				if (adminFeedbackSortBy === 'requestId') {
+					return requestIdA.localeCompare(requestIdB);
+				} else {
+					const dateA = new Date(feedbackA.created_at || 0).getTime();
+					const dateB = new Date(feedbackB.created_at || 0).getTime();
+					return dateB - dateA; // Most recent first
+				}
+			});
+		
+		return negativeFeedback;
+	}, [adminFeedback, adminFeedbackFilter, adminFeedbackSortBy, requestDetails]);
+
 	return (
 		<div className="screen">
 			<main className="content">
@@ -962,6 +1088,156 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 						</div>
 					</div>
 
+					{/* Admin Feedback Section */}
+					<div className="content-section">
+						<div className="card section" aria-labelledby="admin-feedback-title">
+							<div className="section-header">
+								<div id="admin-feedback-title" className="section-title">
+									Admin Feedback
+									<span className="section-counter">({filteredAndSortedAdminFeedback.length} feedback entries)</span>
+								</div>
+								<div className="admin-feedback-header-controls">
+									<div className="admin-feedback-sort">
+										<label htmlFor="admin-feedback-sort-select">Sort by:</label>
+										<select 
+											id="admin-feedback-sort-select"
+											className="input select-input"
+											value={adminFeedbackSortBy}
+											onChange={(e) => setAdminFeedbackSortBy(e.target.value as 'requestId' | 'date')}
+										>
+											<option value="date">Date/Time</option>
+											<option value="requestId">Request ID</option>
+										</select>
+									</div>
+									<div className="admin-feedback-filter">
+										<label htmlFor="admin-feedback-filter-input">Search:</label>
+										<input
+											id="admin-feedback-filter-input"
+											type="text"
+											className="input"
+											placeholder="Search feedback..."
+											value={adminFeedbackFilter}
+											onChange={(e) => setAdminFeedbackFilter(e.target.value)}
+										/>
+									</div>
+								</div>
+							</div>
+							<div className="admin-feedback-content">
+								{filteredAndSortedAdminFeedback.length === 0 ? (
+									<p className="muted">
+										{Object.keys(adminFeedback).filter(requestId => adminFeedback[requestId].feedback_verdict === 'bad').length === 0 
+											? "No negative admin feedback found." 
+											: "No feedback matches your filter criteria."
+										}
+									</p>
+								) : (
+									<div className="admin-feedback-list">
+										{filteredAndSortedAdminFeedback.map(([requestId, feedback]) => {
+											const requestDetail = requestDetails[requestId]
+											return (
+												<div key={requestId} className="admin-feedback-item">
+													<div className="admin-feedback-content-wrapper">
+														<div className="admin-feedback-header">
+															<div className="admin-feedback-meta">
+																<div className="admin-feedback-request-id">Request ID: {formatSessionId(requestId)}</div>
+																<div className="admin-feedback-date">
+																	{feedback.created_at ? new Date(feedback.created_at).toLocaleString() : 'Unknown date'}
+																</div>
+															</div>
+														</div>
+														
+														<div className="admin-feedback-body">
+															{feedback.feedback_text && (
+																<div className="admin-feedback-text">
+																	<span className="admin-feedback-label">Supervisor Feedback:</span>
+																	<span className="admin-feedback-text-content">{feedback.feedback_text}</span>
+																</div>
+															)}
+															
+															{feedback.corrected_response && (
+																<div className="admin-feedback-corrected">
+																	<span className="admin-feedback-label">Corrected Response:</span>
+																	<span className="admin-feedback-text-content">{feedback.corrected_response}</span>
+																</div>
+															)}
+															
+															{requestDetail && (feedback.feedback_text || feedback.corrected_response) && (
+																<div className="admin-feedback-conversation">
+																	{requestDetail.inputText && (
+																		<div className="chat-row">
+																			<span className="chat-label user">User Message:</span>
+																			<span className="chat-text">{requestDetail.inputText}</span>
+																		</div>
+																	)}
+																	{requestDetail.outputText && (
+																		<div className="chat-row">
+																			<span className="chat-label ai">AI Response:</span>
+																			<span className="chat-text">{requestDetail.outputText}</span>
+																		</div>
+																	)}
+																</div>
+															)}
+														</div>
+													</div>
+													<div className="admin-feedback-controls">
+														<button 
+															className="admin-feedback-delete-btn"
+															title="Delete feedback"
+															onClick={(e) => {
+																e.preventDefault()
+																e.stopPropagation()
+																setDeleteAdminFeedbackModal({
+																	isOpen: true,
+																	requestId: requestId,
+																	feedbackText: feedback.feedback_text || ''
+																})
+															}}
+														>
+															<svg fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+																<path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"></path>
+															</svg>
+														</button>
+														
+														<div className="admin-feedback-toggle">
+															<button
+																className={`toggle-btn ${feedback.prompt_apply !== false ? 'active' : ''}`}
+																onClick={(e) => {
+																	e.preventDefault()
+																	e.stopPropagation()
+																	handleTogglePromptApply(requestId, feedback.prompt_apply !== false)
+																}}
+																title={feedback.prompt_apply !== false ? 'Remove from prompt updates' : 'Include in prompt updates'}
+															>
+																<div className="toggle-slider"></div>
+															</button>
+															<label className="toggle-label">Apply to Prompt:</label>
+														</div>
+													</div>
+												</div>
+											)
+										})}
+									</div>
+								)}
+							</div>
+							<div className="admin-feedback-actions">
+								<button 
+									className="btn btn-primary update-prompt-btn"
+									onClick={async () => {
+										try {
+											await updatePromptWithFeedback()
+											triggerPromptRefresh()
+											setUpdatePromptSuccessModal({ isOpen: true })
+										} catch (error) {
+											console.error('Failed to update prompt:', error)
+										}
+									}}
+								>
+									Update Prompt
+								</button>
+							</div>
+						</div>
+					</div>
+
 					{/* User Feedback Section */}
 					<div className="content-section">
 						<UserFeedback />
@@ -1108,6 +1384,70 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 						>
 							Yes
 						</button>
+					</div>
+				</div>
+			)}
+
+			{deleteAdminFeedbackModal.isOpen && (
+				<div className="modal-backdrop" onClick={() => setDeleteAdminFeedbackModal({
+					isOpen: false,
+					requestId: null,
+					feedbackText: ''
+				})}>
+					<div className="confirmation-modal card" onClick={(e) => e.stopPropagation()}>
+						<div className="modal-header">
+							<h2 className="h1 modal-title">Delete Admin Feedback</h2>
+							<button className="icon-btn" onClick={() => setDeleteAdminFeedbackModal({
+								isOpen: false,
+								requestId: null,
+								feedbackText: ''
+							})}>
+								<IconX />
+							</button>
+						</div>
+						<div className="confirmation-content">
+							<p>Are you certain you want to delete this admin feedback? This action cannot be undone.</p>
+							{deleteAdminFeedbackModal.feedbackText && (
+								<div className="feedback-preview">
+									<strong>Feedback to be deleted:</strong>
+									<div className="feedback-text-preview">
+										{deleteAdminFeedbackModal.feedbackText}
+									</div>
+								</div>
+							)}
+						</div>
+						<button 
+							className="btn btn-ghost confirmation-no-btn" 
+							onClick={() => setDeleteAdminFeedbackModal({
+								isOpen: false,
+								requestId: null,
+								feedbackText: ''
+							})}
+						>
+							Cancel
+						</button>
+						<button 
+							className="btn btn-primary confirmation-yes-btn" 
+							onClick={() => deleteAdminFeedbackModal.requestId && handleDeleteAdminFeedback(deleteAdminFeedbackModal.requestId)}
+						>
+							Delete
+						</button>
+					</div>
+				</div>
+			)}
+
+			{updatePromptSuccessModal.isOpen && (
+				<div className="modal-backdrop" onClick={() => setUpdatePromptSuccessModal({ isOpen: false })}>
+					<div className="confirmation-modal card" onClick={(e) => e.stopPropagation()}>
+						<div className="modal-header">
+							<h2 className="h1 modal-title">Success</h2>
+							<button className="icon-btn" onClick={() => setUpdatePromptSuccessModal({ isOpen: false })}>
+								<IconX />
+							</button>
+						</div>
+						<div className="confirmation-content">
+							<p>System Prompt has been successfully updated. Please review in the Prompt Control section and click 'Save' if you would like to apply the prompt to the chatbot.</p>
+						</div>
 					</div>
 				</div>
 			)}

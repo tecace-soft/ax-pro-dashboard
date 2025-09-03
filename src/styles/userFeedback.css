@@ -87,7 +87,7 @@
   background: rgba(18,27,61,0.6);
   border: 1px solid rgba(59, 230, 255, 0.1);
   border-radius: 6px;
-  padding: 12px;
+  padding: 8px;
   transition: border-color 0.2s ease;
 }
 
@@ -99,7 +99,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 
 .feedback-meta {
@@ -148,7 +148,7 @@
 .feedback-body {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 3px;
 }
 
 .feedback-text {
@@ -163,20 +163,18 @@
   color: var(--text);
   font-size: 0.75rem;
   flex-shrink: 0;
-  min-width: 60px;
 }
 
 .feedback-content {
   color: var(--text-secondary);
   font-size: 0.75rem;
-  flex: 1;
 }
 
 .chat-conversation {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-top: 4px;
+  gap: 2px;
+  margin-top: 2px;
 }
 
 .chat-row {
@@ -188,9 +186,9 @@
 
 .chat-label {
   font-weight: 600;
-  font-size: 0.75rem;
+  font-size: 0.875rem;
   flex-shrink: 0;
-  min-width: 32px;
+  min-width: 140px;
 }
 
 .chat-label.user {
@@ -203,7 +201,363 @@
 
 .chat-text {
   color: var(--text-secondary);
-  font-size: 0.75rem;
-  flex: 1;
+  font-size: 0.875rem;
   word-break: break-word;
+}
+
+/* Admin Feedback Header Styles */
+.admin-feedback-header-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.admin-feedback-sort,
+.admin-feedback-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-feedback-sort label,
+.admin-feedback-filter label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.admin-feedback-sort select,
+.admin-feedback-filter input {
+  min-width: 120px;
+  font-size: 0.875rem;
+}
+
+.admin-feedback-filter input {
+  min-width: 200px;
+}
+
+.admin-feedback-content {
+  height: 400px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
+}
+
+.admin-feedback-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.admin-feedback-content::-webkit-scrollbar-track {
+  background: rgba(9,14,34,0.3);
+  border-radius: 3px;
+}
+
+.admin-feedback-content::-webkit-scrollbar-thumb {
+  background: rgba(59,230,255,0.3);
+  border-radius: 3px;
+}
+
+.admin-feedback-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(59,230,255,0.5);
+}
+
+.admin-feedback-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-right: 8px;
+}
+
+.admin-feedback-item {
+  background: rgba(18,27,61,0.6);
+  border: 1px solid rgba(59, 230, 255, 0.1);
+  border-radius: 6px;
+  padding: 8px;
+  transition: border-color 0.2s ease;
+  display: flex;
+  align-items: stretch;
+  gap: 16px;
+  min-height: 120px;
+}
+
+.admin-feedback-item:hover {
+  border-color: rgba(59, 230, 255, 0.2);
+}
+
+.admin-feedback-content-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.admin-feedback-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.admin-feedback-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.admin-feedback-request-id {
+  font-weight: 600;
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.admin-feedback-date {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+.admin-feedback-verdict {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.admin-feedback-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.admin-feedback-text,
+.admin-feedback-corrected {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  line-height: 1.4;
+}
+
+.admin-feedback-label {
+  font-weight: 600;
+  color: var(--text);
+  font-size: 0.875rem;
+  flex-shrink: 0;
+  min-width: 140px;
+}
+
+.admin-feedback-text-content {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+.admin-feedback-conversation {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 2px;
+}
+
+.admin-feedback-delete-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.admin-feedback-delete-btn:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: #dc2626;
+}
+
+.admin-feedback-delete-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.feedback-preview {
+  margin-top: 12px;
+  padding: 12px;
+  background: rgba(18, 27, 61, 0.3);
+  border: 1px solid rgba(59, 230, 255, 0.1);
+  border-radius: 6px;
+}
+
+.feedback-text-preview {
+  margin-top: 8px;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.4;
+  max-height: 100px;
+  overflow-y: auto;
+}
+
+.admin-feedback-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(59, 230, 255, 0.1);
+}
+
+.update-prompt-btn {
+  min-width: 120px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+
+
+/* Admin Feedback Item Controls (Delete + Toggle) */
+.admin-feedback-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-around;
+  flex-shrink: 0;
+}
+
+.admin-feedback-toggle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.toggle-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 500;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.toggle-btn {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  background: rgba(59, 230, 255, 0.15);
+  border: 1px solid rgba(59, 230, 255, 0.3);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  outline: none;
+  padding: 0;
+}
+
+.toggle-btn:hover {
+  background: rgba(59, 230, 255, 0.25);
+  border-color: rgba(59, 230, 255, 0.5);
+}
+
+.toggle-btn.active {
+  background: rgba(59, 230, 255, 0.4);
+  border-color: rgba(59, 230, 255, 0.6);
+}
+
+.toggle-btn::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  background: #ffffff;
+  border-radius: 50%;
+  transition: transform 0.2s ease;
+}
+
+.toggle-btn.active::after {
+  transform: translateX(20px);
+}
+
+.toggle-slider {
+  display: none;
+}
+
+/* Improved confirmation modals */
+.confirmation-modal {
+  min-width: 500px;
+  max-width: 600px;
+  width: 90vw;
+  padding: 0;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(59, 230, 255, 0.1);
+  margin: 0;
+}
+
+.modal-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+}
+
+.modal-header .icon-btn {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.confirmation-content {
+  padding: 16px 20px;
+  margin: 0;
+}
+
+.confirmation-content p {
+  color: var(--text);
+  line-height: 1.5;
+  margin: 0;
+  font-size: 14px;
+}
+
+.confirmation-modal .btn {
+  margin: 0;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.confirmation-no-btn {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid rgba(59, 230, 255, 0.3);
+}
+
+.confirmation-no-btn:hover {
+  background: rgba(59, 230, 255, 0.1);
+  border-color: rgba(59, 230, 255, 0.5);
+}
+
+.confirmation-yes-btn {
+  background: linear-gradient(180deg, var(--primary), var(--primary-600));
+  color: #041220;
+  border: none;
+}
+
+.confirmation-yes-btn:hover {
+  filter: brightness(1.05);
 } 
