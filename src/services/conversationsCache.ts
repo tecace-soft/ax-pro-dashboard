@@ -7,6 +7,13 @@ interface CacheEntry<T> {
 	expiresAt: number
 }
 
+export interface ConversationsCacheData {
+	sessions: any[]
+	sessionRequests: Record<string, any[]>
+	requestDetails: Record<string, any>
+	adminFeedback: Record<string, any>
+}
+
 class ConversationsCache {
 	private memoryCache = new Map<string, CacheEntry<any>>()
 	private readonly CACHE_DURATION = 5 * 60 * 1000 // 5분
@@ -30,7 +37,9 @@ class ConversationsCache {
 		// 캐시 크기 제한
 		if (this.memoryCache.size >= this.MAX_CACHE_SIZE) {
 			const firstKey = this.memoryCache.keys().next().value
-			this.memoryCache.delete(firstKey)
+			if (firstKey) {
+				this.memoryCache.delete(firstKey)
+			}
 		}
 
 		this.memoryCache.set(key, {
