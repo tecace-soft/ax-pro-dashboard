@@ -10,6 +10,7 @@ import { AdminFeedbackData } from '../services/supabase'
 import { updatePromptWithFeedback } from '../services/promptUpdater'
 import { downloadAdminFeedbackData } from '../services/adminFeedbackExport'
 import { downloadConversationsData, ConversationExportData } from '../services/conversationsExport'
+import { conversationsCache } from '../services/conversationsCache'
 
 import PromptControl from '../components/PromptControl'
 import UserFeedback from '../components/UserFeedback'
@@ -216,6 +217,174 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 		}
 	}, [])
 
+	// 로딩 상태를 더 세분화
+	const [loadingState, setLoadingState] = useState<{
+		sessions: boolean
+		requests: boolean
+		details: boolean
+		progress: number
+		loadedDetails: number // 로딩된 메시지 수
+		totalDetails: number // 전체 메시지 수
+	}>({
+		sessions: false,
+		requests: false,
+		details: false,
+		progress: 0,
+		loadedDetails: 0,
+		totalDetails: 0
+	})
+
+	// 최적화된 데이터 로딩 함수
+	const loadConversationsOptimized = async () => {
+		if (!authToken) return
+
+		const cacheKey = conversationsCache.generateKey(startDate, endDate)
+		
+		// 1. 캐시에서 데이터 확인
+		const cachedData = conversationsCache.get(cacheKey) || 
+			conversationsCache.getFromStorage(cacheKey)
+		
+		if (cachedData) {
+			setSessions(cachedData.sessions)
+			setSessionRequests(cachedData.sessionRequests)
+			setRequestDetails(cachedData.requestDetails)
+			setAdminFeedback(cachedData.adminFeedback)
+			return
+		}
+
+		// 2. 캐시에 없으면 API 호출
+		setIsLoadingSessions(true)
+		setLoadingState(prev => ({ ...prev, sessions: true, progress: 10 }))
+		
+		const apiStartDate = getApiStartDate(startDate)
+		const apiEndDate = getApiEndDate(endDate)
+		
+		try {
+			// 1. Sessions만 먼저 로드
+			const sessionsResponse = await fetchSessions(authToken, apiStartDate, apiEndDate)
+			const sessions = sessionsResponse.sessions || []
+			setSessions(sessions)
+			setLoadingState(prev => ({ ...prev, sessions: false, requests: true, progress: 30 }))
+			
+			// 2. Session Requests 병렬 로드
+			const requestPromises = sessions
+				.filter(session => session.sessionId)
+				.map(session => 
+					fetchSessionRequests(authToken, session.sessionId, apiStartDate, apiEndDate)
+						.catch(error => {
+							console.error(`Failed to fetch requests for session ${session.sessionId}:`, error)
+							return { requests: [] }
+						})
+				)
+
+			const requestResponses = await Promise.all(requestPromises)
+			setLoadingState(prev => ({ ...prev, requests: false, details: true, progress: 50 }))
+			
+			// 3. Session Requests 저장 및 Request ID 수집
+			const sessionRequestsMap: Record<string, any[]> = {}
+			const allRequestIds: string[] = []
+			
+			requestResponses.forEach((requestResponse, index) => {
+				const sessionId = sessions[index]?.sessionId
+				if (requestResponse?.requests && sessionId) {
+					sessionRequestsMap[sessionId] = requestResponse.requests
+					requestResponse.requests.forEach((request: any) => {
+						const requestId = request.requestId || request.id
+						if (requestId) {
+							allRequestIds.push(requestId)
+						}
+					})
+				}
+			})
+			
+			// 4. 세션 데이터를 먼저 표시 (사용자가 바로 볼 수 있게)
+			setSessionRequests(sessionRequestsMap)
+			setIsLoadingSessions(false) // 세션 로딩 완료
+			setLoadingState(prev => ({ 
+				...prev, 
+				progress: 60, 
+				totalDetails: allRequestIds.length,
+				loadedDetails: 0
+			}))
+
+			// 5. Request Details를 개별적으로 로딩 (각각 완료되면 바로 표시)
+			if (allRequestIds.length > 0) {
+				const requestDetailsMap: Record<string, any> = {}
+				let loadedCount = 0
+				
+				// 모든 Request Details를 병렬로 로딩
+				const detailPromises = allRequestIds.map(async (requestId, index) => {
+					try {
+						const detailResponse = await fetchRequestDetail(authToken, requestId)
+						if (detailResponse?.request) {
+							requestDetailsMap[requestId] = detailResponse.request
+							
+							// 개별 메시지가 로딩되면 바로 상태 업데이트
+							loadedCount++
+							const progress = 60 + Math.round((loadedCount / allRequestIds.length) * 30)
+							
+							// 상태 업데이트 (배치로 처리하여 성능 최적화)
+							if (loadedCount % 5 === 0 || loadedCount === allRequestIds.length) {
+								setRequestDetails(prev => ({ ...prev, ...requestDetailsMap }))
+								setLoadingState(prev => ({ 
+									...prev, 
+									progress,
+									loadedDetails: loadedCount
+								}))
+							}
+						}
+					} catch (error) {
+						console.error(`Failed to fetch detail for request ${requestId}:`, error)
+						loadedCount++
+						
+						if (loadedCount % 5 === 0 || loadedCount === allRequestIds.length) {
+							setRequestDetails(prev => ({ ...prev, ...requestDetailsMap }))
+							setLoadingState(prev => ({ 
+								...prev, 
+								loadedDetails: loadedCount
+							}))
+						}
+					}
+				})
+				
+				// 모든 요청이 완료될 때까지 대기
+				await Promise.all(detailPromises)
+				
+				// 최종 상태 업데이트
+				setRequestDetails(requestDetailsMap)
+				
+				// 6. Admin Feedback 배치 로드
+				setLoadingState(prev => ({ ...prev, progress: 90 }))
+				try {
+					const feedbackMap = await getAdminFeedbackBatch(allRequestIds)
+					setAdminFeedback(feedbackMap)
+				} catch (error) {
+					console.error('Failed to fetch admin feedback:', error)
+				}
+				
+				// 7. 캐시에 저장
+				const cacheData = {
+					sessions,
+					sessionRequests: sessionRequestsMap,
+					requestDetails: requestDetailsMap,
+					adminFeedback: feedbackMap || {}
+				}
+				
+				conversationsCache.set(cacheKey, cacheData)
+				conversationsCache.setToStorage(cacheKey, cacheData)
+			}
+			
+			setLoadingState(prev => ({ ...prev, progress: 100 }))
+			
+		} catch (error) {
+			console.error('Failed to load conversations:', error)
+			setIsLoadingSessions(false)
+		} finally {
+			// 세션 로딩은 이미 완료되었으므로 여기서는 details만 리셋
+			setLoadingState(prev => ({ ...prev, details: false, progress: 0, loadedDetails: 0, totalDetails: 0 }))
+		}
+	}
+
 	// Fetch sessions when token is available or dates change
 	useEffect(() => {
 		if (!authToken) return
@@ -223,119 +392,7 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 		let cancelled = false
 		
 		async function loadSessions() {
-			setIsLoadingSessions(true)
-			const apiStartDate = getApiStartDate(startDate)
-			const apiEndDate = getApiEndDate(endDate)
-			try {
-				const response = await fetchSessions(authToken!, apiStartDate, apiEndDate)
-				if (!cancelled) {
-					setSessions(response.sessions || [])
-					
-					// Fetch requests for all sessions simultaneously
-					const sessions = response.sessions || []
-					const requestPromises = sessions
-						.filter(session => session.sessionId)
-						.map(session => 
-							fetchSessionRequests(authToken!, session.sessionId, apiStartDate, apiEndDate)
-								.catch(error => console.error(`Failed to fetch requests for session ${session.sessionId}:`, error))
-						)
-
-					const requestResponses = await Promise.all(requestPromises)
-					
-					// Store session requests and collect all request IDs
-					const sessionRequestsMap: Record<string, any[]> = {}
-					const allRequestIds: string[] = []
-					
-					requestResponses.forEach((requestResponse, index) => {
-						const sessionId = sessions[index]?.sessionId
-						if (requestResponse && requestResponse.requests && sessionId) {
-							sessionRequestsMap[sessionId] = requestResponse.requests
-							requestResponse.requests.forEach((request: any) => {
-								if (request.requestId || request.id) {
-									allRequestIds.push(request.requestId || request.id)
-								}
-							})
-						}
-					})
-					
-					setSessionRequests(sessionRequestsMap)
-
-					// Fetch details for all requests simultaneously
-					if (allRequestIds.length > 0) {
-						const detailPromises = allRequestIds.map(requestId => 
-							fetchRequestDetail(authToken!, requestId)
-								.catch(error => console.error(`Failed to fetch detail for request ${requestId}:`, error))
-						)
-						
-						const detailResponses = await Promise.all(detailPromises)
-						
-						// Store request details
-						const requestDetailsMap: Record<string, any> = {}
-						detailResponses.forEach((detailResponse, index) => {
-							if (detailResponse && detailResponse.request) {
-								const requestId = allRequestIds[index]
-								requestDetailsMap[requestId] = detailResponse.request
-							}
-						})
-						
-						setRequestDetails(requestDetailsMap)
-						
-						// Fetch admin feedback for all requests simultaneously
-						try {
-							const feedbackMap = await getAdminFeedbackBatch(allRequestIds)
-							setAdminFeedback(feedbackMap)
-						} catch (error) {
-							console.error('Failed to fetch admin feedback:', error)
-						}
-					}
-					
-					// Fetch ALL admin feedback entries regardless of current sessions
-					try {
-						const allFeedbackMap = await getAllAdminFeedback()
-						setAdminFeedback(allFeedbackMap)
-						
-						// Fetch request details for all admin feedback entries
-						const allFeedbackRequestIds = Object.keys(allFeedbackMap)
-						if (allFeedbackRequestIds.length > 0) {
-							const detailPromises = allFeedbackRequestIds.map(requestId => 
-								fetchRequestDetail(authToken!, requestId)
-									.catch(error => {
-										console.error(`Failed to fetch detail for request ${requestId}:`, error)
-										return null
-									})
-							)
-							
-							const detailResponses = await Promise.all(detailPromises)
-							
-							// Update request details with admin feedback request details
-							const adminRequestDetailsMap: Record<string, any> = {}
-							detailResponses.forEach((detailResponse, index) => {
-								if (detailResponse && detailResponse.request) {
-									const requestId = allFeedbackRequestIds[index]
-									adminRequestDetailsMap[requestId] = detailResponse.request
-								}
-							})
-							
-							// Merge with existing request details
-							setRequestDetails(prev => ({
-								...prev,
-								...adminRequestDetailsMap
-							}))
-						}
-					} catch (error) {
-						console.error('Failed to fetch all admin feedback:', error)
-					}
-				}
-			} catch (error) {
-				if (!cancelled) {
-					console.error('Failed to fetch sessions:', error)
-					setSessions([])
-				}
-			} finally {
-				if (!cancelled) {
-					setIsLoadingSessions(false)
-				}
-			}
+			loadConversationsOptimized()
 		}
 		
 		loadSessions()
@@ -981,6 +1038,7 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 									</label>
 								</div>
 							</div>
+							
 							<div className="sessions-content">
 								{isLoadingSessions ? (
 									<p className="muted">Loading conversations...</p>
@@ -1027,6 +1085,7 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 																requests.map((request, reqIndex) => {
 																	const requestId = request.requestId || request.id
 																	const detail = requestDetails[requestId]
+																	const isLoadingDetail = loadingState.details && !detail
 																	
 																	return (
 																		<div key={requestId || reqIndex} className="request-item">
@@ -1050,16 +1109,17 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 																						className={`thumbs-btn thumbs-up ${adminFeedback[requestId]?.feedback_verdict === 'good' ? 'submitted' : ''} ${submittingFeedbackRequests.has(requestId) ? 'loading' : ''}`}
 																						title="Thumbs Up"
 																						onClick={() => handleFeedbackClick('positive', requestId)}
-																						disabled={submittingFeedbackRequests.has(requestId)}
+																						disabled={submittingFeedbackRequests.has(requestId) || isLoadingDetail}
 																					>
 																						<svg fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
 																							<path d="M20 8h-5.612l1.123-3.367c.202-.608.1-1.282-.275-1.802S14.253 2 13.612 2H12c-.297 0-.578.132-.769.36L6.531 8H4c-1.103 0-2 .897-2 2v9c0 1.103.897 2 2 2h13.307a2.01 2.01 0 0 0 1.873-1.298l2.757-7.351A1 1 0 0 0 22 12v-2c0-1.103-.897-2-2-2zM4 10h2v9H4v-9zm16 1.819L17.307 19H8V9.362L12.468 4h1.146l-1.562 4.683A.998.998 0 0 0 13 10h7v1.819z"></path>
 																						</svg>
 																					</button>
 																					<button 
-																						className={`thumbs-btn thumbs-down ${adminFeedback[requestId]?.feedback_verdict === 'bad' ? 'submitted' : ''}`}
+																						className={`thumbs-btn thumbs-down ${adminFeedback[requestId]?.feedback_verdict === 'bad' ? 'submitted' : ''} ${submittingFeedbackRequests.has(requestId) ? 'loading' : ''}`}
 																						title="Thumbs Down"
 																						onClick={() => handleFeedbackClick('negative', requestId)}
+																						disabled={submittingFeedbackRequests.has(requestId) || isLoadingDetail}
 																					>
 																						<svg fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
 																							<path d="M20 3H6.693A2.01 2.01 0 0 0 4.82 4.298l-2.757 7.351A1 1 0 0 0 2 12v2c0 1.103.897 2 2 2h5.612L8.49 19.367a2.004 2.004 0 0 0 .274 1.802c.376.52.982.831 1.624.831H12c.297 0 .578-.132.769-.360l4.7-5.64H20c1.103 0 2-.897 2-2V5c0-1.103-.897-2-2-2zm-8.469 17h-1.145l1.562-4.684A1 1 0 0 0 11 14H4v-1.819L6.693 5H16v9.638L11.531 20zM18 14V5h2l.001 9H18z"></path>
@@ -1144,15 +1204,33 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 																				</div>
 																			)}
 																			
-																			{detail && (
-																				<>
-																					<div className="conversation-item user">
-																						<div className="conversation-text">{detail.inputText}</div>
+																			{/* 메시지 내용 - 로딩 중이면 로딩 표시 */}
+																			{isLoadingDetail ? (
+																				<div className="request-content loading">
+																					<div className="loading-message">
+																						<div className="loading-spinner-small"></div>
+																						<div className="loading-text">Loading message details...</div>
 																					</div>
-																					<div className="conversation-item assistant">
-																						<div className="conversation-text">{detail.outputText}</div>
-																					</div>
-																				</>
+																				</div>
+																			) : detail ? (
+																				<div className="request-content">
+																					{detail.inputText && (
+																						<div className="chat-row">
+																							<span className="chat-label user">User Message:</span>
+																							<span className="chat-text">{detail.inputText}</span>
+																						</div>
+																					)}
+																					{detail.outputText && (
+																						<div className="chat-row">
+																							<span className="chat-label ai">AI Response:</span>
+																							<span className="chat-text">{detail.outputText}</span>
+																						</div>
+																					)}
+																				</div>
+																			) : (
+																				<div className="request-content">
+																					<div className="no-detail">No message details available</div>
+																				</div>
 																			)}
 																		</div>
 																	)
@@ -1170,7 +1248,27 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 									<p className="muted">No conversations found for the selected date range.</p>
 								)}
 							</div>
+							
 							<div className="recent-conversations-actions">
+								{/* 로딩 상태 표시 - 항상 왼쪽에 고정 */}
+								{loadingState.details && (
+									<div className="loading-indicator">
+										<div className="loading-progress">
+											<div className="progress-bar">
+												<div 
+													className="progress-fill" 
+													style={{ width: `${loadingState.progress}%` }}
+												/>
+											</div>
+											<div className="progress-text">{Math.round(loadingState.progress)}%</div>
+										</div>
+										<div className="loading-status">
+											Loading message details... ({loadingState.loadedDetails}/{loadingState.totalDetails})
+										</div>
+									</div>
+								)}
+								
+								{/* Export 버튼 - 항상 오른쪽에 고정 */}
 								<div className="recent-conversations-export">
 									<select 
 										value={conversationsExportFormat} 
