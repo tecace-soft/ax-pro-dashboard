@@ -9,7 +9,7 @@ import { ensureChatDataExists } from '../services/chatData'
 import { AdminFeedbackData } from '../services/supabase'
 import { updatePromptWithFeedback } from '../services/promptUpdater'
 import { downloadAdminFeedbackData } from '../services/adminFeedbackExport'
-import { downloadConversationsData } from '../services/conversationsExport'
+import { downloadConversationsData, ConversationExportData } from '../services/conversationsExport'
 
 import PromptControl from '../components/PromptControl'
 import UserFeedback from '../components/UserFeedback'
@@ -903,7 +903,7 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 		setIsExportingConversations(true)
 		try {
 			// Recent Conversations 데이터를 배열로 변환 (모든 데이터 포함)
-			const conversationsData = []
+			const conversationsData: ConversationExportData[] = []
 			
 			sessions.forEach(session => {
 				const sessionId = session?.sessionId || session?.id
