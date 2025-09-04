@@ -9,6 +9,7 @@ import { ensureChatDataExists } from '../services/chatData'
 import { AdminFeedbackData } from '../services/supabase'
 import { updatePromptWithFeedback } from '../services/promptUpdater'
 import { downloadAdminFeedbackData } from '../services/adminFeedbackExport'
+import { downloadConversationsData } from '../services/conversationsExport'
 
 import PromptControl from '../components/PromptControl'
 import UserFeedback from '../components/UserFeedback'
@@ -895,6 +896,68 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 		}
 	}
 
+	const [isExportingConversations, setIsExportingConversations] = useState(false)
+	const [conversationsExportFormat, setConversationsExportFormat] = useState<'csv' | 'excel' | 'json'>('csv')
+
+	const handleConversationsExport = async () => {
+		setIsExportingConversations(true)
+		try {
+			// Recent Conversations 데이터를 배열로 변환 (모든 데이터 포함)
+			const conversationsData = []
+			
+			sessions.forEach(session => {
+				const sessionId = session?.sessionId || session?.id
+				const requests = sessionRequests[sessionId] || []
+				
+				requests.forEach(request => {
+					const requestId = request.requestId || request.id
+					const requestDetail = requestDetails[requestId] || {}
+					const adminFeedbackData = adminFeedback[requestId]
+					
+					// 사용자 피드백 상태 확인 (좋아요/싫어요)
+					let userFeedback: 'positive' | 'negative' | 'none' = 'none'
+					if (adminFeedbackData?.feedback_verdict === 'good') {
+						userFeedback = 'positive'
+					} else if (adminFeedbackData?.feedback_verdict === 'bad') {
+						userFeedback = 'negative'
+					}
+					
+					conversationsData.push({
+						// Session 정보
+						sessionId: sessionId,
+						sessionCreatedAt: session.createdAt || '',
+						
+						// Request 정보
+						requestId: requestId,
+						requestCreatedAt: request.createdAt || '',
+						
+						// 메시지 내용
+						userMessage: requestDetail.inputText || '',
+						aiResponse: requestDetail.outputText || '',
+						
+						// 피드백 정보
+						userFeedback: userFeedback,
+						adminFeedbackVerdict: adminFeedbackData?.feedback_verdict || 'none',
+						supervisorFeedback: adminFeedbackData?.feedback_text || '',
+						correctedResponse: adminFeedbackData?.corrected_response || '',
+						promptApply: adminFeedbackData?.prompt_apply || false,
+						
+						// 메타데이터
+						messageCount: requests.length,
+						feedbackCreatedAt: adminFeedbackData?.created_at || '',
+						feedbackUpdatedAt: adminFeedbackData?.updated_at || ''
+					})
+				})
+			})
+			
+			await downloadConversationsData(conversationsData, conversationsExportFormat)
+		} catch (error) {
+			console.error('Conversations export failed:', error)
+		} finally {
+			setIsExportingConversations(false)
+		}
+	}
+
 	return (
 		<div className="screen">
 			<main className="content">
@@ -1106,6 +1169,26 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 								) : (
 									<p className="muted">No conversations found for the selected date range.</p>
 								)}
+							</div>
+							<div className="recent-conversations-actions">
+								<div className="recent-conversations-export">
+									<select 
+										value={conversationsExportFormat} 
+										onChange={(e) => setConversationsExportFormat(e.target.value as any)}
+										className="input select-input export-format-select"
+									>
+										<option value="csv">CSV</option>
+										<option value="excel">Excel</option>
+										<option value="json">JSON</option>
+									</select>
+									<button 
+										className="btn btn-primary export-btn" 
+										onClick={handleConversationsExport}
+										disabled={isExportingConversations || totalMessages === 0}
+									>
+										{isExportingConversations ? 'Exporting...' : 'Export'}
+									</button>
+								</div>
 							</div>
 						</div>
 					</div>
