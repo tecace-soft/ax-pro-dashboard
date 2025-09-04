@@ -30,7 +30,9 @@ class ConversationsCache {
 		// 캐시 크기 제한
 		if (this.memoryCache.size >= this.MAX_CACHE_SIZE) {
 			const firstKey = this.memoryCache.keys().next().value
-			this.memoryCache.delete(firstKey)
+			if (firstKey) {
+				this.memoryCache.delete(firstKey)
+			}
 		}
 
 		this.memoryCache.set(key, {

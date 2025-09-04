@@ -12,6 +12,13 @@ import { downloadAdminFeedbackData } from '../services/adminFeedbackExport'
 import { downloadConversationsData, ConversationExportData } from '../services/conversationsExport'
 import { conversationsCache } from '../services/conversationsCache'
 
+interface CacheData {
+	sessions: any[]
+	sessionRequests: Record<string, any[]>
+	requestDetails: Record<string, any>
+	adminFeedback: Record<string, any>
+}
+
 import PromptControl from '../components/PromptControl'
 import UserFeedback from '../components/UserFeedback'
 import '../styles/dashboard.css'
@@ -241,10 +248,10 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 		const cacheKey = conversationsCache.generateKey(startDate, endDate)
 		
 		// 1. 캐시에서 데이터 확인
-		const cachedData = conversationsCache.get(cacheKey) || 
-			conversationsCache.getFromStorage(cacheKey)
+		const cachedData = conversationsCache.get<CacheData>(cacheKey) || 
+			conversationsCache.getFromStorage<CacheData>(cacheKey)
 		
-		if (cachedData) {
+		if (cachedData && cachedData.sessions && cachedData.sessionRequests && cachedData.requestDetails && cachedData.adminFeedback) {
 			setSessions(cachedData.sessions)
 			setSessionRequests(cachedData.sessionRequests)
 			setRequestDetails(cachedData.requestDetails)
@@ -355,19 +362,20 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 				
 				// 6. Admin Feedback 배치 로드
 				setLoadingState(prev => ({ ...prev, progress: 90 }))
+				let feedbackMap: Record<string, any> = {}
 				try {
-					const feedbackMap = await getAdminFeedbackBatch(allRequestIds)
+					feedbackMap = await getAdminFeedbackBatch(allRequestIds)
 					setAdminFeedback(feedbackMap)
 				} catch (error) {
 					console.error('Failed to fetch admin feedback:', error)
 				}
 				
 				// 7. 캐시에 저장
-				const cacheData = {
+				const cacheData: CacheData = {
 					sessions,
 					sessionRequests: sessionRequestsMap,
 					requestDetails: requestDetailsMap,
-					adminFeedback: feedbackMap || {}
+					adminFeedback: feedbackMap
 				}
 				
 				conversationsCache.set(cacheKey, cacheData)
