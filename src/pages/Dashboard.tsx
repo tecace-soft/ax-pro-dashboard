@@ -6,19 +6,20 @@ import { fetchSessions } from '../services/sessions'
 import { fetchSessionRequests } from '../services/requests'
 import { fetchRequestDetail } from '../services/requestDetails'
 import { fetchDailyMessageActivity, fetchMessageCounts } from '../services/dailyMessageActivity'
+import { fetchDailyAggregates, fetchDailyAggregatesWithMode, DailyRow, filterSimulatedData, EstimationMode } from '../services/dailyAggregates'
 
-// Components - MetricsCards 제거
+// Components
 import Header from '../components/Header'
 import Sidebar from '../components/Sidebar'
 import PerformanceRadar from '../components/PerformanceRadar'
 
-import Content from './Content' // Content.tsx import 추가
-import DailyMessageActivity from '../components/DailyMessageActivity' // DailyMessageActivity 컴포넌트 추가
+import Content from './Content'
+import DailyMessageActivity from '../components/DailyMessageActivity'
 
 import '../styles/dashboard.css'
 import '../styles/performance-radar.css'
 
-// 로컬 시간 기준 날짜 포맷팅 함수 (모든 곳에서 통일 사용)
+// 로컬 시간 기준 날짜 포맷팅 함수
 function formatDate(d: Date): string {
 	const year = d.getFullYear()
 	const month = String(d.getMonth() + 1).padStart(2, '0')
@@ -26,146 +27,68 @@ function formatDate(d: Date): string {
 	return `${year}-${month}-${day}`
 }
 
-// 로컬 날짜 키 (YYYY-MM-DD)
+// 로컬 날짜 키
 function localDateKey(d: Date): string {
 	const y = d.getFullYear();
 	const m = String(d.getMonth() + 1).padStart(2, '0');
 	const day = String(d.getDate()).padStart(2, '0');
 	return `${y}-${m}-${day}`;
-  }
-  
-  // 하루별 카운트 생성 (선택 기간 inclusive, Content와 동일 기준)
-  // API가 하루 앞서므로 +1일 추가
-  function buildDailyMessageData(
+}
+
+// 하루별 카운트 생성
+function buildDailyMessageData(
 	startDate: string,
 	endDate: string,
 	sessionRequests: Record<string, any[]>
-  ): { data: { date: string; count: number }[]; total: number } {
+): { data: { date: string; count: number }[]; total: number } {
 	if (!startDate || !endDate) return { data: [], total: 0 };
-  
-	// Add 1 day to compensate for API being a day ahead
+
 	const start = new Date(`${startDate}T00:00:00`);
 	start.setDate(start.getDate() + 1)
 	const end = new Date(`${endDate}T23:59:59`);
 	end.setDate(end.getDate() + 1)
-  
-	const counts: Record<string, number> = {};
+
+	const dailyCounts: Record<string, number> = {};
 	let total = 0;
-  
-	Object.values(sessionRequests).forEach((reqs = []) => {
-	  reqs.forEach((r: any) => {
-		if (!r?.createdAt) return;
-		const t = new Date(r.createdAt);
-		if (t < start || t > end) return;       // 선택 기간 inclusive
-		const key = localDateKey(t);            // 로컬 날짜 기준
-		counts[key] = (counts[key] || 0) + 1;
-		total += 1;
-	  });
-	});
-  
-	const out: { date: string; count: number }[] = [];
-	const cur = new Date(start);
-	while (cur <= end) {
-	  const key = localDateKey(cur);
-	  out.push({ date: key, count: counts[key] || 0 });
-	  cur.setDate(cur.getDate() + 1);
+
+	for (const sessionId in sessionRequests) {
+		const requests = sessionRequests[sessionId] || [];
+		requests.forEach(req => {
+			if (req.timestamp) {
+				const reqDate = new Date(req.timestamp);
+				if (reqDate >= start && reqDate <= end) {
+					const dateKey = localDateKey(reqDate);
+					dailyCounts[dateKey] = (dailyCounts[dateKey] || 0) + 1;
+					total++;
+				}
+			}
+		});
 	}
-  
-	return { data: out, total };
-  }
 
-interface MessageCount {
-  date: string
-  count: number
+	const data: { date: string; count: number }[] = [];
+	for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+		const dateKey = localDateKey(d);
+		data.push({
+			date: dateKey,
+			count: dailyCounts[dateKey] || 0
+		});
+	}
+
+	return { data, total };
 }
 
-interface DailyMessageResponse {
-  messageCounts: MessageCount[]
-  totalMessages: number
-  averageMessages: number
-  period: {
-    startDate: string
-    endDate: string
-  }
-}
-
-// 캐시 키 생성 함수
-const getCacheKey = (startDate: string, endDate: string) => {
-  return `daily-messages-${startDate}-${endDate}`
-}
-
-// 캐시에서 데이터 가져오기
-const getFromCache = (key: string): DailyMessageResponse | null => {
-  try {
-    const cached = localStorage.getItem(key)
-    if (cached) {
-      const data = JSON.parse(cached)
-      // 캐시 만료 시간 확인 (24시간)
-      if (Date.now() - data.timestamp < 24 * 60 * 60 * 1000) {
-        return data.data
-      }
-      // 만료된 캐시 삭제
-      localStorage.removeItem(key)
-    }
-  } catch (error) {
-    console.error('Cache read error:', error)
-  }
-  return null
-}
-
-// 캐시에 데이터 저장
-const saveToCache = (key: string, data: DailyMessageResponse) => {
-  try {
-    const cacheData = {
-      data,
-      timestamp: Date.now()
-    }
-    localStorage.setItem(key, JSON.stringify(cacheData))
-  } catch (error) {
-    console.error('Cache save error:', error)
-  }
-}
-
-// 더미 데이터 생성 (API 실패 시 사용)
-const generateDummyData = (startDate: string, endDate: string): DailyMessageResponse => {
-  const start = new Date(startDate)
-  const end = new Date(endDate)
-  const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
-  
-  const messageCounts: MessageCount[] = []
-  let totalMessages = 0
-  
-  for (let i = 0; i < days; i++) {
-    const date = new Date(start.getTime() + (i * 24 * 60 * 60 * 1000))
-    const count = Math.floor(Math.random() * 20) + 1 // 1-20 랜덤
-    messageCounts.push({
-      date: formatDate(date),
-      count
-    })
-    totalMessages += count
-  }
-  
-  return {
-    messageCounts,
-    totalMessages,
-    averageMessages: Math.round(totalMessages / days),
-    period: { startDate, endDate }
-  }
-}
-
-// 캐시 무효화 (필요시 사용)
-export const invalidateCache = (startDate?: string, endDate?: string) => {
-  if (startDate && endDate) {
-    const key = getCacheKey(startDate, endDate)
-    localStorage.removeItem(key)
-  } else {
-    // 모든 캐시 삭제
-    Object.keys(localStorage).forEach(key => {
-      if (key.startsWith('daily-messages-')) {
-        localStorage.removeItem(key)
-      }
-    })
-  }
+// 캐시 무효화 함수들
+export const invalidateCache = {
+	sessions: () => localStorage.removeItem('sessions-cache'),
+	requests: (sessionId: string) => localStorage.removeItem(`requests-${sessionId}`),
+	requestDetails: (requestId: string) => localStorage.removeItem(`detail-${requestId}`),
+	all: () => {
+		Object.keys(localStorage).forEach(key => {
+			if (key.startsWith('sessions-') || key.startsWith('requests-') || key.startsWith('detail-')) {
+				localStorage.removeItem(key)
+			}
+		})
+	}
 }
 
 export default function Dashboard() {
@@ -195,7 +118,7 @@ export default function Dashboard() {
 	const [selectedPeriod, setSelectedPeriod] = useState(7)
 	const [searchQuery, setSearchQuery] = useState('')
 
-	// Date filters: 초기값을 빈 문자열로 설정
+	// Date filters
 	const [startDate, setStartDate] = useState<string>('')
 	const [endDate, setEndDate] = useState<string>('')
 
@@ -205,462 +128,327 @@ export default function Dashboard() {
 		score: Math.floor(Math.random() * 20) + 70
 	}))
 
-	// 사이드바 collapse 상태 추가
+	// 사이드바 collapse 상태
 	const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 	
-	// Custom Range 모달 상태 추가
+	// Custom Range 모달 상태
 	const [showCustomRangeModal, setShowCustomRangeModal] = useState(false)
 	const [customStartDate, setCustomStartDate] = useState('')
 	const [customEndDate, setCustomEndDate] = useState('')
 
-	// 초기 날짜 설정을 위한 useEffect (가장 먼저 실행)
-	// [KEEP] 세션/요청 로딩: 세션은 -14일 버퍼, 요청은 정확한 기간
-useEffect(() => {
-	if (!authToken || !startDate || !endDate) return;
-  
-	let cancelled = false;
-  
-	async function loadSessions() {
-	  setIsLoadingSessions(true)
-	  try {
-		// 시작일을 -14일 버퍼 (API가 하루 앞서므로 +1일 추가)
-		const startObj = new Date(startDate)
-		startObj.setDate(startObj.getDate() - 14 + 1) // -14 + 1 = -13 days
-		const startForSessions = formatDate(startObj)
+	// Google Sheets 데이터 상태
+	const [radarData, setRadarData] = useState<DailyRow[]>([])
+	const [selectedRadarDate, setSelectedRadarDate] = useState<string>('')
+	const [isLoadingRadarData, setIsLoadingRadarData] = useState(false)
+	const [includeSimulatedData, setIncludeSimulatedData] = useState(true)
+	const [showDataControls, setShowDataControls] = useState(false)
+	const [estimationMode, setEstimationMode] = useState<EstimationMode>('simple')
 
-		// 세션/요청 로딩 useEffect 안에서, startForSessions 만든 바로 아래에 추가
-		// API가 하루 앞서므로 +1일 추가
-		const endObj = new Date(endDate);
-		endObj.setDate(endObj.getDate() + 2 + 1); // +2 + 1 = +3 days
-		const endExclusive = formatDate(endObj); // 서버가 end를 exclusive로 처리하는 경우 대비
-  
-		// 세션은 넉넉히 (-14일 ~ endExclusive)
-const response = await fetchSessions(authToken!, startForSessions, endExclusive);
-		
-		if (cancelled) return
-  
-		const sessionsList = response.sessions || []
-		setSessions(sessionsList)
-  
-				// 각 세션의 요청도 startDate ~ endExclusive 로 조회 (API가 하루 앞서므로 +1일 추가)
-		const requestPromises = sessionsList
-		.filter(s => s.sessionId)
-		.map(s => {
-			// Add 1 day to compensate for API being a day ahead
-			const adjustedStartDate = new Date(startDate)
-			adjustedStartDate.setDate(adjustedStartDate.getDate() + 1)
-			const adjustedEndDate = new Date(endExclusive)
-			adjustedEndDate.setDate(adjustedEndDate.getDate() + 1)
-			
-			return fetchSessionRequests(authToken!, s.sessionId, formatDate(adjustedStartDate), formatDate(adjustedEndDate))
-				.catch(err => console.error(`Failed to fetch requests for ${s.sessionId}:`, err))
-		});
-  
-		const requestResponses = await Promise.all(requestPromises)
-		const sessionRequestsMap: Record<string, any[]> = {}
-		const allRequestIds: string[] = []
-  
-		requestResponses.forEach((reqRes, idx) => {
-		  const sessionId = sessionsList[idx]?.sessionId
-		  if (reqRes && reqRes.requests && sessionId) {
-			sessionRequestsMap[sessionId] = reqRes.requests
-			reqRes.requests.forEach((r: any) => {
-			  if (r.requestId || r.id) allRequestIds.push(r.requestId || r.id)
-			})
-		  }
-		})
-  
-		setSessionRequests(sessionRequestsMap)
-  
-		if (allRequestIds.length > 0) {
-		  const detailPromises = allRequestIds.map(id =>
-			fetchRequestDetail(authToken!, id).catch(err => console.error(`Failed detail for ${id}:`, err))
-		  )
-		  const detailResponses = await Promise.all(detailPromises)
-		  const detailsMap: Record<string, any> = {}
-		  detailResponses.forEach((dr, i) => {
-			if (dr && dr.request) {
-			  const id = allRequestIds[i]
-			  detailsMap[id] = dr.request
-			}
-		  })
-		  setRequestDetails(detailsMap)
-		}
-	  } catch (e) {
-		if (!cancelled) {
-		  console.error('Failed to fetch sessions:', e)
-		  setSessions([])
-		}
-	  } finally {
-		if (!cancelled) setIsLoadingSessions(false)
-	  }
-	}
-  
-	loadSessions()
-	return () => { cancelled = true }
-  }, [authToken, startDate, endDate])
+	// 스크롤 버튼 상태
+	const [showScrollTop, setShowScrollTop] = useState(false)
 
-	// Daily Message Activity 데이터 가져오기
-	// loadDailyMessages 함수 제거 (DailyMessageActivity가 자체적으로 처리)
-	// useEffect(() => {
-	//   loadDailyMessages();
-	// }, []);
-
-	// 기간 변경 시 데이터 새로 가져오기
-	const handlePeriodChange = (days: number) => {
-		setSelectedPeriod(days)
-		
-		const today = new Date()
-		const startDate = new Date()
-		
-		// days=3이면 18,19,20일을 원한다면
-		startDate.setDate(today.getDate() - (days - 1))
-		
-		const startStr = formatDate(startDate)
-		const endStr = formatDate(today)
-		
-		console.log(`Period ${days} days: ${startStr} to ${endStr}`)
-		
-		setStartDate(startStr)
-		setEndDate(endStr)
-		
-		// loadDailyMessages(startStr, endStr) // 이 부분은 DailyMessageActivity가 처리
-	}
-
-	// Custom Range 적용 시
-	const applyCustomRange = async () => {
-		if (customStartDate && customEndDate) {
-			setStartDate(customStartDate)
-			setEndDate(customEndDate)
-			setShowCustomRangeModal(false)
-			
-			// Daily Message Activity 데이터 새로 가져오기
-			// await loadDailyMessages(customStartDate, customEndDate) // 이 부분은 DailyMessageActivity가 처리
-		}
-	}
-
-	// Fetch auth token on mount
+	// 초기 날짜 설정
 	useEffect(() => {
-		let cancelled = false
+		const today = new Date()
+		const sevenDaysAgo = new Date(today.getTime() - (6 * 24 * 60 * 60 * 1000))
 		
-		async function fetchToken() {
-			try {
-				const token = await getAuthToken()
-				if (!cancelled) {
-					setAuthToken(token)
-				}
-			} catch (error) {
-				if (!cancelled) {
-					console.error('Failed to get auth token:', error)
-				}
-			}
-		}
-		
-		fetchToken()
-		
-		return () => {
-			cancelled = true
-		}
+		setStartDate(formatDate(sevenDaysAgo))
+		setEndDate(formatDate(today))
 	}, [])
 
-	// authToken과 날짜가 설정되면 데이터 로드
-	// useEffect(() => {
-	//   if (authToken && startDate && endDate) {
-	//     console.log(`Loading  ${startDate} to ${endDate}`)
-	//     loadDailyMessages(startDate, endDate)
-	//   }
-	// }, [authToken, startDate, endDate]) // 이 부분은 DailyMessageActivity가 처리
-
-	// 데이터 로딩 상태 확인을 위한 로그 추가
-useEffect(() => {
-  console.log('=== Dashboard Debug ===');
-  console.log('Sessions:', sessions);
-  console.log('SessionRequests:', sessionRequests);
-  console.log('StartDate:', startDate);
-  console.log('EndDate:', endDate);
-}, [sessions, sessionRequests, startDate, endDate]);
-
-	
-
-	// Sign out function
-	const signOut = () => {
-		// Clear auth token
-		localStorage.removeItem('authToken')
-		sessionStorage.removeItem('axAccess')
-		
-		// Navigate to login page
-		navigate('/', { replace: true })
-	}
-
-	function toggleSessionExpansion(sessionId: string) {
-		const newExpanded = new Set(expandedSessions)
-		if (newExpanded.has(sessionId)) {
-			newExpanded.delete(sessionId)
-		} else {
-			newExpanded.add(sessionId)
-		}
-		setExpandedSessions(newExpanded)
-	}
-
-	// Feedback functions
-	const handleFeedbackClick = (type: 'positive' | 'negative', requestId: string) => {
-		setFeedbackModal({
-			isOpen: true,
-			type: type,
-			requestId: requestId
-		})
-		setFeedbackText('')
-	}
-
-	const closeFeedbackModal = () => {
-		setFeedbackModal({
-			isOpen: false,
-			type: null,
-			requestId: null
-		})
-		setFeedbackText('')
-	}
-
-	const submitFeedback = () => {
-		// TODO: Implement feedback submission
-		console.log('Feedback submitted:', {
-			type: feedbackModal.type,
-			requestId: feedbackModal.requestId,
-			text: feedbackText
-		})
-		
-		// Mark this request as having feedback submitted
-		if (feedbackModal.requestId && feedbackModal.type) {
-			setSubmittedFeedback(prev => ({
-				...prev,
-				[feedbackModal.requestId!]: feedbackModal.type!
-			}))
-		}
-		
-		closeFeedbackModal()
-	}
-
-	const handleFilterChange = (filter: string) => {
-		setActiveFilters(prev => 
-			filter === 'all' ? ['all'] : 
-			prev.includes(filter) ? prev.filter(f => f !== filter) : 
-			[...prev.filter(f => f !== 'all'), filter]
-		)
-	}
-
-	const handleSearch = (query: string) => {
-		setSearchQuery(query)
-	}
-
-	const currentTime = new Date().toLocaleString('en-US', {
-		weekday: 'short',
-		month: 'short',
-		day: 'numeric',
-		hour: 'numeric',
-		minute: '2-digit',
-		hour12: true
-	})
-
-	// 사이드바 toggle 함수 추가
-	const toggleSidebar = () => {
-		setSidebarCollapsed(!sidebarCollapsed)
-	}
-
-	// 실제 메시지 수 계산
-	const totalMessages = sessions.reduce((total, session) => {
-		const sessionId = session.sessionId || session.id || `session-${Math.random()}`
-		const requests = sessionRequests[sessionId] || []
-		return total + requests.length
-	}, 0)
-
-	// Recent Conversations로 스크롤하는 함수
-	const scrollToConversations = () => {
-		const conversationsElement = document.querySelector('.conversations-module')
-		if (conversationsElement) {
-			conversationsElement.scrollIntoView({ 
-				behavior: 'smooth', 
-				block: 'start' 
-			})
-		}
-	}
-
-	// 필터링된 세션 데이터를 가져오는 함수
-	// API가 하루 앞서므로 +1일 추가
-	const getFilteredSessions = () => {
-		// Content 모듈의 필터링 로직과 동일하게 적용
-		if (!startDate || !endDate) return sessions
-		
-		// Add 1 day to compensate for API being a day ahead
-		const start = new Date(startDate)
-		start.setDate(start.getDate() + 1)
-		const end = new Date(endDate)
-		end.setDate(end.getDate() + 1)
-		
-		return sessions.filter(session => {
-			const sessionDate = new Date(session.createdAt || Date.now())
-			return sessionDate >= start && sessionDate <= end
-		})
-	}
-
-	const periods = [
-		{ label: 'Last 7 days', days: 7 },
-		{ label: 'Last 3 days', days: 3 },
-		{ label: 'Last 30 days', days: 30 },
-		{ label: 'Custom Range', days: 0 }
-	]
-
-	// Custom Range 버튼 클릭 핸들러 추가
-	const handleCustomRangeClick = () => {
-		setCustomStartDate(startDate)
-		setCustomEndDate(endDate)
-		setShowCustomRangeModal(true)
-	}
-
-	// 섹션별 스크롤 함수 - Content.tsx 모듈과 연동
-	const scrollToSection = (sectionId: string) => {
-		// Content.tsx 모듈 내부의 요소들을 찾아서 스크롤
-		if (sectionId === 'content-module') {
-			// Content 모듈 전체로 스크롤
-			const contentElement = document.querySelector('.content-module')
-			if (contentElement) {
-				contentElement.scrollIntoView({ 
-					behavior: 'smooth', 
-					block: 'start' 
-				})
-			}
-		} else if (sectionId === 'recent-conversations') {
-			// Content 모듈 내의 Recent Conversations 섹션으로 스크롤
-			const conversationsElement = document.querySelector('.conversations-module')
-			if (conversationsElement) {
-				conversationsElement.scrollIntoView({ 
-					behavior: 'smooth', 
-					block: 'start' 
-				})
-			}
-		} else if (sectionId === 'prompt-control') {
-			// Content 모듈 내의 Prompt Control 섹션으로 스크롤
-			const promptControlElement = document.querySelector('.prompt-control-module')
-			if (promptControlElement) {
-				promptControlElement.scrollIntoView({ 
-					behavior: 'smooth', 
-					block: 'start' 
-				})
-			}
-		} else {
-			// Dashboard.tsx 내의 다른 섹션들
-			const element = document.getElementById(sectionId)
-			if (element) {
-				element.scrollIntoView({ 
-					behavior: 'smooth', 
-					block: 'start' 
-				})
-			}
-		}
-	}
-
-	// 스크롤 버튼 상태 추가
-	const [showScrollTop, setShowScrollTop] = useState(false);
-
-	// 날짜 범위 바꾸는 핸들러 (Dashboard -> Content로 내려줌)
-const handleRangeChange = (start: string, end: string) => {
-	setStartDate(start);
-	setEndDate(end);
-  };
-
-	// [ADD] 초기 날짜 설정: 오늘 포함 최근 7일
-useEffect(() => {
-	const today = new Date()
-	const start = new Date()
-	start.setDate(today.getDate() - 6) // 최근 7일(오늘 포함)
-	setStartDate(formatDate(start))
-	setEndDate(formatDate(today))
-  }, [])
-
-	// 스크롤 이벤트 리스너 추가
+	// 인증 토큰 로드
 	useEffect(() => {
-	  const handleScroll = () => {
-		const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-		setShowScrollTop(scrollTop > 300); // 300px 이상 스크롤 시 버튼 표시
-	  };
+		const token = getAuthToken()
+		if (!token) {
+			navigate('/login')
+			return
+		}
+		setAuthToken(token)
+	}, [navigate])
 
-	  window.addEventListener('scroll', handleScroll);
-	  return () => window.removeEventListener('scroll', handleScroll);
+	// 세션 데이터 로드
+	useEffect(() => {
+		if (!authToken || !startDate || !endDate) return;
+
+		const sessionStartDate = new Date(startDate);
+		sessionStartDate.setDate(sessionStartDate.getDate() - 14);
+		const sessionStartDateStr = formatDate(sessionStartDate);
+
+		const loadSessions = async () => {
+			setIsLoadingSessions(true);
+			try {
+				const sessionData = await fetchSessions(authToken, sessionStartDateStr, endDate);
+				setSessions(sessionData || []);
+			} catch (error) {
+				console.error('Failed to load sessions:', error);
+				setSessions([]);
+			} finally {
+				setIsLoadingSessions(false);
+			}
+		};
+
+		loadSessions();
+	}, [authToken, startDate, endDate]);
+
+	// 요청 데이터 로드
+	useEffect(() => {
+		if (!authToken || sessions.length === 0 || !startDate || !endDate) return;
+
+		const loadRequests = async () => {
+			const newSessionRequests: Record<string, any[]> = {};
+			
+			for (const session of sessions) {
+				try {
+					const requests = await fetchSessionRequests(authToken, session.session_id, startDate, endDate);
+					newSessionRequests[session.session_id] = requests || [];
+				} catch (error) {
+					console.error(`Failed to load requests for session ${session.session_id}:`, error);
+					newSessionRequests[session.session_id] = [];
+				}
+			}
+			
+			setSessionRequests(newSessionRequests);
+		};
+
+		loadRequests();
+	}, [authToken, sessions, startDate, endDate]);
+
+	// Google Sheets 데이터 로드
+	useEffect(() => {
+		const loadRadarData = async () => {
+			setIsLoadingRadarData(true)
+			try {
+				const data = await fetchDailyAggregatesWithMode(estimationMode)
+				setRadarData(data)
+				if (data.length > 0) {
+					setSelectedRadarDate(data[data.length - 1].Date)
+				}
+			} catch (error) {
+				console.error('Failed to load radar data:', error)
+			} finally {
+				setIsLoadingRadarData(false)
+			}
+		}
+
+		loadRadarData()
+	}, [estimationMode])
+
+	// 스크롤 이벤트 리스너
+	useEffect(() => {
+		const handleScroll = () => {
+			const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+			setShowScrollTop(scrollTop > 300);
+		};
+
+		window.addEventListener('scroll', handleScroll);
+		return () => window.removeEventListener('scroll', handleScroll);
 	}, []);
 
 	// 맨 위로 스크롤 함수
 	const scrollToTop = () => {
-	  window.scrollTo({
-		top: 0,
-		behavior: 'smooth'
-	  });
+		window.scrollTo({
+			top: 0,
+			behavior: 'smooth'
+		});
 	};
-	const { data: dailyData, total: dailyTotal } =
-	buildDailyMessageData(startDate, endDate, sessionRequests);
+
+	// 필터링된 레이더 데이터
+	const filteredRadarData = filterSimulatedData(radarData, includeSimulatedData)
+	const selectedRadarRow = filteredRadarData.find(row => row.Date === selectedRadarDate) || filteredRadarData[filteredRadarData.length - 1]
+
+	// 시뮬레이션 데이터 통계
+	const simulatedCount = radarData.filter(row => row.isSimulated).length
+	const realCount = radarData.filter(row => !row.isSimulated).length
+
+	// PerformanceRadar props 계산
+	const radarProps = selectedRadarRow ? {
+		relevance: Math.round(selectedRadarRow["Answer Relevancy"] * 100),
+		tone: Math.round(selectedRadarRow.Tone * 100),
+		length: Math.round(selectedRadarRow.Length * 100),
+		accuracy: Math.round(selectedRadarRow["Answer Correctness"] * 100),
+		toxicity: Math.round(selectedRadarRow.Toxicity * 100),
+		promptInjection: Math.round(selectedRadarRow["Prompt Injection"] * 100)
+	} : {
+		relevance: 85,
+		tone: 78,
+		length: 82,
+		accuracy: 92,
+		toxicity: 95,
+		promptInjection: 88
+	}
+
+	// 기타 핸들러 함수들
+	const handleRangeChange = (start: string, end: string) => {
+		setStartDate(start)
+		setEndDate(end)
+	}
+
+	const closeFeedbackModal = () => {
+		setFeedbackModal({ isOpen: false, type: null, requestId: null })
+		setFeedbackText('')
+	}
+
+	const submitFeedback = () => {
+		console.log('Submitting feedback:', feedbackText)
+		closeFeedbackModal()
+	}
+
 	return (
 		<div className="dashboard-layout">
-			<Header performanceScore={87} currentTime={currentTime} onSignOut={signOut} />
+			<Header 
+				onSettingsClick={() => setIsSettingsOpen(true)}
+				sidebarCollapsed={sidebarCollapsed}
+				onSidebarToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+			/>
 			
 			<div className="dashboard-content">
-				<Sidebar
-					conversations={totalMessages}
-					satisfaction={94.5}
-					documents={156}
-					activeFilters={activeFilters}
-					onFilterChange={handleFilterChange}
-					onSearch={handleSearch}
-					isCollapsed={sidebarCollapsed}
-					onToggleCollapse={toggleSidebar}
-					onScrollToConversations={scrollToConversations}
-					onScrollToSection={scrollToSection}
-					// 실제 데이터 전달
-					sessions={sessions}
-					sessionRequests={sessionRequests}
-					requestDetails={requestDetails}
+				<Sidebar 
+					collapsed={sidebarCollapsed}
+					onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
 				/>
 				
 				<main className="dashboard-main">
 					<div className="dashboard-grid">
 						<div className="grid-left">
-						<div id="performance-radar" className="performance-section">
-							{/* 통일된 타이틀/서브타이틀 (CSS에서 panel-title / panel-subtitle로 통일 스타일 적용) */}
+							<div id="performance-radar" className="performance-section">
+								{/* 히든 메뉴 토글 버튼 */}
+								<div style={{ position: 'absolute', top: '8px', right: '8px' }}>
+									<button
+										onClick={() => setShowDataControls(!showDataControls)}
+										style={{
+											background: 'rgba(59, 230, 255, 0.1)',
+											border: '1px solid rgba(59, 230, 255, 0.3)',
+											borderRadius: '4px',
+											color: 'rgba(255,255,255,0.7)',
+											padding: '4px 6px',
+											fontSize: '11px',
+											cursor: 'pointer',
+											opacity: showDataControls ? 1 : 0.5
+										}}
+										title="Data Controls"
+									>
+										⚙️
+									</button>
+								</div>
 
-							<PerformanceRadar
-								relevance={85}
-								tone={78}
-								length={82}
-								accuracy={92}
-								toxicity={95}
-								promptInjection={88}
-							/>
+								{/* 데이터 컨트롤 패널 */}
+								{showDataControls && (
+									<div style={{
+										position: 'absolute',
+										top: '40px',
+										right: '8px',
+										background: 'rgba(18, 27, 61, 0.95)',
+										border: '1px solid rgba(59, 230, 255, 0.3)',
+										borderRadius: '6px',
+										padding: '8px',
+										fontSize: '11px',
+										color: '#fff',
+										zIndex: 10,
+										minWidth: '200px'
+									}}>
+										<div style={{ marginBottom: '8px', fontSize: '10px', color: 'rgba(255,255,255,0.7)' }}>
+											Data: {realCount} actual, {simulatedCount} estimated
+										</div>
+										
+										<label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', marginBottom: '8px' }}>
+											<input
+												type="checkbox"
+												checked={includeSimulatedData}
+												onChange={(e) => setIncludeSimulatedData(e.target.checked)}
+												style={{ margin: 0 }}
+											/>
+											Include estimated data
+										</label>
+										
+										{includeSimulatedData && (
+											<div style={{ borderTop: '1px solid rgba(59, 230, 255, 0.2)', paddingTop: '8px' }}>
+												<div style={{ marginBottom: '4px', fontSize: '10px', color: 'rgba(255,255,255,0.7)' }}>
+													Estimation Mode:
+												</div>
+												<select
+													value={estimationMode}
+													onChange={(e) => setEstimationMode(e.target.value as EstimationMode)}
+													style={{
+														width: '100%',
+														background: 'rgba(18, 27, 61, 0.8)',
+														border: '1px solid rgba(59, 230, 255, 0.3)',
+														borderRadius: '4px',
+														color: '#fff',
+														padding: '4px 6px',
+														fontSize: '10px',
+														outline: 'none'
+													}}
+												>
+													<option value="simple">Simple (±5% random)</option>
+													<option value="improved">Improved (±4% + patterns)</option>
+													<option value="realistic">Realistic (trends + weekends)</option>
+												</select>
+											</div>
+										)}
+									</div>
+								)}
+
+								{/* Date selector */}
+								<div className="radar-controls" style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '12px', justifyContent: 'center' }}>
+									<label style={{ color: '#fff', fontSize: '14px', fontWeight: '500' }}>Date:</label>
+									<select 
+										value={selectedRadarDate} 
+										onChange={(e) => setSelectedRadarDate(e.target.value)}
+										style={{
+											background: 'rgba(18, 27, 61, 0.8)',
+											border: '1px solid rgba(59, 230, 255, 0.3)',
+											borderRadius: '6px',
+											color: '#fff',
+											padding: '6px 12px',
+											fontSize: '14px',
+											outline: 'none',
+											cursor: 'pointer'
+										}}
+									>
+										{filteredRadarData.map((row) => (
+											<option key={row.Date} value={row.Date}>
+												{row.Date} {row.isSimulated ? '📈' : '📊'}
+											</option>
+										))}
+									</select>
+									
+									{/* 데이터 타입 인디케이터 */}
+									{selectedRadarRow && (
+										<span style={{ 
+											fontSize: '12px', 
+											color: selectedRadarRow.isSimulated ? 'rgba(255, 165, 0, 0.8)' : 'rgba(0, 255, 150, 0.8)',
+											display: 'flex',
+											alignItems: 'center',
+											gap: '4px'
+										}}>
+											{selectedRadarRow.isSimulated ? '📈 Estimated' : '📊 Actual'}
+										</span>
+									)}
+									
+									{isLoadingRadarData && (
+										<span style={{ color: 'rgba(255,255,255,0.7)', fontSize: '12px' }}>Loading...</span>
+									)}
+								</div>
+
+								<PerformanceRadar
+									relevance={radarProps.relevance}
+									tone={radarProps.tone}
+									length={radarProps.length}
+									accuracy={radarProps.accuracy}
+									toxicity={radarProps.toxicity}
+									promptInjection={radarProps.promptInjection}
+								/>
 							</div>
 
-							{/* DailyMessageActivity 컴포넌트에 props 전달 */}
 							<DailyMessageActivity 
-  startDate={startDate}
-  endDate={endDate}
-  sessions={sessions}           // 이 값이 비어있음
-  sessionRequests={sessionRequests}  // 이 값도 비어있음
-/>
+								startDate={startDate}
+								endDate={endDate}
+								sessions={sessions}
+								sessionRequests={sessionRequests}
+							/>
 						</div>
-{/* 
-						<div className="grid-right"> */}
-							{/* System Status 주석 처리 */}
-							{/* <div id="system-status">
-								<SystemStatus
-									coreSystems={87}
-									security={75}
-									network={84}
-								/>
-							</div> */}
-
-							{/* Environment Controls 주석 처리 */}
-							{/* <div id="environment-controls">
-								<EnvironmentControls />
-							</div> */}
-						{/* </div> */}
 					</div>
 
-					{/* Content.tsx 모듈을 그대로 유지 */}
 					<div className="content-module">
 						<Content 
 							startDate={startDate}
@@ -668,7 +456,6 @@ useEffect(() => {
 							onDateChange={handleRangeChange}
 						/>
 					</div>
-
 				</main>
 			</div>
 
@@ -725,24 +512,28 @@ useEffect(() => {
 
 			{/* 스크롤 버튼 */}
 			{showScrollTop && (
-			  <button 
-				className="scroll-to-top-btn"
-				onClick={scrollToTop}
-				aria-label="Scroll to top"
-				title="Scroll to top"
-			  >
-				<svg 
-				  className="scroll-icon" 
-				  viewBox="0 0 24 24" 
-				  fill="none" 
-				  stroke="currentColor" 
-				  strokeWidth="2"
+				<button 
+					className="scroll-top-btn"
+					onClick={scrollToTop}
+					style={{
+						position: 'fixed',
+						bottom: '20px',
+						right: '20px',
+						background: 'rgba(59, 230, 255, 0.8)',
+						border: 'none',
+						borderRadius: '50%',
+						width: '50px',
+						height: '50px',
+						color: '#fff',
+						fontSize: '20px',
+						cursor: 'pointer',
+						zIndex: 1000,
+						boxShadow: '0 2px 10px rgba(0,0,0,0.3)'
+					}}
 				>
-				  <path d="M18 15l-6-6-6 6"/>
-				</svg>
-			  </button>
+					↑
+				</button>
 			)}
 		</div>
 	)
 }
- 
