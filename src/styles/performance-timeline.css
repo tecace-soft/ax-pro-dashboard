@@ -1,0 +1,103 @@
+/* Performance Timeline이 Performance Radar 박스 안에 들어갈 때의 스타일 수정 */
+.timeline-section-wrapper {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid rgba(59, 230, 255, 0.15);
+}
+
+.performance-timeline-section {
+  /* 기존 박스 스타일 제거하고 간단하게 */
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  margin: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  position: relative;
+  overflow: visible;
+}
+
+.performance-timeline-section::before {
+  /* 상단 하이라이트 제거 */
+  display: none;
+}
+
+/* 헤더 스타일 조정 */
+.timeline-header {
+  text-align: left; /* 중앙 정렬에서 좌측 정렬로 */
+  margin-bottom: 20px;
+}
+
+.timeline-title {
+  font-size: 20px; /* 크기 줄임 */
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.9);
+  margin: 0 0 6px 0;
+  letter-spacing: -0.3px;
+  /* 그라디언트 제거하고 단순하게 */
+  background: none;
+  -webkit-background-clip: unset;
+  -webkit-text-fill-color: unset;
+}
+
+.timeline-subtitle {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
+  margin: 0;
+}
+
+/* 컨트롤 패널 스타일 조정 */
+.timeline-controls {
+  background: rgba(9, 14, 34, 0.3); /* 더 어둡게 */
+  border: 1px solid rgba(59, 230, 255, 0.12);
+  padding: 10px 14px; /* 패딩 줄임 */
+  margin-bottom: 16px;
+}
+
+/* 차트 높이 조정 */
+.chart-container {
+  height: 120px; /* 높이 줄임 */
+}
+
+.bars-container {
+  height: 100px;
+}
+
+.y-axis {
+  height: 100px;
+}
+
+/* 범례 스타일 조정 */
+.timeline-legend {
+  margin-top: 12px;
+  gap: 16px;
+}
+
+.legend-item {
+  font-size: 11px;
+}
+
+/* Performance Radar 섹션 내부에서의 반응형 */
+@media (max-width: 768px) {
+  .timeline-section-wrapper {
+    margin-top: 16px;
+    padding-top: 16px;
+  }
+  
+  .timeline-title {
+    font-size: 18px;
+  }
+  
+  .chart-container {
+    height: 100px;
+  }
+  
+  .bars-container {
+    height: 80px;
+  }
+  
+  .y-axis {
+    height: 80px;
+  }
+}

@@ -12,12 +12,14 @@ import { fetchDailyAggregates, fetchDailyAggregatesWithMode, DailyRow, filterSim
 import Header from '../components/Header'
 import Sidebar from '../components/Sidebar'
 import PerformanceRadar from '../components/PerformanceRadar'
+import PerformanceTimeline from '../components/PerformanceTimeline'
 
 import Content from './Content'
 import DailyMessageActivity from '../components/DailyMessageActivity'
 
 import '../styles/dashboard.css'
 import '../styles/performance-radar.css'
+import '../styles/performance-timeline.css'
 
 // 로컬 시간 기준 날짜 포맷팅 함수
 function formatDate(d: Date): string {
@@ -438,6 +440,22 @@ export default function Dashboard() {
 									toxicity={radarProps.toxicity}
 									promptInjection={radarProps.promptInjection}
 								/>
+
+								{/* 디버깅: 데이터 확인 */}
+								<div style={{ color: 'white', fontSize: '12px', margin: '10px 0' }}>
+									Debug: {filteredRadarData.length} items, selected: {selectedRadarDate}
+								</div>
+
+								{/* Performance Timeline 추가 */}
+								<div className="timeline-section-wrapper">
+									<PerformanceTimeline
+										data={filteredRadarData}
+										selectedDate={selectedRadarDate}
+										onDateChange={setSelectedRadarDate}
+										title="Performance Timeline"
+										subtitle="시간별 추이"
+									/>
+								</div>
 							</div>
 
 							<DailyMessageActivity 
