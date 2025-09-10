@@ -312,12 +312,12 @@ export async function updatePromptWithFeedback(): Promise<void> {
       }
     }
     
-    // For FAQ section: preserve only the original static content (Q1-Q15), rebuild Q16+ from database
-    const originalStaticQSections = sections.section5Content.slice(0, 15) // Only preserve Q1-Q15
+    // For FAQ section: preserve original static content (Q1-Q25), rebuild Q26+ from database
+    const originalStaticQSections = sections.section5Content.slice(0, 25) // Preserve Q1-Q25
     const maxOriginalQ = originalStaticQSections.length
     
-    // Start numbering new Q&A from Q16 (or next available number)
-    let qIndex = 16
+    // Start numbering new Q&A from Q26 (next available number after Q25)
+    let qIndex = maxOriginalQ + 1
     const seenQNAs = new Set<string>()
     
     // First, add all original static Q&A to prevent duplicates
@@ -338,8 +338,9 @@ export async function updatePromptWithFeedback(): Promise<void> {
       return dateA.getTime() - dateB.getTime() // Oldest first
     })
     
-    // Now add new corrected responses from database, starting from Q16 (oldest first)
-    const seenQRequestIds = new Map<string, string>() // Map request_id to Q&A key
+    // Collect unique Q&A entries first (without assigning Q numbers yet)
+    const seenQRequestIds = new Map<string, {question: string, answer: string}>() // Map request_id to Q&A content
+    const uniqueQAEntries: {question: string, answer: string}[] = []
     
     for (const feedback of sortedFeedback) {
       if (feedback.corrected_response && feedback.corrected_response.trim() && 
@@ -352,42 +353,42 @@ export async function updatePromptWithFeedback(): Promise<void> {
         
         // Check if we already have feedback for this request_id
         if (seenQRequestIds.has(requestId)) {
-          const existingQnaKey = seenQRequestIds.get(requestId)!
+          const existingQA = seenQRequestIds.get(requestId)!
+          const existingQnaKey = `${existingQA.question}|${existingQA.answer}`
           // Only skip if the Q&A is exactly the same (true duplicate)
           if (existingQnaKey === qnaKey) {
             continue
           }
           // If Q&A is different, it's an update - replace the existing entry
-          // Remove the previous entry from newQSections
-          const indexToRemove = newQSections.findIndex(section => {
-            const lines = section.split('\n')
-            const question = lines[0]?.replace(/^Q\d+\.\s*/, '').trim().replace(/\s+/g, ' ')
-            const answer = lines.find(line => line.startsWith('답변:'))?.replace(/^답변:\s*/, '').trim().replace(/\s+/g, ' ')
-            if (question && answer) {
-              const sectionQnaKey = `${question}|${answer}`
-              return sectionQnaKey === existingQnaKey
-            }
-            return false
-          })
+          const indexToRemove = uniqueQAEntries.findIndex(entry => 
+            `${entry.question}|${entry.answer}` === existingQnaKey
+          )
           if (indexToRemove !== -1) {
-            newQSections.splice(indexToRemove, 1)
-            qIndex-- // Decrease index since we removed an entry
+            uniqueQAEntries.splice(indexToRemove, 1)
           }
         }
         
         // Check if this Q&A already exists in original static content
         if (!seenQNAs.has(qnaKey)) {
-          newQSections.push(generateQSection(
-            qIndex, 
-            feedback.chat_data.input_text, 
-            feedback.corrected_response
-          ))
+          uniqueQAEntries.push({
+            question: feedback.chat_data.input_text,
+            answer: feedback.corrected_response
+          })
           seenQNAs.add(qnaKey)
-          seenQRequestIds.set(requestId, qnaKey)
-          qIndex++
+          seenQRequestIds.set(requestId, {question: normalizedQuestion, answer: normalizedAnswer})
         }
       }
     }
+    
+    // Now assign sequential Q numbers to the unique entries
+    uniqueQAEntries.forEach((entry, index) => {
+      const currentQIndex = qIndex + index
+      newQSections.push(generateQSection(
+        currentQIndex,
+        entry.question,
+        entry.answer
+      ))
+    })
     
     // Reconstruct the prompt - preserve original static content and add new dynamic content
     const newPrompt = reconstructPrompt(

@@ -251,11 +251,11 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 		const cachedData = conversationsCache.get<CacheData>(cacheKey) || 
 			conversationsCache.getFromStorage<CacheData>(cacheKey)
 		
-		if (cachedData && cachedData.sessions && cachedData.sessionRequests && cachedData.requestDetails && cachedData.adminFeedback) {
+		if (cachedData && cachedData.sessions && cachedData.sessionRequests && cachedData.requestDetails) {
 			setSessions(cachedData.sessions)
 			setSessionRequests(cachedData.sessionRequests)
 			setRequestDetails(cachedData.requestDetails)
-			setAdminFeedback(cachedData.adminFeedback)
+			// Admin feedback is loaded separately, not from cache
 			return
 		}
 
@@ -360,22 +360,13 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 				// 최종 상태 업데이트
 				setRequestDetails(requestDetailsMap)
 				
-				// 6. Admin Feedback 배치 로드
+				// 6. 캐시에 저장 (admin feedback is loaded separately now)
 				setLoadingState(prev => ({ ...prev, progress: 90 }))
-				let feedbackMap: Record<string, any> = {}
-				try {
-					feedbackMap = await getAdminFeedbackBatch(allRequestIds)
-					setAdminFeedback(feedbackMap)
-				} catch (error) {
-					console.error('Failed to fetch admin feedback:', error)
-				}
-				
-				// 7. 캐시에 저장
 				const cacheData: CacheData = {
 					sessions,
 					sessionRequests: sessionRequestsMap,
 					requestDetails: requestDetailsMap,
-					adminFeedback: feedbackMap
+					adminFeedback: {} // Empty since admin feedback is loaded separately
 				}
 				
 				conversationsCache.set(cacheKey, cacheData)
@@ -409,6 +400,32 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 			cancelled = true
 		}
 	}, [authToken, startDate, endDate])
+
+	// Load all admin feedback separately (not dependent on date range)
+	useEffect(() => {
+		if (!authToken) return
+
+		let cancelled = false
+		
+		async function loadAllAdminFeedback() {
+			try {
+				const allFeedback = await getAllAdminFeedback()
+				if (!cancelled) {
+					setAdminFeedback(allFeedback)
+				}
+			} catch (error) {
+				if (!cancelled) {
+					console.error('Failed to load all admin feedback:', error)
+				}
+			}
+		}
+		
+		loadAllAdminFeedback()
+		
+		return () => {
+			cancelled = true
+		}
+	}, [authToken])
 
 	function toggleSessionExpansion(sessionId: string) {
 		const newExpanded = new Set(expandedSessions)
