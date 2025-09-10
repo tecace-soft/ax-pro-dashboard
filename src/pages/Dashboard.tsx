@@ -123,7 +123,6 @@ export default function Dashboard() {
 	const [selectedRadarDate, setSelectedRadarDate] = useState<string>('')
 	const [isLoadingRadarData, setIsLoadingRadarData] = useState(false)
 	const [includeSimulatedData, setIncludeSimulatedData] = useState(true)
-	const [showDataControls, setShowDataControls] = useState(false)
 	const [estimationMode, setEstimationMode] = useState<EstimationMode>('simple')
 
 	// 메인 브랜치의 모든 기존 useEffect들 유지...
@@ -419,143 +418,29 @@ export default function Dashboard() {
 				<main className="dashboard-main">
 					<div className="dashboard-grid">
 						<div className="grid-left">
-							<div id="performance-radar" className="performance-section">
-								{/* Google Sheets 컨트롤 추가 */}
-								<div style={{ position: 'absolute', top: '8px', right: '8px' }}>
-									<button
-										onClick={() => setShowDataControls(!showDataControls)}
-										style={{
-											background: 'rgba(59, 230, 255, 0.1)',
-											border: '1px solid rgba(59, 230, 255, 0.3)',
-											borderRadius: '4px',
-											color: 'rgba(255,255,255,0.7)',
-											padding: '4px 6px',
-											fontSize: '11px',
-											cursor: 'pointer',
-											opacity: showDataControls ? 1 : 0.5
-										}}
-										title="Data Controls"
-									>
-										⚙️
-									</button>
-								</div>
+							{/* Performance Radar - 외부 div 제거 */}
+							<PerformanceRadar
+								relevance={radarProps.relevance}
+								tone={radarProps.tone}
+								length={radarProps.length}
+								accuracy={radarProps.accuracy}
+								toxicity={radarProps.toxicity}
+								promptInjection={radarProps.promptInjection}
+							/>
 
-								{showDataControls && (
-									<div style={{
-										position: 'absolute',
-										top: '40px',
-										right: '8px',
-										background: 'rgba(18, 27, 61, 0.95)',
-										border: '1px solid rgba(59, 230, 255, 0.3)',
-										borderRadius: '6px',
-										padding: '8px',
-										fontSize: '11px',
-										color: '#fff',
-										zIndex: 10,
-										minWidth: '200px'
-									}}>
-										<div style={{ marginBottom: '8px', fontSize: '10px', color: 'rgba(255,255,255,0.7)' }}>
-											Data: {realCount} actual, {simulatedCount} estimated
-										</div>
-										
-										<label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', marginBottom: '8px' }}>
-											<input
-												type="checkbox"
-												checked={includeSimulatedData}
-												onChange={(e) => setIncludeSimulatedData(e.target.checked)}
-												style={{ margin: 0 }}
-											/>
-											Include estimated data
-										</label>
-										
-										{includeSimulatedData && (
-											<div style={{ borderTop: '1px solid rgba(59, 230, 255, 0.2)', paddingTop: '8px' }}>
-												<div style={{ marginBottom: '4px', fontSize: '10px', color: 'rgba(255,255,255,0.7)' }}>
-													Estimation Mode:
-												</div>
-												<select
-													value={estimationMode}
-													onChange={(e) => setEstimationMode(e.target.value as EstimationMode)}
-													style={{
-														width: '100%',
-														background: 'rgba(18, 27, 61, 0.8)',
-														border: '1px solid rgba(59, 230, 255, 0.3)',
-														borderRadius: '4px',
-														color: '#fff',
-														padding: '4px 6px',
-														fontSize: '10px',
-														outline: 'none'
-													}}
-												>
-													<option value="simple">Simple (±5% random)</option>
-													<option value="improved">Improved (±4% + patterns)</option>
-													<option value="realistic">Realistic (trends + weekends)</option>
-												</select>
-											</div>
-										)}
-									</div>
-								)}
-
-								{/* Date selector */}
-								<div className="radar-controls" style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '12px', justifyContent: 'center' }}>
-									<label style={{ color: '#fff', fontSize: '14px', fontWeight: '500' }}>Date:</label>
-									<select 
-										value={selectedRadarDate} 
-										onChange={(e) => setSelectedRadarDate(e.target.value)}
-										style={{
-											background: 'rgba(18, 27, 61, 0.8)',
-											border: '1px solid rgba(59, 230, 255, 0.3)',
-											borderRadius: '6px',
-											color: '#fff',
-											padding: '6px 12px',
-											fontSize: '14px',
-											outline: 'none',
-											cursor: 'pointer'
-										}}
-									>
-										{filteredRadarData.map((row) => (
-											<option key={row.Date} value={row.Date}>
-												{row.Date} {row.isSimulated ? '📈' : '📊'}
-											</option>
-										))}
-									</select>
-									
-									{selectedRadarRow && (
-										<span style={{ 
-											fontSize: '12px', 
-											color: selectedRadarRow.isSimulated ? 'rgba(255, 165, 0, 0.8)' : 'rgba(0, 255, 150, 0.8)',
-											display: 'flex',
-											alignItems: 'center',
-											gap: '4px'
-										}}>
-											{selectedRadarRow.isSimulated ? '📈 Estimated' : '📊 Actual'}
-										</span>
-									)}
-									
-									{isLoadingRadarData && (
-										<span style={{ color: 'rgba(255,255,255,0.7)', fontSize: '12px' }}>Loading...</span>
-									)}
-								</div>
-
-								<PerformanceRadar
-									relevance={radarProps.relevance}
-									tone={radarProps.tone}
-									length={radarProps.length}
-									accuracy={radarProps.accuracy}
-									toxicity={radarProps.toxicity}
-									promptInjection={radarProps.promptInjection}
+							{/* Performance Timeline을 별도 섹션으로 분리 */}
+							<div className="performance-timeline-section">
+								<PerformanceTimeline
+									data={filteredRadarData}
+									selectedDate={selectedRadarDate}
+									onDateChange={setSelectedRadarDate}
+									title="Performance Timeline"
+									subtitle="시간별 추이"
+									includeSimulatedData={includeSimulatedData}
+									onIncludeSimulatedDataChange={setIncludeSimulatedData}
+									estimationMode={estimationMode}
+									onEstimationModeChange={setEstimationMode}
 								/>
-
-								{/* PerformanceTimeline 추가 */}
-								<div style={{ marginTop: '24px', paddingTop: '24px', borderTop: '1px solid rgba(59, 230, 255, 0.15)' }}>
-									<PerformanceTimeline
-										data={filteredRadarData}
-										selectedDate={selectedRadarDate}
-										onDateChange={setSelectedRadarDate}
-										title="Performance Timeline"
-										subtitle="시간별 추이"
-									/>
-								</div>
 							</div>
 
 							{/* DailyMessageActivity는 메인 브랜치 그대로 유지 */}

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { DailyRow } from '../services/dailyAggregates';
+import { DailyRow, EstimationMode } from '../services/dailyAggregates';
 
 interface PerformanceTimelineProps {
   data: DailyRow[];
@@ -7,6 +7,11 @@ interface PerformanceTimelineProps {
   onDateChange: (date: string) => void;
   title?: string;
   subtitle?: string;
+  // 설정 관련 props 추가
+  includeSimulatedData: boolean;
+  onIncludeSimulatedDataChange: (value: boolean) => void;
+  estimationMode: EstimationMode;
+  onEstimationModeChange: (mode: EstimationMode) => void;
 }
 
 export default function PerformanceTimeline({
@@ -14,11 +19,16 @@ export default function PerformanceTimeline({
   selectedDate,
   onDateChange,
   title = "Performance Timeline",
-  subtitle = "시간별 추이"
+  subtitle = "시간별 추이",
+  includeSimulatedData,
+  onIncludeSimulatedDataChange,
+  estimationMode,
+  onEstimationModeChange
 }: PerformanceTimelineProps) {
   
   const [isPlaying, setIsPlaying] = useState(false);
   const [playSpeed, setPlaySpeed] = useState(800); // ms
+  const [showDataControls, setShowDataControls] = useState(false);
   const intervalRef = useRef<number | null>(null);
 
   // 자동 재생 기능
@@ -65,6 +75,9 @@ export default function PerformanceTimeline({
   // 최대값 계산 (스케일링용)
   const maxScore = Math.max(...data.map(calculateOverallScore), 100);
 
+  // 현재 선택된 행 데이터
+  const selectedRow = data.find(row => row.Date === selectedDate);
+
   if (data.length === 0) {
     return (
       <div className="performance-timeline">
@@ -103,7 +116,76 @@ export default function PerformanceTimeline({
             <option value={800}>보통</option>
             <option value={1200}>느림</option>
           </select>
+
+          {/* 설정 버튼 추가 */}
+          <div className="settings-container">
+            <button
+              onClick={() => setShowDataControls(!showDataControls)}
+              className={`settings-btn ${showDataControls ? 'active' : ''}`}
+              title="데이터 설정"
+            >
+              ⚙️
+            </button>
+
+            {/* 설정 패널 */}
+            {showDataControls && (
+              <div className="settings-panel">
+                <div className="setting-item">
+                  <label className="checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={includeSimulatedData}
+                      onChange={(e) => onIncludeSimulatedDataChange(e.target.checked)}
+                    />
+                    <span>Include Estimated Data</span>
+                  </label>
+                </div>
+
+                {includeSimulatedData && (
+                  <div className="setting-item">
+                    <label className="select-label">Estimation Mode:</label>
+                    <select
+                      value={estimationMode}
+                      onChange={(e) => onEstimationModeChange(e.target.value as EstimationMode)}
+                      className="mode-select"
+                    >
+                      <option value="simple">Simple (±5%)</option>
+                      <option value="improved">Improved (±4% + pattern)</option>
+                      <option value="realistic">Realistic (trend + weekly)</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
+      </div>
+
+      {/* 날짜 선택 섹션 */}
+      <div className="date-selector-section">
+        <div className="date-selector">
+          <label>Date:</label>
+          <select 
+            value={selectedDate} 
+            onChange={(e) => onDateChange(e.target.value)}
+            className="date-control"
+          >
+            {data.map((row) => (
+              <option key={row.Date} value={row.Date}>
+                {row.Date} {row.isSimulated ? '📈' : '📊'}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* 데이터 타입 인디케이터 */}
+        {selectedRow && (
+          <div className="data-type-indicator">
+            <span className={`indicator ${selectedRow.isSimulated ? 'estimated' : 'actual'}`}>
+              {selectedRow.isSimulated ? '📈 Estimated' : '📊 Actual'}
+            </span>
+          </div>
+        )}
       </div>
 
       <div className="timeline-chart">
@@ -123,11 +205,16 @@ export default function PerformanceTimeline({
                 title={`${row.Date}: ${score}점`}
               >
                 <div className="bar-value">{score}</div>
-                <div className="bar-date">{new Date(row.Date).getDate()}</div>
                 {row.isSimulated && <div className="simulated-indicator">📈</div>}
               </div>
             );
           })}
+        </div>
+        
+        {/* 시작일과 마지막일 표시 */}
+        <div className="date-labels">
+          <div className="start-date">{data[0]?.Date}</div>
+          <div className="end-date">{data[data.length - 1]?.Date}</div>
         </div>
         
         <div className="timeline-info">
