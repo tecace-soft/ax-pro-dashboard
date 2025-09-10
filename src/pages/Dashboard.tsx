@@ -418,7 +418,7 @@ export default function Dashboard() {
 				<main className="dashboard-main">
 					<div className="dashboard-grid">
 						<div className="grid-left">
-							{/* Performance Radar - 외부 div 제거 */}
+							{/* Performance Radar - Timeline props 추가 */}
 							<PerformanceRadar
 								relevance={radarProps.relevance}
 								tone={radarProps.tone}
@@ -426,24 +426,19 @@ export default function Dashboard() {
 								accuracy={radarProps.accuracy}
 								toxicity={radarProps.toxicity}
 								promptInjection={radarProps.promptInjection}
+								// Timeline 관련 props 추가
+								timelineData={filteredRadarData}
+								selectedDate={selectedRadarDate}
+								onDateChange={setSelectedRadarDate}
+								includeSimulatedData={includeSimulatedData}
+								onIncludeSimulatedDataChange={setIncludeSimulatedData}
+								estimationMode={estimationMode}
+								onEstimationModeChange={setEstimationMode}
 							/>
 
-							{/* Performance Timeline을 별도 섹션으로 분리 */}
-							<div className="performance-timeline-section">
-								<PerformanceTimeline
-									data={filteredRadarData}
-									selectedDate={selectedRadarDate}
-									onDateChange={setSelectedRadarDate}
-									title="Performance Timeline"
-									subtitle="시간별 추이"
-									includeSimulatedData={includeSimulatedData}
-									onIncludeSimulatedDataChange={setIncludeSimulatedData}
-									estimationMode={estimationMode}
-									onEstimationModeChange={setEstimationMode}
-								/>
-							</div>
+							{/* 별도 PerformanceTimeline 섹션 제거 */}
 
-							{/* DailyMessageActivity는 메인 브랜치 그대로 유지 */}
+							{/* DailyMessageActivity는 그대로 유지 */}
 							<DailyMessageActivity 
 								startDate={startDate}
 								endDate={endDate}

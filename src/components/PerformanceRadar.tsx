@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { IconTarget, IconClock, IconHeart, IconLightbulb, IconUsers, IconZap } from '../ui/icons'
+import PerformanceTimeline from './PerformanceTimeline'
 import '../styles/performance-radar.css'
 
 interface PerformanceRadarProps {
@@ -9,6 +10,14 @@ interface PerformanceRadarProps {
   accuracy: number
   toxicity: number
   promptInjection: number
+  // Timeline 관련 props 추가
+  timelineData?: any[]
+  selectedDate?: string
+  onDateChange?: (date: string) => void
+  includeSimulatedData?: boolean
+  onIncludeSimulatedDataChange?: (value: boolean) => void
+  estimationMode?: string
+  onEstimationModeChange?: (mode: string) => void
 }
 
 export default function PerformanceRadar({
@@ -17,7 +26,15 @@ export default function PerformanceRadar({
   length,
   accuracy,
   toxicity,
-  promptInjection
+  promptInjection,
+  // Timeline props with defaults
+  timelineData = [],
+  selectedDate = '',
+  onDateChange = () => {},
+  includeSimulatedData = false,
+  onIncludeSimulatedDataChange = () => {},
+  estimationMode = 'simple',
+  onEstimationModeChange = () => {}
 }: PerformanceRadarProps) {
   
   const [toggles, setToggles] = useState({
@@ -166,152 +183,159 @@ export default function PerformanceRadar({
   }
 
   return (
-    <>
-      <div className="performance-radar-section">
-        {/* 타이틀과 설명 */}
-        <div className="radar-header">
-          <h2 className="radar-title">Performance Radar</h2>
-          <p className="radar-description">
-            AI 응답 품질과 보안 성능을 6가지 핵심 지표로 실시간 모니터링하여 최적의 사용자 경험을 제공합니다
-          </p>
+    <div className="performance-radar-section">
+      {/* 타이틀과 설명 */}
+      <div className="radar-header">
+        <h2 className="radar-title">Performance Radar</h2>
+        <p className="radar-description">
+          AI 응답 품질과 보안 성능을 6가지 핵심 지표로 실시간 모니터링하여 최적의 사용자 경험을 제공합니다
+        </p>
+      </div>
+      
+      {/* 레이더 차트 */}
+      <div className="radar-chart-section">
+        <div className="radar-chart-large">
+          <svg className="radar-svg-large" width={chartSize} height={chartSize}>
+            {/* 동적 배경 그리드 */}
+            {createBackgroundGrid()}
+            
+            {/* 레이더 폴리곤 */}
+            <path
+              d={createRadarPath()}
+              fill="rgba(59, 230, 255, 0.1)"
+              stroke="rgba(59, 230, 255, 0.8)"
+              strokeWidth="2"
+            />
+            
+            {/* 데이터 포인트 - 실제 포인트 수 적용 */}
+            {activeDataPoints.map((point, index) => {
+              const coords = getPointCoordinates(index, activeDataPoints.length, point.value);
+              return (
+                <g key={index} className="radar-point-large">
+                  <circle
+                    className="point-dot-large"
+                    cx={coords.x + center}
+                    cy={coords.y + center}
+                    r="6"
+                    fill="#3be6ff"
+                    stroke="white"
+                    strokeWidth="2"
+                  />
+                  <text
+                    x={coords.x + center}
+                    y={coords.y + center - 15}
+                    textAnchor="middle"
+                    className="point-score-box"
+                    fill="#3be6ff"
+                    fontSize="12"
+                    fontWeight="bold"
+                  >
+                    {point.value}
+                  </text>
+                </g>
+              )
+            })}
+          </svg>
+          
+          {/* 중앙 점수 - 정확한 중앙 정렬 */}
+          <div 
+            className="radar-center-large"
+            style={{
+              position: 'absolute',
+              top: `${centerY}px`,
+              left: `${center}px`,
+              transform: 'translate(-50%, -50%)'
+            }}
+          >
+            <div className="center-score-large">{averageScore}</div>
+            <div className="center-label-large">OVERALL</div>
+          </div>
         </div>
         
-        {/* 레이더 차트 */}
-        <div className="radar-chart-section">
-          <div className="radar-chart-large">
-            <svg className="radar-svg-large" width={chartSize} height={chartSize}>
-              {/* 동적 배경 그리드 */}
-              {createBackgroundGrid()}
-              
-              {/* 레이더 폴리곤 */}
-              <path
-                d={createRadarPath()}
-                fill="rgba(59, 230, 255, 0.1)"
-                stroke="rgba(59, 230, 255, 0.8)"
-                strokeWidth="2"
-              />
-              
-              {/* 데이터 포인트 - 실제 포인트 수 적용 */}
-              {activeDataPoints.map((point, index) => {
-                const coords = getPointCoordinates(index, activeDataPoints.length, point.value);
-                return (
-                  <g key={index} className="radar-point-large">
-                    <circle
-                      className="point-dot-large"
-                      cx={coords.x + center}
-                      cy={coords.y + center}
-                      r="6"
-                      fill="#3be6ff"
-                      stroke="white"
-                      strokeWidth="2"
-                    />
-                    <text
-                      x={coords.x + center}
-                      y={coords.y + center - 15}
-                      textAnchor="middle"
-                      className="point-score-box"
-                      fill="#3be6ff"
-                      fontSize="12"
-                      fontWeight="bold"
-                    >
-                      {point.value}
-                    </text>
-                  </g>
-                )
-              })}
-            </svg>
-            
-            {/* 중앙 점수 - 정확한 중앙 정렬 */}
-            <div 
-              className="radar-center-large"
+        {/* 레이블들 - 원래 방식으로 복원 */}
+        {allDataPoints.map((point, index) => {
+          const angle = (index * 360) / allDataPoints.length;
+          const labelRadius = maxRadius + 60;
+          const labelCoords = getPointCoordinates((labelRadius / maxRadius) * 100, angle);
+          
+          return (
+            <div
+              key={index}
+              className={`radar-label-clean radar-label-${point.key.toLowerCase()}`}
               style={{
                 position: 'absolute',
-                top: `${centerY}px`,
-                left: `${center}px`,
-                transform: 'translate(-50%, -50%)'
+                left: `${labelCoords.x + center}px`,
+                top: `${labelCoords.y + center}px`,
+                transform: 'translate(-50%, -50%)',
+                zIndex: 10
               }}
             >
-              <div className="center-score-large">{averageScore}</div>
-              <div className="center-label-large">OVERALL</div>
-            </div>
-          </div>
-          
-          {/* 레이블들 - 실제 포인트 수 적용 */}
-          {activeDataPoints.map((point, index) => {
-            if (!point || !point.label) {
-              return null;
-            }
-            
-            // 실제 포인트 수 사용 (6이 아닌 activeDataPoints.length)
-            const coords = getLabelCoordinates(index, activeDataPoints.length);
-            
-            // 디버깅 로그
-            console.log(`Rendering label ${index}: ${point.label}, x=${coords.x}, y=${coords.y}`);
-            
-            return (
-              <div
-                key={index}
-                className={`radar-label-clean radar-label-${point.key.toLowerCase()}`}
-                style={{
-                  position: 'absolute',
-                  left: `${center + coords.x}px`,
-                  top: `${centerY + coords.y}px`,
-                  transform: 'translate(-50%, -50%)', // 하나만 유지
-                  textAlign: coords.textAlign as any,
-                  zIndex: 10
-                }}
-              >
-                <div className="label-content">
-                  <span className="label-name">{point.label}</span>
-                  <span className="label-score">{point.value}</span>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-        
-        {/* Module Control */}
-        <div className="module-control-integrated">
-            {/* Module Control 헤더 부분 수정 */}
-            <div 
-              className="module-control-header"
-              onClick={() => setIsModuleControlExpanded(!isModuleControlExpanded)}
-            >
-              <div className="header-content">
-                <span className="control-title">Module Control</span>
-                <span className="control-badge">{activeCount} Active</span>
-              </div>
-              <span className={`expand-icon ${isModuleControlExpanded ? 'expanded' : ''}`}>
-                {isModuleControlExpanded ? '▼' : '▲'}
-              </span>
-            </div>
-
-            {/* Module Control 내용 */}
-            <div className={`module-control-content ${isModuleControlExpanded ? 'expanded' : 'collapsed'}`}>
-              <div className="control-list">
-                {allDataPoints.map((point) => (
-                  <div key={point.key} className="control-item">
-                    <div className="control-info">
-                      <span className="control-icon">{point.icon}</span>
-                      <div className="control-text">
-                        <span className="control-label">{point.label}</span>
-                        <span className="control-description">{point.description}</span>
-                      </div>
-                    </div>
-                    <label className="toggle-switch">
-                      <input
-                        type="checkbox"
-                        checked={toggles[point.key as keyof typeof toggles]}
-                        onChange={() => handleToggle(point.key)}
-                      />
-                      <span className="toggle-slider"></span>
-                    </label>
-                  </div>
-                ))}
+              <div className="label-content">
+                <span className="label-name">{point.label.toUpperCase()}</span>
+                <span className="label-score">{point.value}</span>
               </div>
             </div>
-          </div>
+          )
+        })}
       </div>
-    </>
+      
+      {/* Performance Timeline 추가 - 레이더 차트와 Module Control 사이에 */}
+      {timelineData.length > 0 && (
+        <div className="timeline-section-wrapper">
+          <PerformanceTimeline
+            data={timelineData}
+            selectedDate={selectedDate}
+            onDateChange={onDateChange}
+            title="Performance Timeline"
+            includeSimulatedData={includeSimulatedData}
+            onIncludeSimulatedDataChange={onIncludeSimulatedDataChange}
+            estimationMode={estimationMode as any}
+            onEstimationModeChange={onEstimationModeChange as any}
+          />
+        </div>
+      )}
+
+      {/* Module Control */}
+      <div className="module-control-integrated">
+          {/* Module Control 헤더 부분 수정 */}
+          <div 
+            className="module-control-header"
+            onClick={() => setIsModuleControlExpanded(!isModuleControlExpanded)}
+          >
+            <div className="header-content">
+              <span className="control-title">Module Control</span>
+              <span className="control-badge">{activeCount} Active</span>
+            </div>
+            <span className={`expand-icon ${isModuleControlExpanded ? 'expanded' : ''}`}>
+              {isModuleControlExpanded ? '▼' : '▲'}
+            </span>
+          </div>
+
+          {/* Module Control 내용 */}
+          <div className={`module-control-content ${isModuleControlExpanded ? 'expanded' : 'collapsed'}`}>
+            <div className="control-list">
+              {allDataPoints.map((point) => (
+                <div key={point.key} className="control-item">
+                  <div className="control-info">
+                    <span className="control-icon">{point.icon}</span>
+                    <div className="control-text">
+                      <span className="control-label">{point.label}</span>
+                      <span className="control-description">{point.description}</span>
+                    </div>
+                  </div>
+                  <label className="toggle-switch">
+                    <input
+                      type="checkbox"
+                      checked={toggles[point.key as keyof typeof toggles]}
+                      onChange={() => handleToggle(point.key)}
+                    />
+                    <span className="toggle-slider"></span>
+                  </label>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+    </div>
   )
 }
