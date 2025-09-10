@@ -15,6 +15,14 @@ interface DailyMessageActivityProps {
 const DailyMessageActivity: React.FC<DailyMessageActivityProps> = ({
   startDate, endDate, sessions = [], sessionRequests = {}
 }) => {
+  // 컴포넌트 렌더링 확인
+  console.log('🎯 DailyMessageActivity rendered with:', {
+    startDate,
+    endDate,
+    sessionsLength: sessions.length,
+    sessionRequestsKeys: Object.keys(sessionRequests).length
+  });
+
   const [messageData, setMessageData] = useState<MessageData[]>([]);
   const [totalMessages, setTotalMessages] = useState(0);
   const [lastUpdate, setLastUpdate] = useState<string>('');
