@@ -271,7 +271,13 @@ export default function PerformanceRadar({
               }}
             >
               <div className="label-content">
-                <span className="label-name">{point.label.toUpperCase()}</span>
+                {point.key === 'promptInjection' ? (
+                  <span className="label-name label-scrolling">
+                    <span className="scrolling-text">PROMPT INJECTION</span>
+                  </span>
+                ) : (
+                  <span className="label-name">{point.label.toUpperCase()}</span>
+                )}
                 <span className="label-score">{point.value}</span>
               </div>
             </div>

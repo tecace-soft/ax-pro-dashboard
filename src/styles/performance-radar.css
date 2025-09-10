@@ -1482,6 +1482,7 @@ input:checked + .toggle-slider:before {
 
 /* Prompt Injection 특별 처리 */
 .radar-label-promptinjection .label-name {
-  font-size: clamp(7px, 1.5vw, 9px);
+  font-size: clamp(6px, 1.2vw, 8px) !important; /* 기존보다 더 작게 */
   line-height: 1.1;
+  letter-spacing: 0.1px;
 }

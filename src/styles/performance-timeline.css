@@ -207,7 +207,7 @@
 .bar.today {
   background: linear-gradient(45deg, #ffeb3b, #ff9800) !important;
   border: 2px solid #ffc107 !important;
-  box-shadow: 0 0 15px rgba(255, 235, 59, 0.6);
+  box-shadow: 0 0 8px rgba(255, 235, 59, 0.5);
   opacity: 1 !important;
 }
 
@@ -215,7 +215,7 @@
 .bar.selected {
   background: linear-gradient(45deg, #ffc107, #ff8f00) !important;
   border: 2px solid #ff6f00 !important;
-  box-shadow: 0 0 20px rgba(255, 193, 7, 0.8);
+  box-shadow: 0 0 10px rgba(255, 193, 7, 0.6);
   transform: scale(1.05);
   opacity: 1 !important;
 }
@@ -223,7 +223,7 @@
 /* 호버 효과 */
 .bar:hover {
   transform: scale(1.1);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
 }
 
 /* 선택된 바의 호버 */
@@ -510,7 +510,7 @@
 /* 호버된 바의 z-index도 높게 */
 .bar:hover {
   transform: scale(1.1);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
   z-index: 1000; /* 호버된 바도 높은 z-index */
 }
 
