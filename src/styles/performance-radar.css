@@ -378,77 +378,47 @@
   font-weight: 400;
 }
 
-/* Toggle Switch - Circle이 확실히 보이도록 완전 새로 작성 */
-.toggle-switch {
-  position: relative;
-  display: inline-block;
-  width: 44px;
-  height: 24px;
+/* 간단한 ON/OFF 버튼 */
+.control-toggle-btn {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: none;
+  font-size: 10px;
+  font-weight: 600;
   cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 40px;
+  text-align: center;
 }
 
-.toggle-switch input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-  position: absolute;
-}
-
-.toggle-slider {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 24px;
-  transition: 0.3s ease;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-/* Circle을 확실하게 표시 */
-.toggle-slider:before {
-  content: "";
-  position: absolute;
-  height: 18px;
-  width: 18px;
-  left: 3px;
-  bottom: 2px;
-  background: #ffffff;
-  border-radius: 50%;
-  transition: 0.3s ease;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-  z-index: 10;
-}
-
-/* OFF 상태 - Circle이 왼쪽 */
-input:not(:checked) + .toggle-slider {
-  background: rgba(255, 255, 255, 0.2);
-}
-
-input:not(:checked) + .toggle-slider:before {
-  transform: translateX(0);
-  left: 3px;
-}
-
-/* ON 상태 - Circle이 오른쪽 */
-input:checked + .toggle-slider {
+.control-toggle-btn.enabled {
   background: #3be6ff;
+  color: #001122;
+  box-shadow: 0 2px 8px rgba(59, 230, 255, 0.4);
 }
 
-input:checked + .toggle-slider:before {
-  transform: translateX(20px);
-  left: 3px;
+.control-toggle-btn.disabled {
+  background: rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.6);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
-/* 호버 효과 */
-.toggle-switch:hover .toggle-slider:before {
-  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.4);
+.control-toggle-btn:hover {
+  transform: scale(1.05);
 }
 
-/* 액티브 상태 */
-.toggle-switch:active .toggle-slider:before {
-  transform: scale(0.95);
+.control-toggle-btn.enabled:hover {
+  background: #33d4ff;
+  box-shadow: 0 4px 12px rgba(59, 230, 255, 0.6);
+}
+
+.control-toggle-btn.disabled:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* 기존 토글 스위치 CSS 제거 */
+.toggle-switch {
+  display: none !important;
 }
 
 /* 반응형 */
@@ -614,7 +584,7 @@ input:checked + .toggle-slider:before {
   font-size: clamp(10px, 2.2vw, 12px);
   font-weight: 700;
   color: #3be6ff;
-  text-shadow: 0 0 10px rgba(59, 230, 255, 0.5);
+  text-shadow: 0 0 4px rgba(59, 230, 255, 0.3); /* 기존 10px에서 4px로 줄임 */
   line-height: 1;
 }
 
@@ -1486,3 +1456,44 @@ input:checked + .toggle-slider:before {
   line-height: 1.1;
   letter-spacing: 0.1px;
 }
+
+/* 레이더 포인트 스타일 */
+.radar-point {
+  filter: drop-shadow(0 0 6px currentColor);
+  transition: all 0.3s ease;
+}
+
+/* 비활성 레이블 스타일 */
+.label-inactive {
+  opacity: 0.4 !important;
+  filter: grayscale(0.7) !important;
+}
+
+.label-inactive .label-name,
+.label-inactive .label-score {
+  opacity: 0.6 !important;
+}
+
+/* Module Control 항목에도 색상 적용 */
+.control-item {
+  position: relative;
+}
+
+.control-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--item-color);
+  border-radius: 0 2px 2px 0;
+}
+
+/* 각 항목별 색상 변수 설정 */
+.control-item[data-key="relevance"] { --item-color: #ff6b6b; }
+.control-item[data-key="tone"] { --item-color: #4ecdc4; }
+.control-item[data-key="length"] { --item-color: #45b7d1; }
+.control-item[data-key="accuracy"] { --item-color: #96ceb4; }
+.control-item[data-key="toxicity"] { --item-color: #feca57; }
+.control-item[data-key="promptInjection"] { --item-color: #ff9ff3; }

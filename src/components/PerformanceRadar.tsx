@@ -57,12 +57,12 @@ export default function PerformanceRadar({
   };
 
   const allDataPoints = [
-    { key: 'relevance', label: 'Relevance', value: relevance, description: 'Content Matching', icon: '⚡' },
-    { key: 'tone', label: 'Tone', value: tone, description: 'Response Style', icon: '🎭' },
-    { key: 'length', label: 'Length', value: length, description: 'Response Size', icon: '📏' },
-    { key: 'accuracy', label: 'Accuracy', value: accuracy, description: 'Correct Answers', icon: '✓' },
-    { key: 'toxicity', label: 'Toxicity', value: toxicity, description: 'Safety Check', icon: '🛡️' },
-    { key: 'promptInjection', label: 'Prompt injection', value: promptInjection, description: 'Security Filter', icon: '🔒' }
+    { key: 'relevance', label: 'Relevance', value: relevance, description: 'Content Matching', icon: '⚡', color: '#ff6b6b' },
+    { key: 'tone', label: 'Tone', value: tone, description: 'Response Style', icon: '🎭', color: '#4ecdc4' },
+    { key: 'length', label: 'Length', value: length, description: 'Response Size', icon: '📏', color: '#45b7d1' },
+    { key: 'accuracy', label: 'Accuracy', value: accuracy, description: 'Correct Answers', icon: '✓', color: '#96ceb4' },
+    { key: 'toxicity', label: 'Toxicity', value: toxicity, description: 'Safety Check', icon: '🛡️', color: '#feca57' },
+    { key: 'promptInjection', label: 'Prompt injection', value: promptInjection, description: 'Security Filter', icon: '🔒', color: '#ff9ff3' }
   ]
 
   const activeDataPoints = allDataPoints.filter(point => toggles[point.key as keyof typeof toggles])
@@ -217,7 +217,7 @@ export default function PerformanceRadar({
                     cx={coords.x + center}
                     cy={coords.y + center}
                     r="6"
-                    fill="#3be6ff"
+                    fill={point.color}
                     stroke="white"
                     strokeWidth="2"
                   />
@@ -226,7 +226,7 @@ export default function PerformanceRadar({
                     y={coords.y + center - 15}
                     textAnchor="middle"
                     className="point-score-box"
-                    fill="#3be6ff"
+                    fill={point.color}
                     fontSize="12"
                     fontWeight="bold"
                   >
@@ -256,29 +256,38 @@ export default function PerformanceRadar({
         {allDataPoints.map((point, index) => {
           const angle = (index * 360) / allDataPoints.length;
           const labelRadius = maxRadius + 60;
-          const labelCoords = getPointCoordinates((labelRadius / maxRadius) * 100, angle);
+          const labelCoords = getLabelCoordinates((labelRadius / maxRadius) * 100, angle);
+          
+          const isActive = toggles[point.key as keyof typeof toggles];
+          const isPromptInjection = point.key === 'promptInjection';
           
           return (
             <div
               key={index}
-              className={`radar-label-clean radar-label-${point.key.toLowerCase()}`}
+              className={`radar-label-clean radar-label-${point.key.toLowerCase()} ${!isActive ? 'label-inactive' : ''}`}
               style={{
                 position: 'absolute',
                 left: `${labelCoords.x + center}px`,
                 top: `${labelCoords.y + center}px`,
                 transform: 'translate(-50%, -50%)',
-                zIndex: 10
+                zIndex: 10,
+                borderColor: point.color, // 테두리에 색상 적용
+                opacity: isActive ? 1 : 0.5 // OFF된 항목은 반투명
               }}
             >
               <div className="label-content">
-                {point.key === 'promptInjection' ? (
+                {isPromptInjection ? (
                   <span className="label-name label-scrolling">
                     <span className="scrolling-text">PROMPT INJECTION</span>
                   </span>
                 ) : (
-                  <span className="label-name">{point.label.toUpperCase()}</span>
+                  <span className="label-name" style={{ color: point.color }}>
+                    {point.label.toUpperCase()}
+                  </span>
                 )}
-                <span className="label-score">{point.value}</span>
+                <span className="label-score" style={{ color: point.color }}>
+                  {point.value}
+                </span>
               </div>
             </div>
           )
@@ -303,7 +312,7 @@ export default function PerformanceRadar({
 
       {/* Module Control */}
       <div className="module-control-integrated">
-          {/* Module Control 헤더 부분 수정 */}
+          {/* Module Control 헤더 - 버튼 방향 수정 */}
           <div 
             className="module-control-header"
             onClick={() => setIsModuleControlExpanded(!isModuleControlExpanded)}
@@ -313,30 +322,35 @@ export default function PerformanceRadar({
               <span className="control-badge">{activeCount} Active</span>
             </div>
             <span className={`expand-icon ${isModuleControlExpanded ? 'expanded' : ''}`}>
-              {isModuleControlExpanded ? '▼' : '▲'}
+              {isModuleControlExpanded ? '▲' : '▼'}
             </span>
           </div>
 
-          {/* Module Control 내용 */}
+          {/* Module Control 내용 - 숫자 제거 */}
           <div className={`module-control-content ${isModuleControlExpanded ? 'expanded' : 'collapsed'}`}>
             <div className="control-list">
               {allDataPoints.map((point) => (
-                <div key={point.key} className="control-item">
+                <div key={point.key} className="control-item" data-key={point.key}>
                   <div className="control-info">
-                    <span className="control-icon">{point.icon}</span>
+                    <span className="control-icon" style={{ color: point.color }}>{point.icon}</span>
                     <div className="control-text">
                       <span className="control-label">{point.label}</span>
                       <span className="control-description">{point.description}</span>
                     </div>
                   </div>
-                  <label className="toggle-switch">
-                    <input
-                      type="checkbox"
-                      checked={toggles[point.key as keyof typeof toggles]}
-                      onChange={() => handleToggle(point.key)}
-                    />
-                    <span className="toggle-slider"></span>
-                  </label>
+                  <div className="control-actions">
+                    {/* 숫자 제거 - control-value 삭제 */}
+                    <button
+                      className={`control-toggle-btn ${toggles[point.key as keyof typeof toggles] ? 'enabled' : 'disabled'}`}
+                      onClick={() => handleToggle(point.key)}
+                      style={{ 
+                        borderColor: point.color,
+                        backgroundColor: toggles[point.key as keyof typeof toggles] ? point.color : 'transparent'
+                      }}
+                    >
+                      {toggles[point.key as keyof typeof toggles] ? 'ON' : 'OFF'}
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
