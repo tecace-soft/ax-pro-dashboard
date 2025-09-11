@@ -65,10 +65,10 @@ export default function Sidebar({
 
   // 검색 범위 옵션
   const searchScopes = [
-    { key: 'all', label: 'All Sources', icon: '🔍', description: 'Search everywhere' },
-    { key: 'conversations', label: 'Recent Conversations', icon: '💬', description: 'Search chat history' },
-    { key: 'feedback', label: 'User Feedback', icon: '📝', description: 'Search feedback data' },
-    { key: 'knowledge', label: 'Knowledge Base', icon: '📚', description: 'Search documents & policies' }
+    { key: 'all', label: 'All Sources', description: 'Search everywhere' },
+    { key: 'conversations', label: 'Recent Conversations', description: 'Search chat history' },
+    { key: 'feedback', label: 'User Feedback', description: 'Search feedback data' },
+    { key: 'knowledge', label: 'Knowledge Base', description: 'Search documents & policies' }
   ]
 
   // 검색 실행 함수 - 범위별 검색
@@ -502,22 +502,22 @@ export default function Sidebar({
               <div className="scope-options">
                 <div className={`scope-option ${searchScope === 'all' ? 'active' : ''}`} onClick={() => setSearchScope('all')}>
                   <div className="scope-checkbox"></div>
-                  <div className="scope-icon">🔍</div>
+                  
                   <span className="scope-text">All Sources</span>
                 </div>
                 <div className={`scope-option ${searchScope === 'conversations' ? 'active' : ''}`} onClick={() => setSearchScope('conversations')}>
                   <div className="scope-checkbox"></div>
-                  <div className="scope-icon">💬</div>
+                  
                   <span className="scope-text">Recent Conversations</span>
                 </div>
                 <div className={`scope-option ${searchScope === 'feedback' ? 'active' : ''}`} onClick={() => setSearchScope('feedback')}>
                   <div className="scope-checkbox"></div>
-                  <div className="scope-icon">📝</div>
+                  
                   <span className="scope-text">User Feedback</span>
                 </div>
                 <div className={`scope-option ${searchScope === 'knowledge' ? 'active' : ''}`} onClick={() => setSearchScope('knowledge')}>
                   <div className="scope-checkbox"></div>
-                  <div className="scope-icon">📚</div>
+                  
                   <span className="scope-text">Knowledge Base</span>
                 </div>
               </div>

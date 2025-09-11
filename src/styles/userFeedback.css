@@ -23,11 +23,6 @@
   gap: 8px;
 }
 
-.user-feedback-title::before {
-  content: "📊";
-  font-size: 18px;
-}
-
 .user-feedback-content {
   height: 400px;
   overflow-y: auto;
