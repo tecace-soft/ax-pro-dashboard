@@ -206,9 +206,8 @@ export default function Sidebar({
   const [profileData, setProfileData] = useState({
     name: 'TecAce Ax Pro',
     role: 'Main AI Assistant for HR Support',
-    performance: 85,
-    avatar: localStorage.getItem('profileAvatar') || 'AI',
-    initials: localStorage.getItem('profileInitials') || 'AI'
+    initials: 'AI',
+    avatar: '/default-profile-avatar.png' // 바로 기본 이미지로 설정
   })
   
   // Edit 모드용 임시 데이터
@@ -387,7 +386,13 @@ export default function Sidebar({
           <div className="profile-section">
             <div className="profile-content">
               <div className="profile-avatar">
-                {profileData.avatar === 'AI' || profileData.avatar === profileData.initials ? (
+                {profileData.avatar && profileData.avatar !== 'AI' && profileData.avatar !== profileData.initials ? (
+                  <img 
+                    src={profileData.avatar} 
+                    alt="Profile" 
+                    className="profile-image"
+                  />
+                ) : (
                   <div className="avatar-placeholder">
                     {isEditingProfile ? (
                       <input
@@ -401,12 +406,6 @@ export default function Sidebar({
                       profileData.initials
                     )}
                   </div>
-                ) : (
-                  <img 
-                    src={profileData.avatar} 
-                    alt="Profile" 
-                    className="profile-image"
-                  />
                 )}
                 <div className="status-indicator active"></div>
               </div>
@@ -667,10 +666,11 @@ export default function Sidebar({
                     onClick={() => onScrollToSection('performance-radar')}
                   >
                     <svg className="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M3 3v18h18" />
-                      <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3" />
+                      <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                      <path d="M2 17l10 5 10-5"/>
+                      <path d="M2 12l10 5 10-5"/>
                     </svg>
-                    <span className="menu-text">Performance Radar</span>
+                    Performance
                   </button>
                 </li>
                 <li className="menu-item">

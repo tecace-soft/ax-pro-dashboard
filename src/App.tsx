@@ -18,12 +18,14 @@ function Protected() {
 
 export default function App() {
 	return (
-		<Routes>
-			<Route path="/" element={<Login />} />
-			<Route element={<Protected />}>
-				<Route path="/dashboard" element={<Dashboard />} />
-			</Route>
-			<Route path="*" element={<Navigate to="/" replace />} />
-		</Routes>
+		<ProfileProvider>
+			<Routes>
+				<Route path="/" element={<Login />} />
+				<Route element={<Protected />}>
+					<Route path="/dashboard" element={<Dashboard />} />
+				</Route>
+				<Route path="*" element={<Navigate to="/" replace />} />
+			</Routes>
+		</ProfileProvider>
 	)
 } 

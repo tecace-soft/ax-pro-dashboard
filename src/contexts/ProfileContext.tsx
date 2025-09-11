@@ -12,6 +12,9 @@ interface ProfileContextType {
 
 const ProfileContext = createContext<ProfileContextType | undefined>(undefined);
 
+// 고정된 공통 프로필 ID - 모든 사용자가 같은 데이터를 보게 됨
+const SHARED_PROFILE_ID = 'tecace-ax-pro-shared-profile';
+
 export const ProfileProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [currentProfile, setCurrentProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(false);
@@ -19,10 +22,23 @@ export const ProfileProvider: React.FC<{ children: ReactNode }> = ({ children })
   const refreshProfile = async () => {
     try {
       setLoading(true);
-      // 현재 로그인한 사용자 ID를 가져오는 로직 필요
-      const userId = 'current-user-id'; // 실제 구현에서는 auth context에서 가져와야 함
-      const profile = await profileService.getProfile(userId);
-      setCurrentProfile(profile);
+      console.log('🔵 ProfileContext: refreshProfile called'); // 디버깅용
+      
+      // 임시로 기본 프로필을 직접 설정
+      const defaultProfile: UserProfile = {
+        id: SHARED_PROFILE_ID,
+        displayName: 'TecAce Ax Pro',
+        email: 'axpro@tecace.com',
+        role: 'Main AI Assistant for HR Support',
+        department: 'AI Support',
+        bio: 'AI Assistant helping with HR and support tasks',
+        avatarUrl: '/default-profile-avatar.png',
+        performanceScore: 87,
+        status: 'ACTIVE'
+      };
+      
+      console.log('🔵 ProfileContext: Setting profile:', defaultProfile); // 디버깅용
+      setCurrentProfile(defaultProfile);
     } catch (error) {
       console.error('Failed to fetch profile:', error);
     } finally {
@@ -30,12 +46,32 @@ export const ProfileProvider: React.FC<{ children: ReactNode }> = ({ children })
     }
   };
 
+  const createDefaultProfile = async () => {
+    try {
+      const defaultProfile: Partial<UserProfile> = {
+        id: SHARED_PROFILE_ID,
+        displayName: 'TecAce Ax Pro',
+        email: 'axpro@tecace.com',
+        role: 'Main AI Assistant for HR Support',
+        department: 'AI Support',
+        bio: 'AI Assistant helping with HR and support tasks',
+        avatarUrl: '/default-profile-avatar.png', // 사용자 제공 이미지
+        performanceScore: 87,
+        status: 'ACTIVE'
+      };
+      
+      const createdProfile = await profileService.updateProfile(SHARED_PROFILE_ID, defaultProfile);
+      setCurrentProfile(createdProfile);
+    } catch (error) {
+      console.error('Failed to create default profile:', error);
+    }
+  };
+
   const updateProfile = async (profileData: Partial<UserProfile>) => {
-    if (!currentProfile) return;
-    
     try {
       setLoading(true);
-      const updatedProfile = await profileService.updateProfile(currentProfile.id, profileData);
+      // 항상 공통 프로필 ID로 업데이트
+      const updatedProfile = await profileService.updateProfile(SHARED_PROFILE_ID, profileData);
       setCurrentProfile(updatedProfile);
     } catch (error) {
       console.error('Failed to update profile:', error);
@@ -46,11 +82,10 @@ export const ProfileProvider: React.FC<{ children: ReactNode }> = ({ children })
   };
 
   const uploadAvatar = async (file: File) => {
-    if (!currentProfile) return;
-    
     try {
       setLoading(true);
-      const { avatarUrl } = await profileService.uploadAvatar(currentProfile.id, file);
+      // 공통 프로필 ID로 아바타 업로드
+      const { avatarUrl } = await profileService.uploadAvatar(SHARED_PROFILE_ID, file);
       await updateProfile({ avatarUrl });
     } catch (error) {
       console.error('Failed to upload avatar:', error);
