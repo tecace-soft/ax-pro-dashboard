@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { IconTarget, IconClock, IconHeart, IconLightbulb, IconUsers, IconZap } from '../ui/icons'
 import PerformanceTimeline from './PerformanceTimeline'
+import { EstimationMode } from '../services/dailyAggregates' // EstimationMode import 추가
 import '../styles/performance-radar.css'
 
 interface PerformanceRadarProps {
@@ -16,8 +17,8 @@ interface PerformanceRadarProps {
   onDateChange?: (date: string) => void
   includeSimulatedData?: boolean
   onIncludeSimulatedDataChange?: (value: boolean) => void
-  estimationMode?: string
-  onEstimationModeChange?: (mode: string) => void
+  estimationMode?: EstimationMode // string에서 EstimationMode로 변경
+  onEstimationModeChange?: (mode: EstimationMode) => void // string에서 EstimationMode로 변경
 }
 
 export default function PerformanceRadar({
