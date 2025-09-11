@@ -84,11 +84,6 @@
   }
 }
 
-.prompt-title::before {
-  content: "📝";
-  font-size: 18px;
-}
-
 .prompt-content {
   display: flex;
   flex-direction: column;
