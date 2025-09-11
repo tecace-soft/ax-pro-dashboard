@@ -33,8 +33,8 @@ export const ProfileProvider: React.FC<{ children: ReactNode }> = ({ children })
         department: 'AI Support',
         bio: 'AI Assistant helping with HR and support tasks',
         avatarUrl: '/default-profile-avatar.png',
-        performanceScore: 87,
-        status: 'ACTIVE'
+        performanceScore: 87, // 이 줄 추가
+        status: 'ACTIVE' // 이 줄 추가
       };
       
       console.log('🔵 ProfileContext: Setting profile:', defaultProfile); // 디버깅용

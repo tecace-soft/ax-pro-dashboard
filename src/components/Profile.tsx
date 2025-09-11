@@ -29,14 +29,11 @@ export const Profile: React.FC = () => {
     }
   };
 
-  const handleSetDefaultPhoto = async () => {
-    try {
-      console.log('Setting default photo...'); // 디버깅용
-      await updateProfile({ avatarUrl: DEFAULT_AVATAR });
-      setShowPhotoOptions(false);
-    } catch (error) {
-      console.error('Failed to set default photo:', error);
+  const handleSetDefaultPhoto = () => {
+    if (updateProfile) {
+      updateProfile({ avatarUrl: DEFAULT_AVATAR });
     }
+    setShowPhotoOptions(false);
   };
 
   const handleRemovePhoto = async () => {
@@ -140,12 +137,12 @@ export const Profile: React.FC = () => {
         <p className="profile-role">{currentProfile.role}</p>
         <div className="profile-stats">
           <div className="stat-item">
-            <span className="stat-value">{currentProfile.performanceScore || 87}%</span>
-            <span className="stat-label">PERFORMANCE</span>
+            <span className="stat-value">{currentProfile.performanceScore || 0}%</span>
+            <span className="stat-label">Performance</span>
           </div>
           <div className="stat-item">
-            <span className="stat-value">{currentProfile.status || 'ACTIVE'}</span>
-            <span className="stat-label">STATUS</span>
+            <span className="stat-value">{currentProfile.status || 'Active'}</span>
+            <span className="stat-label">Status</span>
           </div>
         </div>
       </div>
