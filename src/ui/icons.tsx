@@ -30,7 +30,15 @@ import {
 	Filter,
 	Camera,
 	Palette,
-	Save
+	Save,
+	Upload,
+	Trash2,
+	RefreshCw,
+	Download,
+	Eye,
+	Check,
+	AlertTriangle,
+	ChevronUp
 } from 'lucide-react'
 
 export const IconGear = Settings
@@ -66,3 +74,11 @@ export const IconFilter = Filter
 export const IconCamera = Camera
 export const IconPalette = Palette
 export const IconSave = Save
+export const IconUpload = Upload
+export const IconTrash = Trash2
+export const IconRefresh = RefreshCw
+export const IconDownload = Download
+export const IconEye = Eye
+export const IconCheck = Check
+export const IconAlertTriangle = AlertTriangle
+export const IconChevronUp = ChevronUp

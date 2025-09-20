@@ -1,4 +1,5 @@
 import { IconBell, IconMoon, IconUser, IconLogout } from '../ui/icons'
+import { useNavigate } from 'react-router-dom'
 
 interface HeaderProps {
   performanceScore: number
@@ -7,6 +8,8 @@ interface HeaderProps {
 }
 
 export default function Header({ performanceScore, currentTime, onSignOut }: HeaderProps) {
+  const navigate = useNavigate()
+  
   const getPerformanceLabel = (score: number) => {
     if (score >= 90) return 'Excellent'
     if (score >= 80) return 'Good'
@@ -14,10 +17,14 @@ export default function Header({ performanceScore, currentTime, onSignOut }: Hea
     return 'Poor'
   }
 
+  const handleLogoClick = () => {
+    navigate('/dashboard')
+  }
+
   return (
     <header className="dashboard-header">
       <div className="header-left">
-        <div className="logo">
+        <div className="logo" onClick={handleLogoClick} style={{ cursor: 'pointer' }}>
           {/* 새로운 육각형 로고 */}
           <div className="logo-hexagon">
             <div className="hexagon-outer">
