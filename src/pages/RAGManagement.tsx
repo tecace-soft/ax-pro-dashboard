@@ -48,6 +48,10 @@ export default function RAGManagement() {
   const [topCount, setTopCount] = useState(20)
   const [language, setLanguage] = useState<'en' | 'ko'>('en')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  
+  // RAG Management 페이지에서는 기본 성능 점수 사용
+  const performanceScore = 87
+  const performanceDate = '' // RAG Management에서는 날짜 정보 없음
 
   // 현재 페이지가 RAG Management인지 확인
   const isRAGManagementPage = location.pathname === '/rag-management'
@@ -341,13 +345,15 @@ export default function RAGManagement() {
 
   return (
     <div className="rag-management-layout">
-      <Header performanceScore={87} currentTime={currentTime} onSignOut={signOut} />
+      <Header performanceScore={performanceScore} performanceDate={performanceDate} currentTime={currentTime} onSignOut={signOut} />
       
       <div className="rag-content">
         <Sidebar
           conversations={0}
           satisfaction={94.5}
           documents={documents.length}
+          performanceScore={performanceScore}
+          performanceDate={performanceDate}
           activeFilters={[]}
           onFilterChange={handleFilterChange}
           onSearch={handleSearch}

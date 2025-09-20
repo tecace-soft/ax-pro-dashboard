@@ -308,6 +308,22 @@ export default function Dashboard() {
 		promptInjection: 88
 	}
 
+	// 레이더 차트의 전체 점수 계산 (중앙에 표시되는 점수와 동일)
+	const overallScore = Math.round(
+		(radarProps.relevance + radarProps.tone + radarProps.length + 
+		 radarProps.accuracy + radarProps.toxicity + radarProps.promptInjection) / 6
+	)
+
+	// 선택된 레이더 날짜 포맷팅 (M/D 형식)
+	const formatRadarDate = (dateString: string) => {
+		if (!dateString) return ''
+		// YYYY-MM-DD 형식을 직접 파싱하여 시간대 문제 방지
+		const [year, month, day] = dateString.split('-').map(Number)
+		return `${month}/${day}`
+	}
+
+	const radarDate = formatRadarDate(selectedRadarDate)
+
 	const { data: dailyData, total: dailyTotal } = buildDailyMessageData(startDate, endDate, sessionRequests);
 
 	// 필요한 변수들 추가
@@ -446,13 +462,15 @@ export default function Dashboard() {
 
 	return (
 		<div className="dashboard-layout">
-			<Header performanceScore={87} currentTime={currentTime} onSignOut={signOut} />
+			<Header performanceScore={overallScore} performanceDate={radarDate} currentTime={currentTime} onSignOut={signOut} />
 			
 			<div className="dashboard-content">
 				<Sidebar
 					conversations={totalMessages}
 					satisfaction={94.5}
 					documents={156}
+					performanceScore={overallScore}
+					performanceDate={radarDate}
 					activeFilters={activeFilters}
 					onFilterChange={handleFilterChange}
 					onSearch={handleSearch}

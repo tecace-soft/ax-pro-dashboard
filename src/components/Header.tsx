@@ -3,11 +3,12 @@ import { useNavigate } from 'react-router-dom'
 
 interface HeaderProps {
   performanceScore: number
+  performanceDate?: string
   currentTime: string
   onSignOut: () => void
 }
 
-export default function Header({ performanceScore, currentTime, onSignOut }: HeaderProps) {
+export default function Header({ performanceScore, performanceDate, currentTime, onSignOut }: HeaderProps) {
   const navigate = useNavigate()
   
   const getPerformanceLabel = (score: number) => {
@@ -40,7 +41,7 @@ export default function Header({ performanceScore, currentTime, onSignOut }: Hea
       <div className="header-right">
         <div className="performance-indicator">
           <span className="performance-text">
-            TecAce Ax Pro: {performanceScore}% ({getPerformanceLabel(performanceScore)})
+            TecAce Ax Pro: {performanceScore}% ({getPerformanceLabel(performanceScore)}{performanceDate ? `, ${performanceDate}` : ''})
           </span>
           <span className="current-time">{currentTime}</span>
         </div>

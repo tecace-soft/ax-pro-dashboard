@@ -20,6 +20,8 @@ interface SidebarProps {
   conversations: number
   satisfaction: number
   documents: number
+  performanceScore: number
+  performanceDate?: string
   activeFilters: string[]
   onFilterChange: (filter: string) => void
   onSearch: (query: string) => void
@@ -37,6 +39,8 @@ export default function Sidebar({
   conversations, 
   satisfaction, 
   documents, 
+  performanceScore,
+  performanceDate,
   activeFilters, 
   onFilterChange, 
   onSearch,
@@ -472,8 +476,8 @@ export default function Sidebar({
                 
                 <div className="profile-metrics">
                   <div className="profile-metric">
-                    <span className="profile-metric-value">87%</span>
-                    <span className="profile-metric-label">Performance</span>
+                    <span className="profile-metric-value">{performanceScore}%</span>
+                    <span className="profile-metric-label">Performance{performanceDate ? ` ${performanceDate}` : ''}</span>
                   </div>
                   <div className="profile-metric-divider"></div>
                   <div className="profile-metric">
