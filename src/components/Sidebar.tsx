@@ -14,6 +14,7 @@ import {
   IconUser
 } from '../ui/icons'
 import { useState } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 
 interface SidebarProps {
   conversations: number
@@ -47,6 +48,11 @@ export default function Sidebar({
   sessionRequests,
   requestDetails
 }: SidebarProps) {
+  const navigate = useNavigate()
+  const location = useLocation()
+  
+  // 현재 페이지가 Dashboard인지 확인
+  const isDashboardPage = location.pathname === '/dashboard'
   // 검색 관련 상태 추가
   const [searchQuery, setSearchQuery] = useState('')
   const [recentSearches, setRecentSearches] = useState<string[]>([
@@ -260,9 +266,38 @@ export default function Sidebar({
   }
 
   const handleConversationsClick = () => {
-    console.log('Conversations clicked!') // 디버깅용
-    if (onScrollToConversations) {
-      onScrollToConversations()
+    if (isDashboardPage) {
+      // Dashboard 페이지에서는 스크롤만 실행
+      if (onScrollToConversations) {
+        onScrollToConversations()
+      }
+    } else {
+      // 다른 페이지에서는 Dashboard로 이동 후 스크롤
+      navigate('/dashboard?section=recent-conversations')
+    }
+  }
+
+  const handleUserFeedbackClick = () => {
+    if (isDashboardPage) {
+      // Dashboard 페이지에서는 스크롤만 실행
+      if (onScrollToSection) {
+        onScrollToSection('user-feedback')
+      }
+    } else {
+      // 다른 페이지에서는 Dashboard로 이동 후 스크롤
+      navigate('/dashboard?section=user-feedback')
+    }
+  }
+
+  const handlePromptControlClick = () => {
+    if (isDashboardPage) {
+      // Dashboard 페이지에서는 스크롤만 실행
+      if (onScrollToSection) {
+        onScrollToSection('prompt-control')
+      }
+    } else {
+      // 다른 페이지에서는 Dashboard로 이동 후 스크롤
+      navigate('/dashboard?section=prompt-control')
     }
   }
 
@@ -754,7 +789,7 @@ export default function Sidebar({
               <ul className="menu-list">
                 <li 
                   className="menu-item"
-                  onClick={scrollToRecentConversations}
+                  onClick={handleConversationsClick}
                 >
                   <button className="menu-button">
                     <svg className="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -769,7 +804,7 @@ export default function Sidebar({
                 </li>
                 <li 
                   className="menu-item"
-                  onClick={scrollToUserFeedback}
+                  onClick={handleUserFeedbackClick}
                 >
                   <button className="menu-button">
                     {/* Chat Bubble Icon */}
@@ -781,7 +816,7 @@ export default function Sidebar({
                 </li>
                 <li 
                   className="menu-item"
-                  onClick={scrollToPromptControl}
+                  onClick={handlePromptControlClick}
                 >
                   <button className="menu-button">
                     <svg className="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -793,7 +828,7 @@ export default function Sidebar({
                 <li className="menu-item">
                   <button 
                     className="menu-button"
-                    onClick={() => window.location.href = '/rag-management'}
+                    onClick={() => navigate('/rag-management')}
                   >
                     <svg className="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />

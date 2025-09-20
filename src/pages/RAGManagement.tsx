@@ -52,6 +52,11 @@ export default function RAGManagement() {
   // 현재 페이지가 RAG Management인지 확인
   const isRAGManagementPage = location.pathname === '/rag-management'
 
+  // 페이지 로드 시 맨 위로 스크롤
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [])
+
   const signOut = () => {
     localStorage.removeItem('authToken')
     sessionStorage.removeItem('axAccess')

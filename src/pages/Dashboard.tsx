@@ -255,10 +255,10 @@ export default function Dashboard() {
 	useEffect(() => {
 		const section = searchParams.get('section')
 		if (section) {
-			// 페이지 로드 후 약간의 지연을 두고 스크롤
+			// 페이지 로드 후 충분한 지연을 두고 스크롤 (DOM이 완전히 렌더링된 후)
 			setTimeout(() => {
 				scrollToSection(section)
-			}, 100)
+			}, 500)
 		}
 	}, [searchParams])
 
@@ -351,9 +351,10 @@ export default function Dashboard() {
 	const scrollToConversations = () => {
 		if (isDashboardPage) {
 			// Dashboard 페이지에서는 스크롤만 실행
-			const conversationsElement = document.querySelector('.conversations-module')
-			if (conversationsElement) {
-				conversationsElement.scrollIntoView({ 
+			const contentSections = document.querySelectorAll('.content-section')
+			// 첫 번째 content-section (Recent Conversations)
+			if (contentSections[0]) {
+				contentSections[0].scrollIntoView({ 
 					behavior: 'smooth', 
 					block: 'start' 
 				})
@@ -367,31 +368,52 @@ export default function Dashboard() {
 	const scrollToSection = (sectionId: string) => {
 		if (isDashboardPage) {
 			// Dashboard 페이지에서는 스크롤만 실행
-			if (sectionId === 'content-module') {
-				const contentElement = document.querySelector('.content-module')
-				if (contentElement) {
-					contentElement.scrollIntoView({ 
+			const contentSections = document.querySelectorAll('.content-section')
+			
+			if (sectionId === 'performance-radar') {
+				// Performance Radar 섹션
+				const performanceElement = document.querySelector('.performance-radar-section')
+				if (performanceElement) {
+					performanceElement.scrollIntoView({ 
+						behavior: 'smooth', 
+						block: 'start' 
+					})
+				}
+			} else if (sectionId === 'daily-message-activity') {
+				// Daily Message Activity 섹션
+				const dailyActivityElement = document.querySelector('.daily-message-section')
+				if (dailyActivityElement) {
+					dailyActivityElement.scrollIntoView({ 
 						behavior: 'smooth', 
 						block: 'start' 
 					})
 				}
 			} else if (sectionId === 'recent-conversations') {
-				const conversationsElement = document.querySelector('.conversations-module')
-				if (conversationsElement) {
-					conversationsElement.scrollIntoView({ 
+				// 첫 번째 content-section (Recent Conversations)
+				if (contentSections[0]) {
+					contentSections[0].scrollIntoView({ 
+						behavior: 'smooth', 
+						block: 'start' 
+					})
+				}
+			} else if (sectionId === 'user-feedback') {
+				// 세 번째 content-section (User Feedback)
+				if (contentSections[2]) {
+					contentSections[2].scrollIntoView({ 
 						behavior: 'smooth', 
 						block: 'start' 
 					})
 				}
 			} else if (sectionId === 'prompt-control') {
-				const promptControlElement = document.querySelector('.prompt-control-module')
-				if (promptControlElement) {
-					promptControlElement.scrollIntoView({ 
+				// 네 번째 content-section (Prompt Control)
+				if (contentSections[3]) {
+					contentSections[3].scrollIntoView({ 
 						behavior: 'smooth', 
 						block: 'start' 
 					})
 				}
 			} else {
+				// 일반적인 ID로 스크롤 시도
 				const element = document.getElementById(sectionId)
 				if (element) {
 					element.scrollIntoView({ 
