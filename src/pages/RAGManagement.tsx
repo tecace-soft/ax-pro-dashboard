@@ -10,6 +10,7 @@ import {
   getSyncStatus,
   uploadFiles 
 } from '../services/ragManagement'
+import { fetchDailyAggregatesWithMode, DailyRow, filterSimulatedData, EstimationMode } from '../services/dailyAggregates'
 import Header from '../components/Header'
 import Sidebar from '../components/Sidebar'
 import '../styles/rag-management.css'
@@ -49,9 +50,12 @@ export default function RAGManagement() {
   const [language, setLanguage] = useState<'en' | 'ko'>('en')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   
-  // RAG Management 페이지에서는 기본 성능 점수 사용
-  const performanceScore = 87
-  const performanceDate = '' // RAG Management에서는 날짜 정보 없음
+  // Radar data for performance calculation
+  const [radarData, setRadarData] = useState<DailyRow[]>([])
+  const [selectedRadarDate, setSelectedRadarDate] = useState<string>('')
+  const [isLoadingRadarData, setIsLoadingRadarData] = useState(false)
+  const [includeSimulatedData, setIncludeSimulatedData] = useState(true)
+  const [estimationMode, setEstimationMode] = useState<EstimationMode>('simple')
 
   // 현재 페이지가 RAG Management인지 확인
   const isRAGManagementPage = location.pathname === '/rag-management'
@@ -60,6 +64,26 @@ export default function RAGManagement() {
   useEffect(() => {
     window.scrollTo(0, 0)
   }, [])
+
+  // Load radar data for performance calculation
+  useEffect(() => {
+    const loadRadarData = async () => {
+      setIsLoadingRadarData(true)
+      try {
+        const data = await fetchDailyAggregatesWithMode(estimationMode)
+        setRadarData(data)
+        if (data.length > 0) {
+          setSelectedRadarDate(data[data.length - 1].Date)
+        }
+      } catch (error) {
+        console.error('Failed to load radar data:', error)
+      } finally {
+        setIsLoadingRadarData(false)
+      }
+    }
+
+    loadRadarData()
+  }, [estimationMode])
 
   const signOut = () => {
     localStorage.removeItem('authToken')
@@ -219,6 +243,41 @@ export default function RAGManagement() {
       setIsLoading(false)
     }
   }
+
+  // Performance calculation (same as Dashboard)
+  const filteredRadarData = filterSimulatedData(radarData, includeSimulatedData)
+  const selectedRadarRow = filteredRadarData.find(row => row.Date === selectedRadarDate) || filteredRadarData[filteredRadarData.length - 1]
+
+  const radarProps = selectedRadarRow ? {
+    relevance: Math.round(selectedRadarRow["Answer Relevancy"] * 100),
+    tone: Math.round(selectedRadarRow.Tone * 100),
+    length: Math.round(selectedRadarRow.Length * 100),
+    accuracy: Math.round(selectedRadarRow["Answer Correctness"] * 100),
+    toxicity: Math.round(selectedRadarRow.Toxicity * 100),
+    promptInjection: Math.round(selectedRadarRow["Prompt Injection"] * 100)
+  } : {
+    relevance: 85,
+    tone: 78,
+    length: 82,
+    accuracy: 92,
+    toxicity: 95,
+    promptInjection: 88
+  }
+
+  // Calculate overall performance score
+  const performanceScore = Math.round(
+    (radarProps.relevance + radarProps.tone + radarProps.length + 
+     radarProps.accuracy + radarProps.toxicity + radarProps.promptInjection) / 6
+  )
+
+  // Format radar date (M/D format)
+  const formatRadarDate = (dateString: string) => {
+    if (!dateString) return ''
+    const [year, month, day] = dateString.split('-').map(Number)
+    return `${month}/${day}`
+  }
+
+  const performanceDate = formatRadarDate(selectedRadarDate)
 
   const getSyncStatus = (doc: Document): SyncStatus => {
     const blobExists = documents.some(d => d.name === doc.name)
