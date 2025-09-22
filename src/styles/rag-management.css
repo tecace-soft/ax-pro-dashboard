@@ -297,6 +297,11 @@
   border-bottom: 1px solid rgba(59, 230, 255, 0.06);
   font-size: 0.875rem;
   color: var(--text);
+  word-break: break-all;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .documents-table tr:hover,
@@ -334,6 +339,19 @@
   background: rgba(124, 140, 255, 0.12);
 }
 
+.action-buttons button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: none;
+  border-color: rgba(59, 230, 255, 0.06);
+}
+
+.action-buttons button:disabled:hover {
+  background: none;
+  border-color: rgba(59, 230, 255, 0.06);
+  color: var(--text-muted);
+}
+
 /* Sync Status */
 .sync-status {
   display: flex;
@@ -356,6 +374,22 @@
 
 .status-icon.orphaned {
   color: var(--danger);
+}
+
+/* Chunk ID specific styling */
+.index-table td:nth-child(3) {
+  font-family: 'Courier New', monospace;
+  font-size: 0.75rem;
+  max-width: 150px;
+  background: rgba(9, 14, 34, 0.5);
+  border-radius: 4px;
+  padding: 8px 12px;
+}
+
+/* Tooltip for truncated text */
+.index-table td[title] {
+  position: relative;
+  cursor: help;
 }
 
 /* Responsive */

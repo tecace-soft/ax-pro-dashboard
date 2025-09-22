@@ -23,9 +23,9 @@ interface Document {
 
 interface IndexDocument {
   chunk_id: string
-  parent_id: string
-  title: string
-  filepath: string
+  parent_id?: string | null
+  title?: string | null
+  filepath?: string | null
   url?: string
   content?: string
 }
@@ -46,7 +46,7 @@ export default function RAGManagement() {
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set())
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({})
   const [searchQuery, setSearchQuery] = useState('')
-  const [topCount, setTopCount] = useState(20)
+  const [topCount, setTopCount] = useState(100)
   const [language, setLanguage] = useState<'en' | 'ko'>('en')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   
@@ -359,12 +359,12 @@ export default function RAGManagement() {
   }
 
   const filteredDocuments = documents.filter(doc => 
-    doc.name.toLowerCase().includes(searchQuery.toLowerCase())
+    (doc.name?.toLowerCase() || '').includes(searchQuery.toLowerCase())
   )
 
   const filteredIndexDocuments = indexDocuments.filter(doc => 
-    doc.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    doc.filepath.toLowerCase().includes(searchQuery.toLowerCase())
+    (doc.title?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
+    (doc.filepath?.toLowerCase() || '').includes(searchQuery.toLowerCase())
   )
 
   const getStatusIcon = (status: SyncStatus) => {
@@ -492,6 +492,9 @@ export default function RAGManagement() {
             <option value={20}>20</option>
             <option value={50}>50</option>
             <option value={100}>100</option>
+            <option value={200}>200</option>
+            <option value={500}>500</option>
+            <option value={1000}>All</option>
           </select>
           <button onClick={loadData} className="refresh-btn">
             <IconRefresh />
@@ -582,16 +585,24 @@ export default function RAGManagement() {
                   <tbody>
                     {filteredIndexDocuments.map((doc) => (
                       <tr key={doc.chunk_id}>
-                        <td>{doc.title}</td>
-                        <td>{doc.filepath}</td>
-                        <td>{doc.chunk_id}</td>
-                        <td>{doc.parent_id}</td>
+                        <td>{doc.title || 'N/A'}</td>
+                        <td>{doc.filepath || 'N/A'}</td>
+                        <td title={doc.chunk_id}>{doc.chunk_id}</td>
+                        <td title={doc.parent_id || ''}>{doc.parent_id || 'N/A'}</td>
                         <td>
                           <div className="action-buttons">
-                            <button onClick={() => handleDownload(doc.filepath)} title={currentT.downloadAction}>
+                            <button 
+                              onClick={() => doc.filepath && handleDownload(doc.filepath)} 
+                              title={currentT.downloadAction}
+                              disabled={!doc.filepath}
+                            >
                               <IconDownload />
                             </button>
-                            <button onClick={() => handleDelete(doc.filepath)} title={currentT.deleteAction}>
+                            <button 
+                              onClick={() => doc.filepath && handleDelete(doc.filepath)} 
+                              title={currentT.deleteAction}
+                              disabled={!doc.filepath}
+                            >
                               <IconTrash />
                             </button>
                           </div>

@@ -16,6 +16,12 @@ export default defineConfig({
 				changeOrigin: true,
 				secure: true,
 				rewrite: (path) => path.replace(/^\/prompt-api/, '/api')
+			},
+			'/rag-api': {
+				target: 'https://hr-ax-pro-rag-management.eastus2.inference.ml.azure.com',
+				changeOrigin: true,
+				secure: true,
+				rewrite: (path) => path.replace(/^\/rag-api/, '/score')
 			}
 		}
 	},
