@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { IconRefresh, IconEye, IconAlertTriangle } from '../../ui/icons'
-import { listIndexDocs, IndexDoc, RAGApiError } from '../../lib/ragApi'
+import { listIndexDocsRows, IndexDoc, RAGApiError } from '../../lib/ragApi'
 import './IndexDocs.css'
 
 interface IndexDocsProps {
@@ -19,11 +19,11 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
   // Language translations
   const t = {
     en: {
-      title: 'Index (Search Service)',
+      headingTitle: 'Index (Search Service)',
       subtitle: 'Documents indexed in Azure AI Search for RAG queries',
       chunkId: 'Chunk ID',
       parentId: 'Parent ID',
-      title: 'Title',
+      columnTitle: 'Title',
       filepath: 'File Path',
       content: 'Content Preview',
       actions: 'Actions',
@@ -45,11 +45,11 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
       fullContent: 'Full Content'
     },
     ko: {
-      title: '인덱스 (검색 서비스)',
+      headingTitle: '인덱스 (검색 서비스)',
       subtitle: 'RAG 쿼리를 위해 Azure AI Search에 인덱싱된 문서들',
       chunkId: '청크 ID',
       parentId: '부모 ID',
-      title: '제목',
+      columnTitle: '제목',
       filepath: '파일 경로',
       content: '내용 미리보기',
       actions: '액션',
@@ -85,17 +85,14 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
     
     try {
       console.log('🔍 Loading index docs...', { top, skip })
-      const response = await listIndexDocs({ top, skip })
-      console.log('📊 Index docs response:', response)
-      
-      const items = response.index?.value || []
-      const count = response.index?.['@odata.count'] || items.length
+      const items = await listIndexDocsRows({ top, skip })
+      console.log('📊 Index docs response:', items)
       
       console.log('📄 Items:', items)
-      console.log('📊 Total count:', count)
+      console.log('📊 Total count:', items.length)
       
       setDocs(items)
-      setTotalCount(count)
+      setTotalCount(items.length)
     } catch (error) {
       console.error('Failed to load index docs:', error)
       setError(
@@ -128,7 +125,7 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
   return (
     <div className="index-docs">
       <div className="index-header">
-        <h2>{currentT.title}</h2>
+        <h2>{currentT.headingTitle}</h2>
         <p>{currentT.subtitle}</p>
       </div>
 
@@ -213,7 +210,7 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
             <table>
               <thead>
                 <tr>
-                  <th>{currentT.title}</th>
+                  <th>{currentT.columnTitle}</th>
                   <th>{currentT.parentId}</th>
                   <th>{currentT.chunkId}</th>
                   <th>URL</th>
@@ -280,12 +277,12 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
               </button>
             </div>
             <div className="modal-content">
-            <div className="doc-info">
-              <p><strong>{currentT.chunkId}:</strong> {selectedDoc.chunk_id || 'N/A'}</p>
-              <p><strong>{currentT.parentId}:</strong> {selectedDoc.parent_id || 'N/A'}</p>
-              <p><strong>{currentT.title}:</strong> {selectedDoc.title || 'N/A'}</p>
-              <p><strong>{currentT.filepath}:</strong> {selectedDoc.filepath || 'N/A'}</p>
-            </div>
+              <div className="doc-info">
+                <p><strong>{currentT.chunkId}:</strong> {selectedDoc.chunk_id || 'N/A'}</p>
+                <p><strong>{currentT.parentId}:</strong> {selectedDoc.parent_id || 'N/A'}</p>
+                <p><strong>{currentT.columnTitle}:</strong> {selectedDoc.title || 'N/A'}</p>
+                <p><strong>{currentT.filepath}:</strong> {selectedDoc.filepath || 'N/A'}</p>
+              </div>
               <div className="content-section">
                 <h4>{currentT.fullContent}</h4>
                 <div className="content-text">

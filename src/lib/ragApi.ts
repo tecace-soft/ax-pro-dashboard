@@ -94,6 +94,22 @@ async function callRAGAPI<T = any>(payload: any): Promise<T> {
     throw new RAGApiError('RAG API key is not configured. Please check your .env file.', 'NO_API_KEY')
   }
 
+  // Special logging for upload operations
+  if (payload.op === 'blob_upload' && payload.content) {
+    const contentLength = typeof payload.content === 'string' ? payload.content.length : 0
+    console.debug('📤 Upload payload validation:', {
+      name: payload.name,
+      contentType: payload.content_type,
+      contentLength,
+      contentPreview: typeof payload.content === 'string' ? payload.content.slice(0, 100) : 'N/A',
+      isDataUrl: typeof payload.content === 'string' && payload.content.startsWith('data:')
+    })
+    
+    if (contentLength === 0) {
+      throw new RAGApiError('Upload content is empty - this will result in 0-byte file', 'UPLOAD_ERROR')
+    }
+  }
+
   console.debug('🔗 Making RAG API call:', { url: RAG_API_URL, payload })
 
   const response = await fetch(RAG_API_URL, {
@@ -115,14 +131,22 @@ async function callRAGAPI<T = any>(payload: any): Promise<T> {
     throw new RAGApiError('Unexpected response shape', 'INVALID_RESPONSE', response.status, data)
   }
 
-  // New envelope already: { ok, route, index|blobs|null }
+  // Standard envelope: { result: { ok, route, index|blobs|null } }
+  if (data.result && typeof data.result.route === 'string') {
+    console.debug('✅ RAG API response:', data)
+    return data.result as T
+  }
+
+  // Legacy: direct envelope { ok, route, index|blobs|null }
   if (typeof data.route === 'string') {
+    console.debug('✅ RAG API response (legacy):', data)
     return data as T
   }
 
   // Managed endpoint wrapper: { result: <object|string> }
   if (Object.prototype.hasOwnProperty.call(data, 'result')) {
     const inner = (typeof data.result === 'string') ? (() => { try { return JSON.parse(data.result) } catch { return data.result } })() : data.result
+    console.debug('✅ RAG API response (inner):', inner)
     if (inner && typeof inner === 'object') {
       return inner as T
     }
@@ -132,7 +156,7 @@ async function callRAGAPI<T = any>(payload: any): Promise<T> {
 }
 
 // Blob Operations
-export async function listBlobs(prefix: string = ''): Promise<ListBlobsResponse> {
+export async function listBlobsEnvelope(prefix: string = ''): Promise<ListBlobsResponse> {
   const env = await callRAGAPI({ op: 'blob_list', prefix })
   if (env?.route === 'blob_list') return env as ListBlobsResponse
   // legacy shape acceptance
@@ -280,7 +304,8 @@ export async function listBlobsUnified(prefix: string | null = null): Promise<{ 
     throw new RAGApiError(`Route mismatch: ${env['route']}`, 'INVALID_RESPONSE', undefined, env)
   }
 
-  const rawItems = env.blobs?.items ?? env.data?.items ?? env.items ?? (Array.isArray(env.data) ? env.data : [])
+  // Prefer new schema: data.items
+  const rawItems = env.data?.items ?? env.blobs?.items ?? env.items ?? (Array.isArray(env.data) ? env.data : [])
   if (!Array.isArray(rawItems)) {
     throw new RAGApiError('blob_list: Unexpected response shape', 'INVALID_RESPONSE', undefined, env)
   }
@@ -296,8 +321,8 @@ export async function listBlobsUnified(prefix: string | null = null): Promise<{ 
 
   return {
     ok: true,
-    count: env.blobs?.count ?? env.data?.count ?? items.length,
-    prefix: env.blobs?.prefix ?? env.data?.prefix ?? (prefix ?? null),
+    count: env.data?.count ?? env.blobs?.count ?? items.length,
+    prefix: env.data?.prefix ?? env.blobs?.prefix ?? (prefix ?? null),
     items,
   }
 }
@@ -344,4 +369,187 @@ export async function listIndexDocsUnified({
     total: env.index?.['@odata.count'] ?? items.length,
     context: env.index?.['@odata.context'],
   }
+}
+
+// Upload any file: text => UTF-8; binary => base64
+export async function uploadAnyFile(file: File): Promise<{ success: boolean; error?: string }> {
+  try {
+    const rawType = (file.type || '').toLowerCase()
+    const isText = rawType.startsWith('text/') || rawType.includes('json') || rawType.includes('csv') || rawType.includes('xml')
+
+    if (isText) {
+      const content = await file.text()
+      const baseType = rawType || 'text/plain'
+      const typeWithCharset = baseType.includes('charset=') ? baseType : `${baseType}; charset=utf-8`
+      await uploadBlob({ name: file.name, content, contentType: typeWithCharset })
+      return { success: true }
+    }
+
+    // Binary: send as data URL in content (backend can auto-detect)
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(String(reader.result))
+      reader.onerror = () => reject(reader.error || new Error('Failed to read file'))
+      reader.readAsDataURL(file)
+    })
+
+    const payload = {
+      op: 'blob_upload',
+      name: file.name,
+      content: dataUrl, // "data:...;base64,..."
+      content_type: rawType || 'application/octet-stream',
+      length: file.size,
+    }
+
+    const response = await callRAGAPI(payload)
+    if (response?.ok === false) {
+      throw new Error(response?.error?.message || 'Upload failed')
+    }
+    return { success: true }
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : 'Unknown error' }
+  }
+}
+
+// Replace existing blob with new content (recommended for overwrites)
+export async function replaceBlobFile(file: File, etag: string): Promise<any> {
+  console.debug('🔄 replaceBlobFile()', { name: file.name, type: file.type, size: file.size, etag })
+  const type = file.type || ''
+  const isText = type.startsWith('text/') || ['application/json', 'application/xml', 'text/markdown'].includes(type)
+
+  if (!isText) {
+    // Binary files: use Data URL
+    const dataUrl: string = await new Promise((resolve, reject) => {
+      const fr = new FileReader()
+      fr.onload = () => resolve(String(fr.result))
+      fr.onerror = () => reject(fr.error || new Error('readAsDataURL failed'))
+      fr.readAsDataURL(file)
+    })
+    
+    // Validate data URL
+    if (!dataUrl.startsWith('data:')) {
+      throw new RAGApiError('Failed to read file as Data URL', 'UPLOAD_ERROR')
+    }
+    
+    console.debug('📦 Binary file - dataUrl length:', dataUrl.length, 'preview:', dataUrl.slice(0, 64))
+    
+    return callRAGAPI({
+      op: 'blob_replace',
+      name: file.name,
+      content: dataUrl,
+      etag: etag
+    })
+  }
+
+  // Text files: read as UTF-8 text
+  const text = await file.text()
+  
+  // Validate text content
+  if (typeof text !== 'string') {
+    throw new RAGApiError('Failed to read file as text', 'UPLOAD_ERROR')
+  }
+  
+  console.debug('📝 Text file - content length:', text.length, 'preview:', text.slice(0, 100))
+  
+  return callRAGAPI({
+    op: 'blob_replace',
+    name: file.name,
+    content: text,
+    etag: etag
+  })
+}
+
+// Upload with Data URL/plain text per new backend contract
+export async function uploadBlobFile(file: File): Promise<any> {
+  console.debug('⬆️ uploadBlobFile()', { name: file.name, type: file.type, size: file.size })
+  const type = file.type || ''
+  const isText = type.startsWith('text/') || ['application/json', 'application/xml', 'text/markdown'].includes(type)
+
+  if (!isText) {
+    // Binary files: use Data URL
+    const dataUrl: string = await new Promise((resolve, reject) => {
+      const fr = new FileReader()
+      fr.onload = () => resolve(String(fr.result))
+      fr.onerror = () => reject(fr.error || new Error('readAsDataURL failed'))
+      fr.readAsDataURL(file)
+    })
+    
+    // Validate data URL
+    if (!dataUrl.startsWith('data:')) {
+      throw new RAGApiError('Failed to read file as Data URL', 'UPLOAD_ERROR')
+    }
+    
+    console.debug('📦 Binary file - dataUrl length:', dataUrl.length, 'preview:', dataUrl.slice(0, 64))
+    
+    return callRAGAPI({
+      op: 'blob_upload',
+      name: file.name,
+      content: dataUrl,
+      content_type: type || 'application/octet-stream'
+    })
+  }
+
+  // Text files: read as UTF-8 text
+  const text = await file.text()
+  
+  // Validate text content
+  if (typeof text !== 'string') {
+    throw new RAGApiError('Failed to read file as text', 'UPLOAD_ERROR')
+  }
+  
+  console.debug('📝 Text file - content length:', text.length, 'preview:', text.slice(0, 100))
+  
+  // Ensure UTF-8 encoding in content_type
+  const contentType = type ? `${type}; charset=utf-8` : 'text/plain; charset=utf-8'
+  
+  return callRAGAPI({
+    op: 'blob_upload',
+    name: file.name,
+    content: text,
+    content_type: contentType
+  })
+}
+
+// Route-guarded blob list: read from response.blobs.items only
+export async function listBlobs(prefix: string = '', top: number = 100): Promise<BlobItem[]> {
+  const res: any = await callRAGAPI({ op: 'blob_list', prefix, top })
+  
+  // Check route and blobs structure
+  if (!res || res.route !== 'blob_list' || !res.blobs) {
+    throw new RAGApiError('Unexpected response shape for blob_list', 'INVALID_RESPONSE', undefined, res)
+  }
+  
+  const items: any[] = res.blobs.items ?? []
+  console.debug('📃 blobs:', { count: res.blobs.count, itemsPreview: items.slice(0, 3) })
+  
+  return items.map((b: any) => ({
+    name: b.name,
+    size: b.size,
+    last_modified: b.last_modified,
+    content_type: b.content_type,
+    etag: b.etag,
+    url: b.url,
+  }))
+}
+
+// Route-guarded index docs list: read from response.index.value only
+export async function listIndexDocsRows({ top = 50, skip = 0, select = 'chunk_id,parent_id,title,url,filepath' }: { top?: number; skip?: number; select?: string } = {}) {
+  const res: any = await callRAGAPI({ op: 'list_docs', top, skip, select })
+  
+  // Check route and index structure
+  if (!res || res.route !== 'list_docs' || !res.index) {
+    throw new RAGApiError('Unexpected response shape for list_docs', 'INVALID_RESPONSE', undefined, res)
+  }
+  
+  const rows: any[] = res.index.value ?? []
+  console.debug('🔎 index rows:', rows.length)
+  
+  return rows.map((v: any) => ({
+    chunk_id: v.chunk_id,
+    parent_id: v.parent_id,
+    title: v.title,
+    url: v.url,
+    filepath: v.filepath,
+    original_id: v.original_id,
+  }))
 }

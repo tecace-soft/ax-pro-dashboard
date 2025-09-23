@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { IconUpload, IconTrash, IconRefresh, IconDownload, IconAlertTriangle } from '../../ui/icons'
-import { listBlobsUnified, deleteBlob, uploadTextFile, BlobItem, RAGApiError } from '../../lib/ragApi'
+import { listBlobsUnified, deleteBlob, uploadBlobFile, replaceBlobFile, BlobItem, RAGApiError } from '../../lib/ragApi'
 import './BlobFiles.css'
 
 interface BlobFilesProps {
@@ -105,8 +105,18 @@ export default function BlobFiles({ language = 'en' }: BlobFilesProps) {
       try {
         setUploadProgress(prev => ({ ...prev, [file.name]: 0 }))
         
-        const result = await uploadTextFile(file)
-        results.push({ file: file.name, ...result })
+        // Check if file already exists
+        const existingBlob = blobs.find(b => b.name === file.name)
+        
+        if (existingBlob && existingBlob.etag) {
+          // Use replace for existing files
+          await replaceBlobFile(file, existingBlob.etag)
+          results.push({ file: file.name, success: true, action: 'replaced' })
+        } else {
+          // Use upload for new files
+          await uploadBlobFile(file)
+          results.push({ file: file.name, success: true, action: 'uploaded' })
+        }
         
         setUploadProgress(prev => ({ ...prev, [file.name]: 100 }))
       } catch (error) {
@@ -124,7 +134,19 @@ export default function BlobFiles({ language = 'en' }: BlobFilesProps) {
     const failed = results.filter(r => !r.success)
 
     if (successful.length > 0) {
-      alert(`${currentT.uploadSuccess}: ${successful.map(r => r.file).join(', ')}`)
+      const uploaded = successful.filter(r => r.action === 'uploaded')
+      const replaced = successful.filter(r => r.action === 'replaced')
+      
+      let message = ''
+      if (uploaded.length > 0) {
+        message += `${currentT.uploadSuccess}: ${uploaded.map(r => r.file).join(', ')}`
+      }
+      if (replaced.length > 0) {
+        if (message) message += '\n'
+        message += `Replaced: ${replaced.map(r => r.file).join(', ')}`
+      }
+      
+      alert(message)
       loadBlobs() // Refresh the list
     }
 
@@ -151,11 +173,29 @@ export default function BlobFiles({ language = 'en' }: BlobFilesProps) {
     }
   }
 
-  const handleDownload = (blob: BlobItem) => {
-    if ((blob as any).url_with_sas || blob.url) {
-      window.open((blob as any).url_with_sas || blob.url!, '_blank')
-    } else {
+  const handleDownload = async (blob: BlobItem) => {
+    const url = (blob as any).url_with_sas || blob.url
+    if (!url) {
       alert('Download URL not available for this file')
+      return
+    }
+
+    // Open in a new tab/window for viewing; keep current page
+    try {
+      const w = window.open(url, '_blank', 'noopener')
+      if (!w) {
+        // Popup blocked fallback
+        const a = document.createElement('a')
+        a.href = url
+        a.target = '_blank'
+        a.rel = 'noopener'
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+      }
+    } catch (e) {
+      console.error('Open in new window failed:', e)
+      window.open(url, '_blank')
     }
   }
 
@@ -199,11 +239,11 @@ export default function BlobFiles({ language = 'en' }: BlobFilesProps) {
         >
           <IconUpload className="upload-icon" />
           <p>{currentT.uploadArea}</p>
-          <p className="supported-formats">{currentT.supportedFormats}</p>
+          <p className="supported-formats">Supported formats: .txt, .md, .json, .csv, .xml, .html, .css, .js, .ts, .pdf, .doc, .docx, .ppt, .pptx, .xls, .xlsx</p>
           <input
             type="file"
             multiple
-            accept=".txt,.md,.json,.csv,.xml,.html,.css,.js,.ts"
+            accept=".txt,.md,.json,.csv,.xml,.html,.css,.js,.ts,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx"
             onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
             className="file-input"
           />
