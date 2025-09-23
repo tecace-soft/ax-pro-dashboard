@@ -179,40 +179,33 @@ export async function upsertBatchDocuments(docs: Array<{
   })
 }
 
-// Blob Operations - For now, we'll use list_docs as a fallback since blob operations aren't available in the current API
+// Blob Operations - call backend ops if available
 export async function listBlobs(prefix: string = ''): Promise<RAGResponse<{ items: BlobItem[] }>> {
-  // Since blob operations aren't available in the current API, we'll return empty for now
-  // This maintains compatibility with the existing UI
-  return {
-    ok: true,
-    route: 'blob_list',
-    data: { items: [] },
-    meta: { version: 'v1' }
-  }
+  return callRAGAPI({
+    op: 'blob_list',
+    prefix,
+  })
 }
 
 export async function uploadBlob(options: {
   name: string
-  content: string
+  content: string // base64 string or text
   content_type: string
 }): Promise<RAGResponse<BlobUploadResponse>> {
-  // For now, return a mock response since blob operations aren't available
-  return {
-    ok: true,
-    route: 'blob_upload',
-    data: { name: options.name, url: 'mock-url' },
-    meta: { version: 'v1' }
-  }
+  return callRAGAPI({
+    op: 'blob_upload',
+    name: options.name,
+    content: options.content,
+    content_type: options.content_type,
+    encoding: 'base64_or_text'
+  })
 }
 
 export async function downloadBlob(name: string): Promise<RAGResponse<BlobDownloadResponse>> {
-  // For now, return a mock response since blob operations aren't available
-  return {
-    ok: true,
-    route: 'blob_download',
-    data: { name, content: 'mock content' },
-    meta: { version: 'v1' }
-  }
+  return callRAGAPI({
+    op: 'blob_download',
+    name,
+  })
 }
 
 export async function replaceBlob(options: {
@@ -221,23 +214,20 @@ export async function replaceBlob(options: {
   content_type: string
   etag?: string
 }): Promise<RAGResponse<BlobUploadResponse>> {
-  // For now, return a mock response since blob operations aren't available
-  return {
-    ok: true,
-    route: 'blob_replace',
-    data: { name: options.name, url: 'mock-url' },
-    meta: { version: 'v1' }
-  }
+  return callRAGAPI({
+    op: 'blob_replace',
+    name: options.name,
+    content: options.content,
+    content_type: options.content_type,
+    etag: options.etag,
+  })
 }
 
 export async function deleteBlob(name: string): Promise<RAGResponse<BlobDeleteResponse>> {
-  // For now, return a mock response since blob operations aren't available
-  return {
-    ok: true,
-    route: 'blob_delete',
-    data: { name, deleted: true },
-    meta: { version: 'v1' }
-  }
+  return callRAGAPI({
+    op: 'blob_delete',
+    name,
+  })
 }
 
 // Utility functions for RAG Management UI
@@ -321,13 +311,32 @@ export async function uploadFiles(files: FileList): Promise<{
   const success: string[] = []
   const failed: { name: string; error: string }[] = []
 
+  async function fileToBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const result = reader.result
+        if (typeof result === 'string') {
+          // result is a data URL like "data:application/pdf;base64,...."
+          const base64 = result.split(',')[1] || ''
+          resolve(base64)
+        } else {
+          reject(new Error('Unsupported file result type'))
+        }
+      }
+      reader.onerror = () => reject(reader.error || new Error('Failed to read file'))
+      reader.readAsDataURL(file)
+    })
+  }
+
   for (const file of Array.from(files)) {
     try {
-      const content = await file.text()
+      // Use base64 for all file types to preserve binary integrity
+      const content = await fileToBase64(file)
       const response = await uploadBlob({
         name: file.name,
         content,
-        content_type: file.type || 'text/plain'
+        content_type: file.type || 'application/octet-stream'
       })
 
       if (response.ok) {

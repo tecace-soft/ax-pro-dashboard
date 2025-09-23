@@ -13,6 +13,8 @@ import {
 import { fetchDailyAggregatesWithMode, DailyRow, filterSimulatedData, EstimationMode } from '../services/dailyAggregates'
 import Header from '../components/Header'
 import Sidebar from '../components/Sidebar'
+import BlobFiles from './RagManagement/BlobFiles'
+import IndexDocs from './RagManagement/IndexDocs'
 import '../styles/rag-management.css'
 
 interface Document {
@@ -42,7 +44,7 @@ export default function RAGManagement() {
   const [documents, setDocuments] = useState<Document[]>([])
   const [indexDocuments, setIndexDocuments] = useState<IndexDocument[]>([])
   const [isLoading, setIsLoading] = useState(false)
-  const [activeTab, setActiveTab] = useState<'documents' | 'index' | 'sync'>('documents')
+  const [activeTab, setActiveTab] = useState<'blob-files' | 'documents' | 'index' | 'sync'>('blob-files')
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set())
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({})
   const [searchQuery, setSearchQuery] = useState('')
@@ -143,6 +145,7 @@ export default function RAGManagement() {
       uploadArea: 'Drag files here to upload or click to select',
       searchPlaceholder: 'Search documents...',
       refresh: 'Refresh',
+      blobFiles: 'Blob Files',
       documents: 'Documents',
       index: 'Index',
       sync: 'Sync Status',
@@ -180,6 +183,7 @@ export default function RAGManagement() {
       uploadArea: '파일을 드래그하여 업로드하거나 클릭하여 선택하세요',
       searchPlaceholder: '문서 검색...',
       refresh: '새로고침',
+      blobFiles: 'Blob 파일',
       documents: '문서',
       index: '인덱스',
       sync: '싱크 상태',
@@ -312,12 +316,16 @@ export default function RAGManagement() {
   }
 
   const handleDelete = async (filepath: string) => {
-    if (!confirm(currentT.confirmDelete)) return
+    const fileName = filepath.split('/').pop() || filepath
+    const confirmMessage = `Are you sure you want to delete "${fileName}"?\n\nThis action cannot be undone.`
+    
+    if (!confirm(confirmMessage)) return
     
     try {
       const response = await deleteBlob(filepath)
       if (response.ok) {
         loadData() // Refresh data
+        alert(`Successfully deleted: ${fileName}`)
       } else {
         alert(`${currentT.deleteFailed} ${response.error?.message || 'Unknown error'}`)
       }
@@ -340,15 +348,48 @@ export default function RAGManagement() {
 
   const handleDownload = async (filepath: string) => {
     try {
+      const fileName = filepath.split('/').pop() || filepath
+      
+      // Check if this is a document from the index (not a blob)
+      if (indexDocuments.some(doc => doc.filepath === filepath)) {
+        // For index documents, we can't download the actual file content
+        // since we only have metadata. Show a helpful message.
+        alert(`Cannot download "${fileName}" directly.\n\nThis document is indexed but the original file content is not available for download.\n\nTo download the original file, you would need to access it from the source storage.`)
+        return
+      }
+      
       const response = await downloadBlob(filepath)
       if (response.ok && response.data?.content) {
-        const blob = new Blob([response.data.content], { type: 'text/plain' })
+        // Determine file type based on extension
+        const extension = fileName.split('.').pop()?.toLowerCase()
+        let mimeType = 'text/plain'
+        
+        switch (extension) {
+          case 'pdf':
+            mimeType = 'application/pdf'
+            break
+          case 'docx':
+            mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            break
+          case 'doc':
+            mimeType = 'application/msword'
+            break
+          case 'txt':
+            mimeType = 'text/plain'
+            break
+          default:
+            mimeType = 'application/octet-stream'
+        }
+        
+        const blob = new Blob([response.data.content], { type: mimeType })
         const url = URL.createObjectURL(blob)
         const a = document.createElement('a')
         a.href = url
-        a.download = filepath
+        a.download = fileName
         a.click()
         URL.revokeObjectURL(url)
+        
+        alert(`Downloaded: ${fileName}`)
       } else {
         alert(`${currentT.downloadFailed} ${response.error?.message || 'Unknown error'}`)
       }
@@ -449,27 +490,7 @@ export default function RAGManagement() {
             </div>
           </div>
 
-      {/* File Upload Area */}
-      <div className="upload-section">
-        <div 
-          className="upload-area"
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={(e) => {
-            e.preventDefault()
-            handleFileUpload(e.dataTransfer.files)
-          }}
-        >
-          <IconUpload className="upload-icon" />
-          <p>{currentT.uploadArea}</p>
-          <input
-            type="file"
-            multiple
-            accept=".pdf,.docx,.txt"
-            onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
-            className="file-input"
-          />
-        </div>
-      </div>
+          
 
       {/* Search and Controls */}
       <div className="controls-section">
@@ -503,19 +524,24 @@ export default function RAGManagement() {
         </div>
       </div>
 
+      {/* Guidance Banner */}
+      <div className="guidance-banner">
+        <p>📋 <strong>Note:</strong> Blob Files = File Storage / Index = Search Index. They may differ, and sync status will be shown later.</p>
+      </div>
+
       {/* Tabs */}
       <div className="tabs">
         <button
-          className={`tab ${activeTab === 'documents' ? 'active' : ''}`}
-          onClick={() => setActiveTab('documents')}
+          className={`tab ${activeTab === 'blob-files' ? 'active' : ''}`}
+          onClick={() => setActiveTab('blob-files')}
         >
-          {currentT.documents} ({documents.length})
+          Document Files
         </button>
         <button
           className={`tab ${activeTab === 'index' ? 'active' : ''}`}
           onClick={() => setActiveTab('index')}
         >
-          {currentT.index} ({indexDocuments.length})
+          {currentT.index} (Search Service)
         </button>
         <button
           className={`tab ${activeTab === 'sync' ? 'active' : ''}`}
@@ -531,47 +557,16 @@ export default function RAGManagement() {
           <div className="loading">{currentT.loading}</div>
         ) : (
           <>
-            {activeTab === 'documents' && (
-              <div className="documents-table">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>{currentT.fileName}</th>
-                      <th>{currentT.path}</th>
-                      <th>{currentT.size}</th>
-                      <th>{currentT.modified}</th>
-                      <th>{currentT.actions}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredDocuments.map((doc) => (
-                      <tr key={doc.name}>
-                        <td>{doc.name}</td>
-                        <td>{doc.name}</td>
-                        <td>{doc.size ? `${(doc.size / 1024).toFixed(1)} KB` : '-'}</td>
-                        <td>{doc.last_modified ? new Date(doc.last_modified).toLocaleDateString() : '-'}</td>
-                        <td>
-                          <div className="action-buttons">
-                            <button onClick={() => handleIndex(doc.name)} title={currentT.indexAction}>
-                              <IconRefresh />
-                            </button>
-                            <button onClick={() => handleDownload(doc.name)} title={currentT.downloadAction}>
-                              <IconDownload />
-                            </button>
-                            <button onClick={() => handleDelete(doc.name)} title={currentT.deleteAction}>
-                              <IconTrash />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+            {activeTab === 'blob-files' && (
+              <BlobFiles language={language} />
             )}
 
             {activeTab === 'index' && (
-              <div className="index-table">
+              <IndexDocs language={language} />
+            )}
+
+            {activeTab === 'documents' && (
+              <div className="documents-table">
                 <table>
                   <thead>
                     <tr>
@@ -593,14 +588,14 @@ export default function RAGManagement() {
                           <div className="action-buttons">
                             <button 
                               onClick={() => doc.filepath && handleDownload(doc.filepath)} 
-                              title={currentT.downloadAction}
+                              title="Download (Note: Index documents show metadata only)"
                               disabled={!doc.filepath}
                             >
                               <IconDownload />
                             </button>
                             <button 
                               onClick={() => doc.filepath && handleDelete(doc.filepath)} 
-                              title={currentT.deleteAction}
+                              title="Delete from index"
                               disabled={!doc.filepath}
                             >
                               <IconTrash />
