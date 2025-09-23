@@ -32,14 +32,15 @@ export default function BlobFiles({ language = 'en' }: BlobFilesProps) {
       refresh: 'Refresh',
       loading: 'Loading...',
       uploading: 'Uploading...',
-      confirmDelete: 'Are you sure you want to delete this file?',
-      deleteSuccess: 'File deleted successfully',
-      deleteError: 'Failed to delete file',
-      uploadSuccess: 'File uploaded successfully',
-      uploadError: 'Failed to upload file',
-      loadError: 'Failed to load files',
-      noFiles: 'No files found',
-      dragOver: 'Drop files here to upload'
+          confirmDelete: 'Are you sure you want to delete this file?',
+          confirmReplace: 'This file already exists. Do you want to replace it?',
+          deleteSuccess: 'File deleted successfully',
+          deleteError: 'Failed to delete file',
+          uploadSuccess: 'File uploaded successfully',
+          uploadError: 'Failed to upload file',
+          loadError: 'Failed to load files',
+          noFiles: 'No files found',
+          dragOver: 'Drop files here to upload'
     },
     ko: {
       title: '문서 파일',
@@ -57,14 +58,15 @@ export default function BlobFiles({ language = 'en' }: BlobFilesProps) {
       refresh: '새로고침',
       loading: '로딩 중...',
       uploading: '업로드 중...',
-      confirmDelete: '정말로 이 파일을 삭제하시겠습니까?',
-      deleteSuccess: '파일이 성공적으로 삭제되었습니다',
-      deleteError: '파일 삭제에 실패했습니다',
-      uploadSuccess: '파일이 성공적으로 업로드되었습니다',
-      uploadError: '파일 업로드에 실패했습니다',
-      loadError: '파일 목록을 불러오는데 실패했습니다',
-      noFiles: '파일이 없습니다',
-      dragOver: '업로드하려면 파일을 여기에 놓으세요'
+          confirmDelete: '정말로 이 파일을 삭제하시겠습니까?',
+          confirmReplace: '이 파일이 이미 존재합니다. 교체하시겠습니까?',
+          deleteSuccess: '파일이 성공적으로 삭제되었습니다',
+          deleteError: '파일 삭제에 실패했습니다',
+          uploadSuccess: '파일이 성공적으로 업로드되었습니다',
+          uploadError: '파일 업로드에 실패했습니다',
+          loadError: '파일 목록을 불러오는데 실패했습니다',
+          noFiles: '파일이 없습니다',
+          dragOver: '업로드하려면 파일을 여기에 놓으세요'
     }
   }
 
@@ -109,6 +111,14 @@ export default function BlobFiles({ language = 'en' }: BlobFilesProps) {
         const existingBlob = blobs.find(b => b.name === file.name)
         
         if (existingBlob && existingBlob.etag) {
+          // Ask for confirmation before replacing
+          const confirmMessage = `${currentT.confirmReplace}\n\nFile: ${file.name}`
+          if (!confirm(confirmMessage)) {
+            results.push({ file: file.name, success: false, error: 'Cancelled by user' })
+            setUploadProgress(prev => ({ ...prev, [file.name]: 0 }))
+            continue
+          }
+          
           // Use replace for existing files
           await replaceBlobFile(file, existingBlob.etag)
           results.push({ file: file.name, success: true, action: 'replaced' })
@@ -119,6 +129,11 @@ export default function BlobFiles({ language = 'en' }: BlobFilesProps) {
         }
         
         setUploadProgress(prev => ({ ...prev, [file.name]: 100 }))
+        
+        // Refresh the blob list after each successful upload
+        // This ensures the state is updated for subsequent uploads
+        await loadBlobs()
+        
       } catch (error) {
         console.error(`Failed to upload ${file.name}:`, error)
         results.push({ 
@@ -147,7 +162,7 @@ export default function BlobFiles({ language = 'en' }: BlobFilesProps) {
       }
       
       alert(message)
-      loadBlobs() // Refresh the list
+      // Note: loadBlobs() is already called after each successful upload above
     }
 
     if (failed.length > 0) {
