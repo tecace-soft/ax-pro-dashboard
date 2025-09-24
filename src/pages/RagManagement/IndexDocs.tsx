@@ -1,3 +1,4 @@
+// src/pages/RagManagement/IndexDocs.tsx
 import { useState, useEffect } from 'react'
 import { IconRefresh, IconEye, IconAlertTriangle } from '../../ui/icons'
 import { listIndexDocsRows, IndexDoc, RAGApiError } from '../../lib/ragApi'
@@ -8,15 +9,20 @@ interface IndexDocsProps {
 }
 
 export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
+  // 전체 수집본 & 현재 페이지 조각
+  const [allDocs, setAllDocs] = useState<IndexDoc[]>([])
   const [docs, setDocs] = useState<IndexDoc[]>([])
+
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedDoc, setSelectedDoc] = useState<IndexDoc | null>(null)
+
+  // 페이지네이션 상태
   const [top, setTop] = useState(50)
   const [skip, setSkip] = useState(0)
   const [totalCount, setTotalCount] = useState(0)
 
-  // Language translations
+  // 다국어
   const t = {
     en: {
       headingTitle: 'Index (Search Service)',
@@ -71,35 +77,47 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
       fullContent: '전체 내용'
     }
   }
-
   const currentT = t[language]
 
-  // Load index docs on component mount and when pagination changes
+  // 첫 마운트 시 전체 로딩
   useEffect(() => {
-    loadIndexDocs()
-  }, [top, skip])
+    loadAllIndexDocs()
+  }, [])
 
-  const loadIndexDocs = async () => {
+  // 페이지네이션 파라미터/전체 목록 변경 시 화면 조각 갱신
+  useEffect(() => {
+    const page = allDocs.slice(skip, skip + top)
+    setDocs(page)
+    setTotalCount(allDocs.length)
+  }, [top, skip, allDocs])
+
+  // 전체 페이지를 끝까지 수집
+  const loadAllIndexDocs = async () => {
     setIsLoading(true)
     setError(null)
-    
     try {
-      console.log('🔍 Loading index docs...', { top, skip })
-      const items = await listIndexDocsRows({ top, skip })
-      console.log('📊 Index docs response:', items)
-      
-      console.log('📄 Items:', items)
-      console.log('📊 Total count:', items.length)
-      
-      setDocs(items)
-      setTotalCount(items.length)
+      console.log('🔍 Loading ALL index docs by paging…')
+      const PAGE_SIZE = 100       // 백엔드가 허용하는 최대 페이지 사이즈
+      const HARD_CAP = 10000      // 폭주 방지 상한
+      let acc: IndexDoc[] = []
+      let pageSkip = 0
+
+      while (pageSkip < HARD_CAP) {
+        const batch = await listIndexDocsRows({ top: PAGE_SIZE, skip: pageSkip })
+        if (!Array.isArray(batch) || batch.length === 0) break
+        acc = acc.concat(batch)
+        console.log(`📦 got ${batch.length} (acc: ${acc.length}) at skip=${pageSkip}`)
+        if (batch.length < PAGE_SIZE) break
+        pageSkip += PAGE_SIZE
+      }
+
+      setAllDocs(acc)
+      setSkip(0) // 첫 페이지로 이동
+      console.log(`✅ Loaded total ${acc.length} index docs`)
     } catch (error) {
       console.error('Failed to load index docs:', error)
-      setError(
-        error instanceof RAGApiError 
-          ? error.message 
-          : currentT.loadError
-      )
+      setError(error instanceof RAGApiError ? error.message : currentT.loadError)
+      setAllDocs([])
       setDocs([])
       setTotalCount(0)
     } finally {
@@ -118,8 +136,11 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
 
   const formatChunkId = (chunkId: string | null | undefined): string => {
     if (!chunkId) return 'N/A'
-    // Truncate very long chunk IDs for display
     return chunkId.length > 30 ? chunkId.substring(0, 30) + '...' : chunkId
+  }
+
+  const handleRefresh = () => {
+    loadAllIndexDocs()
   }
 
   return (
@@ -134,16 +155,18 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
         <div className="pagination-controls">
           <div className="pagination-info">
             <span>{currentT.totalItems}: {totalCount}</span>
-            <span>{currentT.page} {Math.floor(skip / top) + 1} {currentT.of} {Math.ceil(totalCount / top)}</span>
+            <span>
+              {currentT.page} {totalCount === 0 ? 0 : Math.floor(skip / top) + 1} {currentT.of} {Math.max(1, Math.ceil(totalCount / top))}
+            </span>
           </div>
           <div className="pagination-inputs">
             <label>
               {currentT.itemsPerPage}:
-              <select 
-                value={top} 
+              <select
+                value={top}
                 onChange={(e) => {
                   setTop(Number(e.target.value))
-                  setSkip(0)
+                  setSkip(0) // 페이지 크기 바꾸면 첫 페이지로
                 }}
                 disabled={isLoading}
                 className="pagination-select"
@@ -154,14 +177,14 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
                 <option value={100}>100</option>
               </select>
             </label>
-            <button 
+            <button
               onClick={() => setSkip(Math.max(0, skip - top))}
               disabled={isLoading || skip === 0}
               className="pagination-btn"
             >
               {currentT.previous}
             </button>
-            <button 
+            <button
               onClick={() => setSkip(skip + top)}
               disabled={isLoading || skip + top >= totalCount}
               className="pagination-btn"
@@ -170,8 +193,8 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
             </button>
           </div>
         </div>
-        <button 
-          onClick={loadIndexDocs} 
+        <button
+          onClick={handleRefresh}
           className="refresh-btn"
           disabled={isLoading}
         >
@@ -180,26 +203,22 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
         </button>
       </div>
 
-      {/* Error Display */}
+      {/* Error */}
       {error && (
         <div className="error-message">
           <IconAlertTriangle />
           <span>{error}</span>
-          <div style={{ marginTop: '8px', fontSize: '0.75rem', opacity: 0.8 }}>
-            This feature requires the backend to support the 'list_docs' operation. 
-            Currently, only blob operations are available.
-          </div>
         </div>
       )}
 
-      {/* Loading State */}
+      {/* Loading */}
       {isLoading && (
         <div className="loading-message">
           {currentT.loading}
         </div>
       )}
 
-      {/* Documents Table */}
+      {/* Table */}
       {!isLoading && !error && (
         <div className="docs-table">
           {docs.length === 0 ? (
@@ -231,9 +250,9 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
                     </td>
                     <td>
                       {doc.url ? (
-                        <a 
-                          href={doc.url} 
-                          target="_blank" 
+                        <a
+                          href={doc.url}
+                          target="_blank"
                           rel="noopener noreferrer"
                           className="url-link"
                           title="Open in new tab"
@@ -246,7 +265,7 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
                     </td>
                     <td>
                       <div className="action-buttons">
-                        <button 
+                        <button
                           onClick={() => handleViewContent(doc)}
                           title={currentT.view}
                           className="action-btn view-btn"
@@ -269,7 +288,7 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
           <div className="content-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>{currentT.contentPreview}</h3>
-              <button 
+              <button
                 className="close-btn"
                 onClick={() => setSelectedDoc(null)}
               >
@@ -286,7 +305,7 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
               <div className="content-section">
                 <h4>{currentT.fullContent}</h4>
                 <div className="content-text">
-                  {selectedDoc.content || 'No content available'}
+                  {truncateContent(selectedDoc.content, 400) || 'No content available'}
                 </div>
               </div>
             </div>

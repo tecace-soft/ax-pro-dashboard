@@ -59,11 +59,6 @@ async function callRAGAPI<T = any>(payload: any): Promise<RAGResponse<T>> {
       throw new Error('RAG API key is not configured')
     }
 
-    console.log('🔗 Making RAG API call:', {
-      url: RAG_API_URL,
-      payload: payload
-    })
-
     const response = await fetch(RAG_API_URL, {
       method: 'POST',
       headers: {
@@ -73,41 +68,39 @@ async function callRAGAPI<T = any>(payload: any): Promise<RAGResponse<T>> {
       body: JSON.stringify({ payload }),
     })
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
+
+    const raw = await response.json()
+
+    // Azure ML returns: { result: { ok, route, index?, blobs?, ingest? ... } }
+    const res = raw?.result ?? {}
+    const ok = !!res.ok
+    const route = res.route || 'success'
+
+    // normalize data field
+    const normalized =
+      res.data    ??   // rarely used
+      res.index   ??   // list_docs, search, read...
+      res.blobs   ??   // blob_list, blob_upload, ...
+      res.ingest  ??   // reindex/ingest utils
+      null
+
+    if (ok) {
+      return { ok: true, route, data: normalized as T, meta: res.meta || { version: 'v1' } }
     }
 
-    const data = await response.json()
-    
-    // Transform Azure ML response to our expected format
-    // The API returns { result: { data: {...}, ok: true, route: '...' } }
-    if (data.result && data.result.ok) {
-      return {
-        ok: true,
-        route: data.result.route || 'success',
-        data: data.result.data,
-        meta: data.result.meta || { version: 'v1' }
-      }
-    } else {
-      return {
-        ok: false,
-        route: 'error',
-        error: {
-          code: 'api_error',
-          message: 'API returned error response'
-        },
-        meta: { version: 'v1' }
-      }
+    return {
+      ok: false,
+      route,
+      error: { code: 'api_error', message: res?.error?.message || 'API returned error response', details: res?.error },
+      meta: res.meta || { version: 'v1' },
     }
   } catch (error) {
     console.error('RAG API call failed:', error)
     return {
       ok: false,
       route: 'error',
-      error: {
-        code: 'network_error',
-        message: error instanceof Error ? error.message : 'Unknown error',
-      },
+      error: { code: 'network_error', message: error instanceof Error ? error.message : 'Unknown error' },
       meta: { version: 'v1' },
     }
   }
@@ -115,14 +108,13 @@ async function callRAGAPI<T = any>(payload: any): Promise<RAGResponse<T>> {
 
 // Document/Index Operations
 export async function listDocuments(options: {
-  top?: number
-  skip?: number
-  select?: string
+  top?: number; skip?: number; select?: string
 } = {}): Promise<RAGResponse<{ '@odata.count': number; value: Document[] }>> {
   return callRAGAPI({
     op: 'list_docs',
-    top: options.top || 20,
-    select: options.select || 'chunk_id,title,filepath',
+    top: options.top ?? 20,
+    skip: options.skip ?? 0,
+    select: options.select ?? 'chunk_id,title,filepath,url,parent_id',
   })
 }
 
