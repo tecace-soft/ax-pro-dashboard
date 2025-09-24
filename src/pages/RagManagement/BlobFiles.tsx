@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { IconUpload, IconTrash, IconRefresh, IconDownload, IconAlertTriangle } from '../../ui/icons'
-import { listBlobs, deleteBlob, uploadBlobFile, replaceBlobFile, BlobItem, RAGApiError } from '../../lib/ragApi'
+import { listBlobs, deleteBlob, uploadBlobFile, BlobItem, RAGApiError } from '../../lib/ragApi'
 import './BlobFiles.css'
 
 interface BlobFilesProps {
@@ -33,7 +33,6 @@ export default function BlobFiles({ language = 'en' }: BlobFilesProps) {
       loading: 'Loading...',
       uploading: 'Uploading...',
           confirmDelete: 'Are you sure you want to delete this file?',
-          confirmReplace: 'This file already exists. Do you want to replace it?',
           deleteSuccess: 'File deleted successfully',
           deleteError: 'Failed to delete file',
           uploadSuccess: 'File uploaded successfully',
@@ -59,7 +58,6 @@ export default function BlobFiles({ language = 'en' }: BlobFilesProps) {
       loading: '로딩 중...',
       uploading: '업로드 중...',
           confirmDelete: '정말로 이 파일을 삭제하시겠습니까?',
-          confirmReplace: '이 파일이 이미 존재합니다. 교체하시겠습니까?',
           deleteSuccess: '파일이 성공적으로 삭제되었습니다',
           deleteError: '파일 삭제에 실패했습니다',
           uploadSuccess: '파일이 성공적으로 업로드되었습니다',
@@ -109,46 +107,12 @@ export default function BlobFiles({ language = 'en' }: BlobFilesProps) {
       try {
         setUploadProgress(prev => ({ ...prev, [file.name]: 0 }))
         
-        // Always refresh the blob list first to get the most current state
-        console.debug('🔄 Refreshing blob list before upload check...')
-        await loadBlobs()
-        
-        // Check if file already exists in current state
-        const existingBlob = blobs.find(b => b.name === file.name)
-        console.debug('🔍 Checking existing blob:', { 
-          fileName: file.name, 
-          existingBlob: !!existingBlob, 
-          etag: existingBlob?.etag,
-          allBlobs: blobs.map(b => b.name)
-        })
-        
-        if (existingBlob) {
-          // Ask for confirmation before replacing
-          const confirmMessage = `${currentT.confirmReplace}\n\nFile: ${file.name}`
-          console.debug('🔄 File exists, asking for confirmation...')
-          if (!confirm(confirmMessage)) {
-            console.debug('❌ User cancelled replacement')
-            results.push({ file: file.name, success: false, error: 'Cancelled by user' })
-            setUploadProgress(prev => ({ ...prev, [file.name]: 0 }))
-            continue
-          }
-          
-          // Use replace for existing files (backend handles same-name conflicts)
-          console.debug('✅ User confirmed, proceeding with replace...')
-          await replaceBlobFile(file, existingBlob.etag)
-          results.push({ file: file.name, success: true, action: 'replaced' })
-        } else {
-          // Use upload for new files
-          console.debug('⬆️ File is new, proceeding with upload...')
-          await uploadBlobFile(file)
-          results.push({ file: file.name, success: true, action: 'uploaded' })
-        }
+        // Simple upload - always use blob_upload (backend handles overwrites)
+        console.debug('⬆️ Uploading file:', file.name)
+        await uploadBlobFile(file)
+        results.push({ file: file.name, success: true, action: 'uploaded' })
         
         setUploadProgress(prev => ({ ...prev, [file.name]: 100 }))
-        
-        // Refresh the blob list after each successful upload
-        console.debug('🔄 Refreshing blob list after upload...')
-        await loadBlobs()
         
       } catch (error) {
         console.error(`Failed to upload ${file.name}:`, error)
@@ -165,20 +129,8 @@ export default function BlobFiles({ language = 'en' }: BlobFilesProps) {
     const failed = results.filter(r => !r.success)
 
     if (successful.length > 0) {
-      const uploaded = successful.filter(r => r.action === 'uploaded')
-      const replaced = successful.filter(r => r.action === 'replaced')
-      
-      let message = ''
-      if (uploaded.length > 0) {
-        message += `${currentT.uploadSuccess}: ${uploaded.map(r => r.file).join(', ')}`
-      }
-      if (replaced.length > 0) {
-        if (message) message += '\n'
-        message += `Replaced: ${replaced.map(r => r.file).join(', ')}`
-      }
-      
-      alert(message)
-      // Note: loadBlobs() is already called after each successful upload above
+      alert(`${currentT.uploadSuccess}: ${successful.map(r => r.file).join(', ')}`)
+      loadBlobs() // Refresh the list
     }
 
     if (failed.length > 0) {
