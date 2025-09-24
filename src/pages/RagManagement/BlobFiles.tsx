@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { IconUpload, IconTrash, IconRefresh, IconDownload, IconAlertTriangle } from '../../ui/icons'
-import { listBlobsUnified, deleteBlob, uploadBlobFile, replaceBlobFile, BlobItem, RAGApiError } from '../../lib/ragApi'
+import { listBlobs, deleteBlob, uploadBlobFile, replaceBlobFile, BlobItem, RAGApiError } from '../../lib/ragApi'
 import './BlobFiles.css'
 
 interface BlobFilesProps {
@@ -82,8 +82,8 @@ export default function BlobFiles({ language = 'en' }: BlobFilesProps) {
     setError(null)
     
     try {
-      const res = await listBlobsUnified()
-      setBlobs(res.items)
+      const items = await listBlobs()
+      setBlobs(items)
     } catch (error) {
       console.error('Failed to load blobs:', error)
       setError(

@@ -89,7 +89,7 @@ export class RAGApiError extends Error {
   }
 }
 
-async function callRAGAPI<T = any>(payload: any): Promise<T> {
+async function callRAGAPI<T = any>(payload: Record<string, unknown>): Promise<T> {
   if (!RAG_API_KEY) {
     throw new RAGApiError('RAG API key is not configured. Please check your .env file.', 'NO_API_KEY')
   }
@@ -126,33 +126,24 @@ async function callRAGAPI<T = any>(payload: any): Promise<T> {
     throw new RAGApiError(`HTTP ${response.status}`, 'HTTP_ERROR', response.status, text)
   }
 
-  const data: any = await response.json().catch(() => null)
-  if (!data || typeof data !== 'object') {
-    throw new RAGApiError('Unexpected response shape', 'INVALID_RESPONSE', response.status, data)
+  const json = await response.json().catch(() => null)
+  if (!json?.result) {
+    throw new RAGApiError('Missing result in response', 'INVALID_RESPONSE', response.status, json)
   }
 
-  // Standard envelope: { result: { ok, route, index|blobs|null } }
-  if (data.result && typeof data.result.route === 'string') {
-    console.debug('✅ RAG API response:', data)
-    return data.result as T
-  }
+  const { route, blobs, index } = json.result
+  console.debug('✅ RAG API response:', { route, hasBlobs: !!blobs, hasIndex: !!index })
 
-  // Legacy: direct envelope { ok, route, index|blobs|null }
-  if (typeof data.route === 'string') {
-    console.debug('✅ RAG API response (legacy):', data)
-    return data as T
+  // Route-based parsing
+  if (route?.startsWith('blob_')) {
+    return blobs as T
   }
-
-  // Managed endpoint wrapper: { result: <object|string> }
-  if (Object.prototype.hasOwnProperty.call(data, 'result')) {
-    const inner = (typeof data.result === 'string') ? (() => { try { return JSON.parse(data.result) } catch { return data.result } })() : data.result
-    console.debug('✅ RAG API response (inner):', inner)
-    if (inner && typeof inner === 'object') {
-      return inner as T
-    }
+  if (route === 'list_docs') {
+    return index as T
   }
-
-  throw new RAGApiError('Unexpected response shape (no route/result)', 'INVALID_RESPONSE', response.status, data)
+  
+  // Fallback for other routes
+  return json.result as T
 }
 
 // Blob Operations
@@ -412,7 +403,7 @@ export async function uploadAnyFile(file: File): Promise<{ success: boolean; err
 }
 
 // Replace existing blob with new content (recommended for overwrites)
-export async function replaceBlobFile(file: File, etag: string): Promise<any> {
+export async function replaceBlobFile(file: File, etag?: string): Promise<any> {
   console.debug('🔄 replaceBlobFile()', { name: file.name, type: file.type, size: file.size, etag })
   const type = file.type || ''
   const isText = type.startsWith('text/') || ['application/json', 'application/xml', 'text/markdown'].includes(type)
@@ -433,12 +424,15 @@ export async function replaceBlobFile(file: File, etag: string): Promise<any> {
     
     console.debug('📦 Binary file - dataUrl length:', dataUrl.length, 'preview:', dataUrl.slice(0, 64))
     
-    return callRAGAPI({
+    const payload: any = {
       op: 'blob_replace',
       name: file.name,
       content: dataUrl,
-      etag: etag
-    })
+      content_type: type || 'application/octet-stream'
+    }
+    if (etag) payload.etag = etag
+    
+    return callRAGAPI(payload)
   }
 
   // Text files: read as UTF-8 text
@@ -451,12 +445,16 @@ export async function replaceBlobFile(file: File, etag: string): Promise<any> {
   
   console.debug('📝 Text file - content length:', text.length, 'preview:', text.slice(0, 100))
   
-  return callRAGAPI({
+  const contentType = type ? `${type}; charset=utf-8` : 'text/plain; charset=utf-8'
+  const payload: any = {
     op: 'blob_replace',
     name: file.name,
     content: text,
-    etag: etag
-  })
+    content_type: contentType
+  }
+  if (etag) payload.etag = etag
+  
+  return callRAGAPI(payload)
 }
 
 // Upload with Data URL/plain text per new backend contract
@@ -510,17 +508,17 @@ export async function uploadBlobFile(file: File): Promise<any> {
   })
 }
 
-// Route-guarded blob list: read from response.blobs.items only
+// List blobs - returns items array directly
 export async function listBlobs(prefix: string = '', top: number = 100): Promise<BlobItem[]> {
   const res: any = await callRAGAPI({ op: 'blob_list', prefix, top })
   
-  // Check route and blobs structure
-  if (!res || res.route !== 'blob_list' || !res.blobs) {
+  // New API returns blob payload directly
+  if (!res || !res.items) {
     throw new RAGApiError('Unexpected response shape for blob_list', 'INVALID_RESPONSE', undefined, res)
   }
   
-  const items: any[] = res.blobs.items ?? []
-  console.debug('📃 blobs:', { count: res.blobs.count, itemsPreview: items.slice(0, 3) })
+  const items: any[] = res.items ?? []
+  console.debug('📃 blobs:', { count: res.count, itemsPreview: items.slice(0, 3) })
   
   return items.map((b: any) => ({
     name: b.name,
@@ -532,16 +530,16 @@ export async function listBlobs(prefix: string = '', top: number = 100): Promise
   }))
 }
 
-// Route-guarded index docs list: read from response.index.value only
+// List index docs - returns value array directly
 export async function listIndexDocsRows({ top = 50, skip = 0, select = 'chunk_id,parent_id,title,url,filepath' }: { top?: number; skip?: number; select?: string } = {}) {
   const res: any = await callRAGAPI({ op: 'list_docs', top, skip, select })
   
-  // Check route and index structure
-  if (!res || res.route !== 'list_docs' || !res.index) {
+  // New API returns index payload directly
+  if (!res || !res.value) {
     throw new RAGApiError('Unexpected response shape for list_docs', 'INVALID_RESPONSE', undefined, res)
   }
   
-  const rows: any[] = res.index.value ?? []
+  const rows: any[] = res.value ?? []
   console.debug('🔎 index rows:', rows.length)
   
   return rows.map((v: any) => ({
