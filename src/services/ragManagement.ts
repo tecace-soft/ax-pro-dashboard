@@ -16,6 +16,14 @@ interface RAGResponse<T = any> {
     message: string
     details?: any
   }
+  ingest?: {
+    chunks: number
+    parent_id: string
+    name: string
+    upserted?: number
+    success?: boolean
+    message?: string
+  }
   meta: {
     version: string
   }
@@ -352,17 +360,23 @@ export async function uploadFiles(files: FileList): Promise<{
 
 // Sync/Unsync operations
 export async function clearIndexByFile(name: string) {
-  return callRAGAPI({
+  console.debug('🗑️ Calling clear_by_parent for:', name)
+  const result = await callRAGAPI({
     op: 'clear_by_parent',
     name,
   })
+  console.debug('📊 clear_by_parent response:', result)
+  return result
 }
 
 export async function reindexBlob(name: string) {
-  return callRAGAPI({
+  console.debug('🔄 Calling reindex_blob for:', name)
+  const result = await callRAGAPI({
     op: 'reindex_blob',
     name,
   })
+  console.debug('📊 reindex_blob response:', result)
+  return result
 }
 
 export async function reindexBlobFallback(name: string) {

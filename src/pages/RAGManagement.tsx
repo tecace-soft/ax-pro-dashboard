@@ -369,17 +369,32 @@ export default function RAGManagement() {
   const handleReindex = async (filepath: string) => {
     try {
       setIsSyncing(p => ({ ...p, [filepath]: true }))
-      await clearIndexByFile(filepath)
+      
+      // Step 1: Clear existing chunks
+      const clearRes = await clearIndexByFile(filepath)
+      if (!clearRes.ok) {
+        throw new Error(`Failed to clear old chunks: ${clearRes.error?.message || 'Unknown error'}`)
+      }
+      
+      // Step 2: Reindex the blob
       const res = await reindexBlob(filepath)
       if (!res.ok) {
+        // Fallback: download and replace to trigger indexing
         const fb = await reindexBlobFallback(filepath)
         if (!fb.ok) throw new Error(fb.error?.message || 'Reindex failed')
+        await refreshSync()
+        alert(`Reindexed: ${filepath} (using fallback method)`)
+        return
       }
+      
+      // Step 3: Show success with chunk count
+      const chunkCount = res.ingest?.chunks ?? 0
       await refreshSync()
-      alert(`Reindexed: ${filepath}`)
+      alert(`Reindexed: ${filepath} (${chunkCount} chunks created)`)
+      
     } catch (err) {
       console.error(err)
-      alert(`Failed to reindex: ${filepath}`)
+      alert(`Failed to reindex: ${filepath}\n\nError: ${err instanceof Error ? err.message : 'Unknown error'}`)
     } finally {
       setIsSyncing(p => ({ ...p, [filepath]: false }))
     }
