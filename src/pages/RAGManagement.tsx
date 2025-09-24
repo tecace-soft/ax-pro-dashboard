@@ -20,6 +20,7 @@ interface Document {
   name: string
   size: number
   last_modified: string
+  url?: string
 }
 
 interface IndexDocument {
@@ -582,8 +583,8 @@ export default function RAGManagement() {
                                   {syncStatus.status === 'needs_indexing' && (
                                     <button onClick={() => handleIndex(row.key)} title={currentT.indexAction}><IconRefresh /></button>
                                   )}
-                                  {syncStatus.blobExists && (
-                                    <button onClick={() => handleDownload(row.key)} title={currentT.downloadAction}><IconDownload /></button>
+                                  {syncStatus.blobExists && row.blob?.url && (
+                                    <button onClick={() => window.open(row.blob!.url as string, '_blank')} title={currentT.downloadAction}><IconDownload /></button>
                                   )}
                                   {syncStatus.blobExists && (
                                     <button onClick={() => handleDelete(row.key)} title={currentT.deleteAction}><IconTrash /></button>
