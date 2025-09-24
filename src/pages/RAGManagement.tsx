@@ -47,8 +47,6 @@ export default function RAGManagement() {
   const [activeTab, setActiveTab] = useState<'blob-files' | 'documents' | 'index' | 'sync'>('blob-files')
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set())
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({})
-  const [searchQuery, setSearchQuery] = useState('')
-  const [topCount, setTopCount] = useState(100)
   const [language, setLanguage] = useState<'en' | 'ko'>('en')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   
@@ -143,8 +141,7 @@ export default function RAGManagement() {
       title: 'RAG Management',
       subtitle: 'Manage documents and indexes for RAG-based chatbot',
       uploadArea: 'Drag files here to upload or click to select',
-      searchPlaceholder: 'Search documents...',
-      refresh: 'Refresh',
+          refresh: 'Refresh',
       blobFiles: 'Blob Files',
       documents: 'Documents',
       index: 'Index',
@@ -181,8 +178,7 @@ export default function RAGManagement() {
       title: 'RAG 관리',
       subtitle: 'RAG 기반 챗봇에 필요한 문서 및 인덱스를 관리합니다',
       uploadArea: '파일을 드래그하여 업로드하거나 클릭하여 선택하세요',
-      searchPlaceholder: '문서 검색...',
-      refresh: '새로고침',
+          refresh: '새로고침',
       blobFiles: 'Blob 파일',
       documents: '문서',
       index: '인덱스',
@@ -222,7 +218,7 @@ export default function RAGManagement() {
   // Load documents and index data
   useEffect(() => {
     loadData()
-  }, [topCount])
+  }, [])
 
   const loadData = async () => {
     setIsLoading(true)
@@ -235,7 +231,7 @@ export default function RAGManagement() {
 
       // Load index documents
       const indexResponse = await listDocuments({ 
-        top: topCount,
+        top: 100,
         select: 'chunk_id,parent_id,title,filepath,url,content'
       })
       if (indexResponse.ok) {
@@ -399,14 +395,6 @@ export default function RAGManagement() {
     }
   }
 
-  const filteredDocuments = documents.filter(doc => 
-    (doc.name?.toLowerCase() || '').includes(searchQuery.toLowerCase())
-  )
-
-  const filteredIndexDocuments = indexDocuments.filter(doc => 
-    (doc.title?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
-    (doc.filepath?.toLowerCase() || '').includes(searchQuery.toLowerCase())
-  )
 
   const getStatusIcon = (status: SyncStatus) => {
     switch (status.status) {
@@ -492,37 +480,6 @@ export default function RAGManagement() {
 
           
 
-      {/* Search and Controls */}
-      <div className="controls-section">
-        <div className="search-box">
-          <input
-            type="text"
-            placeholder={currentT.searchPlaceholder}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="search-input"
-          />
-        </div>
-        <div className="view-controls">
-          <select
-            value={topCount}
-            onChange={(e) => setTopCount(Number(e.target.value))}
-            className="count-select"
-          >
-            <option value={10}>10</option>
-            <option value={20}>20</option>
-            <option value={50}>50</option>
-            <option value={100}>100</option>
-            <option value={200}>200</option>
-            <option value={500}>500</option>
-            <option value={1000}>All</option>
-          </select>
-          <button onClick={loadData} className="refresh-btn">
-            <IconRefresh />
-            {currentT.refresh}
-          </button>
-        </div>
-      </div>
 
       {/* Guidance Banner */}
       <div className="guidance-banner">
@@ -578,7 +535,7 @@ export default function RAGManagement() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredIndexDocuments.map((doc) => (
+                    {indexDocuments.map((doc) => (
                       <tr key={doc.chunk_id}>
                         <td>{doc.title || 'N/A'}</td>
                         <td>{doc.filepath || 'N/A'}</td>
