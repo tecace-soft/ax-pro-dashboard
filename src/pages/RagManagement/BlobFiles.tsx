@@ -82,7 +82,9 @@ export default function BlobFiles({ language = 'en' }: BlobFilesProps) {
     setError(null)
     
     try {
+      console.debug('🔄 Loading blobs...')
       const items = await listBlobs()
+      console.debug('📋 Loaded blobs:', items.length, 'items:', items.map(b => ({ name: b.name, etag: b.etag })))
       setBlobs(items)
     } catch (error) {
       console.error('Failed to load blobs:', error)
@@ -107,23 +109,28 @@ export default function BlobFiles({ language = 'en' }: BlobFilesProps) {
       try {
         setUploadProgress(prev => ({ ...prev, [file.name]: 0 }))
         
-        // Check if file already exists
+        // Check if file already exists in current state
         const existingBlob = blobs.find(b => b.name === file.name)
+        console.debug('🔍 Checking existing blob:', { fileName: file.name, existingBlob: !!existingBlob, etag: existingBlob?.etag })
         
         if (existingBlob && existingBlob.etag) {
           // Ask for confirmation before replacing
           const confirmMessage = `${currentT.confirmReplace}\n\nFile: ${file.name}`
+          console.debug('🔄 File exists, asking for confirmation...')
           if (!confirm(confirmMessage)) {
+            console.debug('❌ User cancelled replacement')
             results.push({ file: file.name, success: false, error: 'Cancelled by user' })
             setUploadProgress(prev => ({ ...prev, [file.name]: 0 }))
             continue
           }
           
           // Use replace for existing files
+          console.debug('✅ User confirmed, proceeding with replace...')
           await replaceBlobFile(file, existingBlob.etag)
           results.push({ file: file.name, success: true, action: 'replaced' })
         } else {
           // Use upload for new files
+          console.debug('⬆️ File is new, proceeding with upload...')
           await uploadBlobFile(file)
           results.push({ file: file.name, success: true, action: 'uploaded' })
         }
@@ -132,6 +139,7 @@ export default function BlobFiles({ language = 'en' }: BlobFilesProps) {
         
         // Refresh the blob list after each successful upload
         // This ensures the state is updated for subsequent uploads
+        console.debug('🔄 Refreshing blob list after upload...')
         await loadBlobs()
         
       } catch (error) {
