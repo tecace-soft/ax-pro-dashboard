@@ -7,7 +7,10 @@ import {
   uploadBlob,
   deleteBlob,
   downloadBlob,
-  uploadFiles
+  uploadFiles,
+  clearIndexByFile,
+  reindexBlob,
+  reindexBlobFallback
 } from '../services/ragManagement'
 import { fetchDailyAggregatesWithMode, DailyRow, filterSimulatedData, EstimationMode } from '../services/dailyAggregates'
 import Header from '../components/Header'
@@ -120,6 +123,7 @@ export default function RAGManagement() {
   // Sync refresh state
   const [isSyncLoading, setIsSyncLoading] = useState(false)
   const [lastSyncRefreshed, setLastSyncRefreshed] = useState<Date | null>(null)
+  const [isSyncing, setIsSyncing] = useState<Record<string, boolean>>({})
 
   // Radar data
   const [radarData, setRadarData] = useState<DailyRow[]>([])
@@ -193,6 +197,8 @@ export default function RAGManagement() {
       modified: 'Modified',
       actions: 'Actions',
       indexAction: 'Index',
+      syncAction: 'Sync (Reindex)',
+      unsyncAction: 'Unsync (Remove from Index)',
       downloadAction: 'Download',
       deleteAction: 'Delete',
       loading: 'Loading...',
@@ -227,6 +233,8 @@ export default function RAGManagement() {
       modified: '수정일',
       actions: '액션',
       indexAction: '인덱싱',
+      syncAction: '싱크 (재인덱싱)',
+      unsyncAction: '언싱크 (인덱스에서 제거)',
       downloadAction: '다운로드',
       deleteAction: '삭제',
       loading: '로딩 중...',
@@ -358,13 +366,38 @@ export default function RAGManagement() {
     }
   }
 
-  const handleIndex = async (filepath: string) => {
+  const handleReindex = async (filepath: string) => {
     try {
-      console.log('Indexing file:', filepath)
-      // TODO: wire to reindex backend
-      loadData()
-    } catch (e) {
-      console.error('Failed to index file:', e)
+      setIsSyncing(p => ({ ...p, [filepath]: true }))
+      await clearIndexByFile(filepath)
+      const res = await reindexBlob(filepath)
+      if (!res.ok) {
+        const fb = await reindexBlobFallback(filepath)
+        if (!fb.ok) throw new Error(fb.error?.message || 'Reindex failed')
+      }
+      await refreshSync()
+      alert(`Reindexed: ${filepath}`)
+    } catch (err) {
+      console.error(err)
+      alert(`Failed to reindex: ${filepath}`)
+    } finally {
+      setIsSyncing(p => ({ ...p, [filepath]: false }))
+    }
+  }
+
+  const handleUnsync = async (filepath: string) => {
+    if (!confirm(`Remove "${filepath}" from index?`)) return
+    try {
+      setIsSyncing(p => ({ ...p, [filepath]: true }))
+      const res = await clearIndexByFile(filepath)
+      if (!res.ok) throw new Error(res.error?.message || 'Unsync failed')
+      await refreshSync()
+      alert(`Removed from index: ${filepath}`)
+    } catch (err) {
+      console.error(err)
+      alert(`Failed to unsync: ${filepath}`)
+    } finally {
+      setIsSyncing(p => ({ ...p, [filepath]: false }))
     }
   }
 
@@ -581,7 +614,22 @@ export default function RAGManagement() {
                               <td>
                                 <div className="action-buttons">
                                   {syncStatus.status === 'needs_indexing' && (
-                                    <button onClick={() => handleIndex(row.key)} title={currentT.indexAction}><IconRefresh /></button>
+                                    <button 
+                                      onClick={() => handleReindex(row.key)} 
+                                      title={currentT.syncAction}
+                                      disabled={isSyncing[row.key]}
+                                    >
+                                      {isSyncing[row.key] ? '⏳' : <IconRefresh />}
+                                    </button>
+                                  )}
+                                  {syncStatus.indexExists && (
+                                    <button 
+                                      onClick={() => handleUnsync(row.key)} 
+                                      title={currentT.unsyncAction}
+                                      disabled={isSyncing[row.key]}
+                                    >
+                                      {isSyncing[row.key] ? '⏳' : <IconX />}
+                                    </button>
                                   )}
                                   {syncStatus.blobExists && row.blob?.url && (
                                     <button onClick={() => window.open(row.blob!.url as string, '_blank')} title={currentT.downloadAction}><IconDownload /></button>

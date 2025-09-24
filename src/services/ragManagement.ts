@@ -349,3 +349,36 @@ export async function uploadFiles(files: FileList): Promise<{
 
   return { success, failed }
 }
+
+// Sync/Unsync operations
+export async function clearIndexByFile(name: string) {
+  return callRAGAPI({
+    op: 'clear_by_parent',
+    name,
+  })
+}
+
+export async function reindexBlob(name: string) {
+  return callRAGAPI({
+    op: 'reindex_blob',
+    name,
+  })
+}
+
+export async function reindexBlobFallback(name: string) {
+  const dl = await downloadBlob(name)
+  if (!dl.ok || !dl.data?.content) return dl
+  const ext = name.split('.').pop()?.toLowerCase()
+  const mime =
+    ext === 'pdf' ? 'application/pdf' :
+    ext === 'docx' ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' :
+    ext === 'doc' ? 'application/msword' :
+    ext === 'txt' ? 'text/plain; charset=utf-8' :
+    'application/octet-stream'
+
+  return replaceBlob({
+    name,
+    content: dl.data.content,
+    content_type: mime,
+  })
+}
