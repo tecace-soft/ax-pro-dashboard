@@ -109,9 +109,18 @@ export default function BlobFiles({ language = 'en' }: BlobFilesProps) {
       try {
         setUploadProgress(prev => ({ ...prev, [file.name]: 0 }))
         
+        // Always refresh the blob list first to get the most current state
+        console.debug('🔄 Refreshing blob list before upload check...')
+        await loadBlobs()
+        
         // Check if file already exists in current state
         const existingBlob = blobs.find(b => b.name === file.name)
-        console.debug('🔍 Checking existing blob:', { fileName: file.name, existingBlob: !!existingBlob, etag: existingBlob?.etag })
+        console.debug('🔍 Checking existing blob:', { 
+          fileName: file.name, 
+          existingBlob: !!existingBlob, 
+          etag: existingBlob?.etag,
+          allBlobs: blobs.map(b => b.name)
+        })
         
         if (existingBlob) {
           // Ask for confirmation before replacing
@@ -138,7 +147,6 @@ export default function BlobFiles({ language = 'en' }: BlobFilesProps) {
         setUploadProgress(prev => ({ ...prev, [file.name]: 100 }))
         
         // Refresh the blob list after each successful upload
-        // This ensures the state is updated for subsequent uploads
         console.debug('🔄 Refreshing blob list after upload...')
         await loadBlobs()
         
