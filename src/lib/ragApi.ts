@@ -402,25 +402,20 @@ export async function uploadAnyFile(file: File): Promise<{ success: boolean; err
   }
 }
 
-// Replace existing blob with new content (recommended for overwrites)
+// Replace existing blob with new content (backend handles same-name conflicts)
 export async function replaceBlobFile(file: File, etag?: string): Promise<any> {
   console.debug('🔄 replaceBlobFile()', { name: file.name, type: file.type, size: file.size, etag })
   const type = file.type || ''
   const isText = type.startsWith('text/') || ['application/json', 'application/xml', 'text/markdown'].includes(type)
 
   if (!isText) {
-    // Binary files: use Data URL
+    // Binary files: use Data URL (backend auto-detects)
     const dataUrl: string = await new Promise((resolve, reject) => {
       const fr = new FileReader()
       fr.onload = () => resolve(String(fr.result))
       fr.onerror = () => reject(fr.error || new Error('readAsDataURL failed'))
       fr.readAsDataURL(file)
     })
-    
-    // Validate data URL
-    if (!dataUrl.startsWith('data:')) {
-      throw new RAGApiError('Failed to read file as Data URL', 'UPLOAD_ERROR')
-    }
     
     console.debug('📦 Binary file - dataUrl length:', dataUrl.length, 'preview:', dataUrl.slice(0, 64))
     
@@ -435,47 +430,35 @@ export async function replaceBlobFile(file: File, etag?: string): Promise<any> {
     return callRAGAPI(payload)
   }
 
-  // Text files: read as UTF-8 text
+  // Text files: read as text (backend auto-adds UTF-8)
   const text = await file.text()
-  
-  // Validate text content
-  if (typeof text !== 'string') {
-    throw new RAGApiError('Failed to read file as text', 'UPLOAD_ERROR')
-  }
-  
   console.debug('📝 Text file - content length:', text.length, 'preview:', text.slice(0, 100))
   
-  const contentType = type ? `${type}; charset=utf-8` : 'text/plain; charset=utf-8'
   const payload: any = {
     op: 'blob_replace',
     name: file.name,
     content: text,
-    content_type: contentType
+    content_type: type || 'text/plain'
   }
   if (etag) payload.etag = etag
   
   return callRAGAPI(payload)
 }
 
-// Upload with Data URL/plain text per new backend contract
+// Upload with simplified content handling (backend auto-detects)
 export async function uploadBlobFile(file: File): Promise<any> {
   console.debug('⬆️ uploadBlobFile()', { name: file.name, type: file.type, size: file.size })
   const type = file.type || ''
   const isText = type.startsWith('text/') || ['application/json', 'application/xml', 'text/markdown'].includes(type)
 
   if (!isText) {
-    // Binary files: use Data URL
+    // Binary files: use Data URL (backend auto-detects)
     const dataUrl: string = await new Promise((resolve, reject) => {
       const fr = new FileReader()
       fr.onload = () => resolve(String(fr.result))
       fr.onerror = () => reject(fr.error || new Error('readAsDataURL failed'))
       fr.readAsDataURL(file)
     })
-    
-    // Validate data URL
-    if (!dataUrl.startsWith('data:')) {
-      throw new RAGApiError('Failed to read file as Data URL', 'UPLOAD_ERROR')
-    }
     
     console.debug('📦 Binary file - dataUrl length:', dataUrl.length, 'preview:', dataUrl.slice(0, 64))
     
@@ -487,24 +470,15 @@ export async function uploadBlobFile(file: File): Promise<any> {
     })
   }
 
-  // Text files: read as UTF-8 text
+  // Text files: read as text (backend auto-adds UTF-8)
   const text = await file.text()
-  
-  // Validate text content
-  if (typeof text !== 'string') {
-    throw new RAGApiError('Failed to read file as text', 'UPLOAD_ERROR')
-  }
-  
   console.debug('📝 Text file - content length:', text.length, 'preview:', text.slice(0, 100))
-  
-  // Ensure UTF-8 encoding in content_type
-  const contentType = type ? `${type}; charset=utf-8` : 'text/plain; charset=utf-8'
   
   return callRAGAPI({
     op: 'blob_upload',
     name: file.name,
     content: text,
-    content_type: contentType
+    content_type: type || 'text/plain'
   })
 }
 

@@ -113,7 +113,7 @@ export default function BlobFiles({ language = 'en' }: BlobFilesProps) {
         const existingBlob = blobs.find(b => b.name === file.name)
         console.debug('🔍 Checking existing blob:', { fileName: file.name, existingBlob: !!existingBlob, etag: existingBlob?.etag })
         
-        if (existingBlob && existingBlob.etag) {
+        if (existingBlob) {
           // Ask for confirmation before replacing
           const confirmMessage = `${currentT.confirmReplace}\n\nFile: ${file.name}`
           console.debug('🔄 File exists, asking for confirmation...')
@@ -124,7 +124,7 @@ export default function BlobFiles({ language = 'en' }: BlobFilesProps) {
             continue
           }
           
-          // Use replace for existing files
+          // Use replace for existing files (backend handles same-name conflicts)
           console.debug('✅ User confirmed, proceeding with replace...')
           await replaceBlobFile(file, existingBlob.etag)
           results.push({ file: file.name, success: true, action: 'replaced' })
