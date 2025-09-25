@@ -515,9 +515,18 @@ export default function RAGManagement() {
 
           {/* Tabs */}
           <div className="tabs">
-            <button className={`tab ${activeTab === 'blob-files' ? 'active' : ''}`} onClick={() => setActiveTab('blob-files')}>Document Files</button>
-            <button className={`tab ${activeTab === 'index' ? 'active' : ''}`} onClick={() => setActiveTab('index')}>{currentT.index} (Search Service)</button>
-            <button className={`tab ${activeTab === 'sync' ? 'active' : ''}`} onClick={() => setActiveTab('sync')}>{currentT.sync}</button>
+            <button className={`tab ${activeTab === 'blob-files' ? 'active' : ''}`} onClick={() => {
+              setActiveTab('blob-files')
+              loadData() // Document Files 탭 클릭 시 전체 데이터 새로고침
+            }}>Document Files</button>
+            <button className={`tab ${activeTab === 'index' ? 'active' : ''}`} onClick={() => {
+              setActiveTab('index')
+              loadData() // Index 탭 클릭 시 전체 데이터 새로고침
+            }}>{currentT.index} (Search Service)</button>
+            <button className={`tab ${activeTab === 'sync' ? 'active' : ''}`} onClick={() => {
+              setActiveTab('sync')
+              refreshSync() // Sync 탭 클릭 시 자동 새로고침
+            }}>{currentT.sync}</button>
           </div>
 
           {/* Content */}
@@ -526,7 +535,7 @@ export default function RAGManagement() {
               <div className="loading">{currentT.loading}</div>
             ) : (
               <>
-                {activeTab === 'blob-files' && <BlobFiles language={language} />}
+                {activeTab === 'blob-files' && <BlobFiles language={language} onUploadComplete={loadData} />}
 
                 {activeTab === 'index' && <IndexDocs language={language} />}
 

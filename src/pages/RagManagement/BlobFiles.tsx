@@ -5,9 +5,10 @@ import './BlobFiles.css'
 
 interface BlobFilesProps {
   language?: 'en' | 'ko'
+  onUploadComplete?: () => void // 업로드 완료 시 부모 컴포넌트 새로고침을 위한 콜백
 }
 
-export default function BlobFiles({ language = 'en' }: BlobFilesProps) {
+export default function BlobFiles({ language = 'en', onUploadComplete }: BlobFilesProps) {
   const [blobs, setBlobs] = useState<BlobItem[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
@@ -149,6 +150,11 @@ export default function BlobFiles({ language = 'en' }: BlobFilesProps) {
         // Refresh the blob list after each successful upload
         console.debug('🔄 Refreshing blob list after upload...')
         await loadBlobs()
+        
+        // Notify parent component that upload is complete
+        if (onUploadComplete) {
+          onUploadComplete()
+        }
         
       } catch (error) {
         console.error(`Failed to upload ${file.name}:`, error)
