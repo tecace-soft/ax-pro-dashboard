@@ -264,11 +264,13 @@
   background: linear-gradient(180deg, rgba(18,27,61,0.95), rgba(13,20,44,0.95));
   border: 1px solid rgba(59, 230, 255, 0.2);
   border-radius: 14px;
-  max-width: 800px;
-  max-height: 80vh;
+  max-width: 1000px;
+  max-height: 90vh;
   width: 100%;
   overflow: hidden;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
 }
 
 .modal-header {
@@ -287,10 +289,11 @@
 }
 
 .close-btn {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  font-size: 24px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+  font-size: 18px;
+  font-weight: bold;
   cursor: pointer;
   padding: 0;
   width: 32px;
@@ -303,14 +306,18 @@
 }
 
 .close-btn:hover {
-  background: rgba(239, 68, 68, 0.1);
-  color: #ef4444;
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #dc2626;
+  transform: scale(1.05);
 }
 
 .modal-content {
   padding: 24px;
-  max-height: calc(80vh - 100px);
+  flex: 1;
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .doc-info {
@@ -331,6 +338,13 @@
   margin-bottom: 0;
 }
 
+.content-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
 .content-section h4 {
   margin: 0 0 12px 0;
   color: var(--text);
@@ -344,12 +358,52 @@
   padding: 16px;
   font-family: 'Courier New', monospace;
   font-size: 0.875rem;
-  line-height: 1.5;
+  line-height: 1.6;
   color: var(--text);
   white-space: pre-wrap;
   word-break: break-word;
-  max-height: 400px;
+  flex: 1;
   overflow-y: auto;
+  min-height: 200px;
+  max-height: 60vh;
+}
+
+/* Custom scrollbar for content text */
+.content-text::-webkit-scrollbar {
+  width: 8px;
+}
+
+.content-text::-webkit-scrollbar-track {
+  background: rgba(9, 14, 34, 0.3);
+  border-radius: 4px;
+}
+
+.content-text::-webkit-scrollbar-thumb {
+  background: rgba(59, 230, 255, 0.3);
+  border-radius: 4px;
+}
+
+.content-text::-webkit-scrollbar-thumb:hover {
+  background: rgba(59, 230, 255, 0.5);
+}
+
+/* Modal scrollbar */
+.modal-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.modal-content::-webkit-scrollbar-track {
+  background: rgba(9, 14, 34, 0.3);
+  border-radius: 4px;
+}
+
+.modal-content::-webkit-scrollbar-thumb {
+  background: rgba(59, 230, 255, 0.3);
+  border-radius: 4px;
+}
+
+.modal-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(59, 230, 255, 0.5);
 }
 
 /* Responsive */

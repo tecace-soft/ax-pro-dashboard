@@ -129,6 +129,20 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
     setSelectedDoc(doc)
   }
 
+  // ESC 키로 모달 닫기
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && selectedDoc) {
+        setSelectedDoc(null)
+      }
+    }
+
+    if (selectedDoc) {
+      document.addEventListener('keydown', handleKeyDown)
+      return () => document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [selectedDoc])
+
   const truncateContent = (content: string | null | undefined, maxLength: number = 100): string => {
     if (!content) return ''
     return content.length > maxLength ? content.substring(0, maxLength) + '...' : content
@@ -175,6 +189,8 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
                 <option value={25}>25</option>
                 <option value={50}>50</option>
                 <option value={100}>100</option>
+                <option value={150}>150</option>
+                <option value={200}>200</option>
               </select>
             </label>
             <button
@@ -305,7 +321,7 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
               <div className="content-section">
                 <h4>{currentT.fullContent}</h4>
                 <div className="content-text">
-                  {truncateContent(selectedDoc.content, 400) || 'No content available'}
+                  {selectedDoc.content || 'No content available'}
                 </div>
               </div>
             </div>

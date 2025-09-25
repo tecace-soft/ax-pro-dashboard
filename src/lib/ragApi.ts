@@ -62,6 +62,7 @@ export type IndexDoc = {
   title?: string | null
   url?: string | null
   filepath?: string | null
+  content?: string | null
   original_id?: string | null
 }
 
@@ -505,7 +506,7 @@ export async function listBlobs(prefix: string = '', top: number = 100): Promise
 }
 
 // List index docs - returns value array directly
-export async function listIndexDocsRows({ top = 50, skip = 0, select = 'chunk_id,parent_id,title,url,filepath' }: { top?: number; skip?: number; select?: string } = {}) {
+export async function listIndexDocsRows({ top = 50, skip = 0, select = 'chunk_id,parent_id,title,url,filepath,content' }: { top?: number; skip?: number; select?: string } = {}) {
   const res: any = await callRAGAPI({ op: 'list_docs', top, skip, select })
   
   // New API returns index payload directly
@@ -522,6 +523,7 @@ export async function listIndexDocsRows({ top = 50, skip = 0, select = 'chunk_id
     title: v.title,
     url: v.url,
     filepath: v.filepath,
+    content: v.content,
     original_id: v.original_id,
   }))
 }
