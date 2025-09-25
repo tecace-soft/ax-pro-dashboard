@@ -2,8 +2,9 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { IconRefresh, IconEye, IconAlertTriangle, IconCheck, IconX } from '../../ui/icons'
-import { listIndexDocsRows, IndexDoc, RAGApiError } from '../../lib/ragApi'
+import { listIndexDocsRows, IndexDoc, IndexRow, RAGApiError, fetchChunkContentById } from '../../lib/ragApi'
 import { useSyncStatus } from '../../hooks/useSyncStatus'
+import SyncBadge from '../../components/SyncBadge'
 import './IndexDocs.css'
 
 interface IndexDocsProps {
@@ -14,12 +15,12 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
   const navigate = useNavigate()
   
   // 전체 수집본 & 현재 페이지 조각
-  const [allDocs, setAllDocs] = useState<IndexDoc[]>([])
-  const [docs, setDocs] = useState<IndexDoc[]>([])
+  const [allDocs, setAllDocs] = useState<IndexRow[]>([])
+  const [docs, setDocs] = useState<IndexRow[]>([])
 
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [selectedDoc, setSelectedDoc] = useState<IndexDoc | null>(null)
+  const [selectedDoc, setSelectedDoc] = useState<IndexRow | null>(null)
   
   // Sync status hook
   const { statusByParentId, isLoading: isSyncLoading } = useSyncStatus()
@@ -106,14 +107,24 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
       console.log('🔍 Loading ALL index docs by paging…')
       const PAGE_SIZE = 100       // 백엔드가 허용하는 최대 페이지 사이즈
       const HARD_CAP = 10000      // 폭주 방지 상한
-      let acc: IndexDoc[] = []
+      let acc: IndexRow[] = []
       let pageSkip = 0
 
       while (pageSkip < HARD_CAP) {
         const batch = await listIndexDocsRows({ top: PAGE_SIZE, skip: pageSkip })
         if (!Array.isArray(batch) || batch.length === 0) break
-        acc = acc.concat(batch)
-        console.log(`📦 got ${batch.length} (acc: ${acc.length}) at skip=${pageSkip}`)
+        
+        // Convert IndexDoc to IndexRow and exclude content for performance
+        const rows: IndexRow[] = batch.map(doc => ({
+          ...doc,
+          content: undefined, // Don't load content initially
+          _contentLoaded: false,
+          _contentLoading: false,
+          _contentError: null,
+        }))
+        
+        acc = acc.concat(rows)
+        console.log(`📦 got ${rows.length} (acc: ${acc.length}) at skip=${pageSkip}`)
         if (batch.length < PAGE_SIZE) break
         pageSkip += PAGE_SIZE
       }
@@ -132,9 +143,59 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
     }
   }
 
-  const handleViewContent = (doc: IndexDoc) => {
+  // Update row helper function
+  const updateRow = (chunk_id: string, patch: Partial<IndexRow>) => {
+    setAllDocs(prev => prev.map(r => (r.chunk_id === chunk_id ? { ...r, ...patch } : r)))
+    setDocs(prev => prev.map(r => (r.chunk_id === chunk_id ? { ...r, ...patch } : r)))
+    
+    // selectedDoc도 함께 업데이트
+    if (selectedDoc && selectedDoc.chunk_id === chunk_id) {
+      setSelectedDoc(prev => prev ? { ...prev, ...patch } : null)
+    }
+  }
+
+  // Ensure row content is loaded
+  const ensureRowContent = async (row: IndexRow) => {
+    if (row._contentLoaded || row._contentLoading) return
+    
+    updateRow(row.chunk_id, { _contentLoading: true, _contentError: null })
+    
+    try {
+      const content = await fetchChunkContentById(row.chunk_id)
+      updateRow(row.chunk_id, {
+        content,
+        _contentLoaded: true,
+        _contentLoading: false,
+      })
+    } catch (e: any) {
+      updateRow(row.chunk_id, {
+        _contentLoading: false,
+        _contentError: e?.message ?? "Failed to load content",
+      })
+    }
+  }
+
+  const handleViewContent = (doc: IndexRow) => {
     setSelectedDoc(doc)
   }
+
+  // 모달이 열리면 자동으로 content 로드
+  useEffect(() => {
+    if (!selectedDoc) return
+
+    let cancelled = false
+
+    const loadContent = async () => {
+      if (cancelled) return
+      await ensureRowContent(selectedDoc)
+    }
+
+    loadContent()
+
+    return () => {
+      cancelled = true
+    }
+  }, [selectedDoc])
 
   // ESC 키로 모달 닫기
   useEffect(() => {
@@ -166,7 +227,7 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
     return statusByParentId.get(parentId) || 'unknown'
   }
 
-  // Render sync status pill
+  // Render sync status badge
   const renderSyncStatus = (parentId: string | null | undefined) => {
     const status = getSyncStatus(parentId)
     
@@ -175,41 +236,12 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
       navigate('/rag-management?tab=sync')
     }
 
-    const getStatusConfig = () => {
-      switch (status) {
-        case 'synced':
-          return {
-            icon: <IconCheck className="sync-icon synced" />,
-            label: 'Synced',
-            className: 'sync-pill synced'
-          }
-        case 'orphaned':
-          return {
-            icon: <IconX className="sync-icon orphaned" />,
-            label: 'Orphaned',
-            className: 'sync-pill orphaned'
-          }
-        default:
-          return {
-            icon: <span className="sync-icon unknown">—</span>,
-            label: 'Unknown',
-            className: 'sync-pill unknown'
-          }
-      }
-    }
-
-    const config = getStatusConfig()
-
     return (
-      <button
-        className={config.className}
+      <SyncBadge
+        status={status}
         onClick={handleSyncClick}
-        title={`${config.label} - Click to view sync details`}
         disabled={isSyncLoading}
-      >
-        {config.icon}
-        <span>{config.label}</span>
-      </button>
+      />
     )
   }
 
@@ -400,7 +432,30 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
               <div className="content-section">
                 <h4>{currentT.fullContent}</h4>
                 <div className="content-text">
-                  {selectedDoc.content || 'No content available'}
+                  {selectedDoc._contentLoading && (
+                    <div className="content-loading">
+                      <em>Loading content...</em>
+                    </div>
+                  )}
+                  {selectedDoc._contentError && (
+                    <div className="content-error">
+                      <div className="error-message">
+                        <IconAlertTriangle />
+                        <span>{selectedDoc._contentError}</span>
+                      </div>
+                      <button 
+                        className="retry-btn"
+                        onClick={() => ensureRowContent(selectedDoc)}
+                      >
+                        Retry
+                      </button>
+                    </div>
+                  )}
+                  {selectedDoc._contentLoaded && !selectedDoc._contentError && (
+                    <pre className="content-pre">
+                      {selectedDoc.content || "(empty)"}
+                    </pre>
+                  )}
                 </div>
               </div>
             </div>

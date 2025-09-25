@@ -18,6 +18,35 @@ export function sanitizeSelect(select?: string): string | undefined {
   return safe.length ? safe.join(",") : undefined;
 }
 
+// Fetch chunk content by ID using read API
+export async function fetchChunkContentById(chunkId: string): Promise<string> {
+  const payload = {
+    op: "read",
+    id: chunkId, // ← 꼭 'id'여야 함
+    select: "chunk_id,parent_id,title,filepath,content",
+  }
+
+  console.debug('🔍 Fetching chunk content for:', chunkId, 'with payload:', payload)
+
+  const res = await callRAGAPI(payload)
+  
+  console.debug('📄 Read response:', res)
+  
+  // 백엔드의 join_result 형태에 맞춰 방어적으로 파싱
+  const doc =
+    res?.index?.value?.[0] ??
+    res?.index ??
+    res?.result?.index?.value?.[0] ??
+    res?.result?.index ??
+    null
+
+  const content = doc?.content ?? ""
+  
+  console.debug('📄 Chunk content fetched:', { chunkId, hasContent: !!content, contentLength: content.length })
+  
+  return content
+}
+
 export type BlobItem = {
   name: string
   size: number
@@ -76,6 +105,22 @@ export type IndexDoc = {
   content?: string | null
   original_id?: string | null
   sas_url?: string | null
+}
+
+export type IndexRow = {
+  "@search.score"?: number
+  chunk_id: string
+  parent_id?: string | null
+  title?: string | null
+  url?: string | null
+  filepath?: string | null
+  original_id?: string | null
+  sas_url?: string | null
+  // lazy-loaded content fields
+  content?: string | null
+  _contentLoaded?: boolean
+  _contentLoading?: boolean
+  _contentError?: string | null
 }
 
 export type ListIndexDocsResponse = {
@@ -163,7 +208,7 @@ async function callRAGAPI<T = any>(payload: Record<string, unknown>): Promise<T>
   if (route?.startsWith('blob_')) {
     return blobs as T
   }
-  if (route === 'list_docs') {
+  if (route === 'list_docs' || route === 'search' || route === 'read') {
     return index as T
   }
   
@@ -551,7 +596,9 @@ export async function listIndexDocsRows({ top = 50, skip = 0, select }: { top?: 
     skip,
   }
   
-  const safeSelect = sanitizeSelect(select)
+  // Default select without content for performance
+  const defaultSelect = 'chunk_id,parent_id,title,url,filepath'
+  const safeSelect = sanitizeSelect(select || defaultSelect)
   if (safeSelect) {
     payload.select = safeSelect
   }

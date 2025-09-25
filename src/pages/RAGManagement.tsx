@@ -399,16 +399,38 @@ export default function RAGManagement() {
       
       // Step 3: Show success with chunk count
       console.debug('🔍 Reindex response structure:', res)
-      console.debug('🔍 Ingest object:', res.ingest)
       
-      const deletedCount = res.ingest?.deleted ?? res.deleted ?? 0
-      const chunkCount = res.ingest?.chunks_created ?? res.chunks_created ?? res.ingest?.chunks ?? 0
-      const fileName = res.ingest?.name ?? filepath
+      // Read from correct path: result.ingest for reindex operations
+      const route = res?.route
+      const ingest = res?.ingest as any // Type assertion for ingest object
+      const ok = res?.ok && (ingest?.ok ?? ingest?.success ?? true)
       
-      console.debug('📊 Parsed counts:', { deletedCount, chunkCount, fileName })
-      
-      await refreshSync()
-      alert(`Reindexed: ${fileName}\nDeleted: ${deletedCount} old chunks\nCreated: ${chunkCount} new chunks`)
+      if (ok && route === 'reindex_file') {
+        const created = Number(ingest?.chunks_created ?? 0)
+        const deleted = Number(ingest?.deleted ?? 0)
+        const fileName = ingest?.name ?? filepath
+        
+        console.debug('📊 Parsed counts:', { created, deleted, fileName })
+        
+        await refreshSync()
+        
+        // Show correct message based on actual counts
+        let message = `Reindexed: ${fileName}\n`
+        if (created > 0) {
+          message += `Created: ${created} new chunks`
+        } else {
+          message += `Created: 0 new chunks`
+        }
+        if (deleted > 0) {
+          message += `\nDeleted: ${deleted} old chunks`
+        }
+        
+        alert(message)
+      } else {
+        // Handle error case
+        const error = ingest?.error || res?.error || 'Unknown error'
+        throw new Error(`Reindex failed: ${error}`)
+      }
       
     } catch (err) {
       console.error(err)
