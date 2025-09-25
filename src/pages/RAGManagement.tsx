@@ -388,10 +388,17 @@ export default function RAGManagement() {
       }
       
       // Step 3: Show success with chunk count
-      const chunkCount = res.chunks_created ?? res.ingest?.chunks ?? 0
-      const deletedCount = res.deleted ?? 0
+      console.debug('🔍 Reindex response structure:', res)
+      console.debug('🔍 Ingest object:', res.ingest)
+      
+      const deletedCount = res.ingest?.deleted ?? res.deleted ?? 0
+      const chunkCount = res.ingest?.chunks_created ?? res.chunks_created ?? res.ingest?.chunks ?? 0
+      const fileName = res.ingest?.name ?? filepath
+      
+      console.debug('📊 Parsed counts:', { deletedCount, chunkCount, fileName })
+      
       await refreshSync()
-      alert(`Reindexed: ${filepath}\nDeleted: ${deletedCount} old chunks\nCreated: ${chunkCount} new chunks`)
+      alert(`Reindexed: ${fileName}\nDeleted: ${deletedCount} old chunks\nCreated: ${chunkCount} new chunks`)
       
     } catch (err) {
       console.error(err)

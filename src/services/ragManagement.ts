@@ -17,12 +17,15 @@ interface RAGResponse<T = any> {
     details?: any
   }
   ingest?: {
-    chunks: number
-    parent_id: string
+    chunks?: number
+    chunks_created?: number
+    deleted?: number
+    parent_id?: string
     name: string
     upserted?: number
     success?: boolean
     message?: string
+    route?: string
   }
   // New reindex response format
   deleted?: number
