@@ -231,6 +231,52 @@
 .file-name {
   font-weight: 500;
   word-break: break-all;
+  width: 30%;
+  min-width: 180px;
+  max-width: 300px;
+}
+
+/* Content Type column - make it narrower */
+.files-table th:nth-child(4),
+.files-table td:nth-child(4) {
+  width: 18%;
+  min-width: 140px;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Size column - make it narrower */
+.files-table th:nth-child(2),
+.files-table td:nth-child(2) {
+  width: 8%;
+  min-width: 70px;
+  max-width: 90px;
+}
+
+/* Last Modified column - make it narrower */
+.files-table th:nth-child(3),
+.files-table td:nth-child(3) {
+  width: 18%;
+  min-width: 150px;
+  max-width: 180px;
+}
+
+/* Sync Status column - fixed width */
+.files-table th:nth-child(5),
+.files-table td:nth-child(5) {
+  width: 8%;
+  min-width: 70px;
+  max-width: 90px;
+}
+
+/* Actions column - fixed width */
+.files-table th:nth-child(6),
+.files-table td:nth-child(6) {
+  width: 8%;
+  min-width: 70px;
+  max-width: 90px;
 }
 
 /* Sync Status Button */

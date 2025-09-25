@@ -37,8 +37,8 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
   // 다국어
   const t = {
     en: {
-      headingTitle: 'Index (Search Service)',
-      subtitle: 'Documents indexed in Azure AI Search for RAG queries',
+      headingTitle: 'Knowledge Index',
+      subtitle: 'Documents indexed for AI chatbot knowledge queries',
       chunkId: 'Chunk ID',
       parentId: 'Parent ID',
       columnTitle: 'Title',
@@ -66,8 +66,8 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
       clearSearch: 'Clear search'
     },
     ko: {
-      headingTitle: '인덱스 (검색 서비스)',
-      subtitle: 'RAG 쿼리를 위해 Azure AI Search에 인덱싱된 문서들',
+      headingTitle: '지식 인덱스',
+      subtitle: 'AI 챗봇 지식 쿼리를 위해 인덱싱된 문서들',
       chunkId: '청크 ID',
       parentId: '부모 ID',
       columnTitle: '제목',
@@ -259,7 +259,7 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
     const status = getSyncStatus(parentId)
     
     const handleSyncClick = () => {
-      // Navigate to RAG Management page with sync tab
+      // Navigate to Knowledge Management page with sync overview tab
       navigate('/rag-management?tab=sync')
     }
 

@@ -169,7 +169,7 @@ export default function RAGManagement() {
   // Sync Status 검색 상태
   const [syncSearchQuery, setSyncSearchQuery] = useState('')
   const [filteredSyncRows, setFilteredSyncRows] = useState<SyncRow[]>([])
-  const [activeTab, setActiveTab] = useState<'blob-files' | 'documents' | 'index' | 'sync'>('blob-files')
+  const [activeTab, setActiveTab] = useState<'file-library' | 'documents' | 'knowledge-index' | 'sync-overview'>('file-library')
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set())
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({})
   const [language, setLanguage] = useState<'en' | 'ko'>('en')
@@ -195,8 +195,8 @@ export default function RAGManagement() {
   useEffect(() => {
     const urlParams = new URLSearchParams(location.search)
     const tab = urlParams.get('tab')
-    if (tab === 'sync') {
-      setActiveTab('sync')
+    if (tab === 'sync' || tab === 'sync-overview') {
+      setActiveTab('sync-overview')
     }
   }, [location.search])
 
@@ -265,14 +265,14 @@ export default function RAGManagement() {
 
   const t = {
     en: {
-      title: 'RAG Management',
-      subtitle: 'Manage documents and indexes for RAG-based chatbot',
+      title: 'Knowledge Management',
+      subtitle: 'Manage files and knowledge base for AI chatbot',
       uploadArea: 'Drag files here to upload or click to select',
       refresh: 'Refresh',
-      blobFiles: 'Blob Files',
+      fileLibrary: 'File Library',
       documents: 'Documents',
-      index: 'Index',
-      sync: 'Sync Status',
+      knowledgeIndex: 'Knowledge Index',
+      syncOverview: 'Sync Overview',
       fileName: 'File Name',
       path: 'Path',
       size: 'Size',
@@ -301,14 +301,14 @@ export default function RAGManagement() {
       blobStatus: { exists: '✅ Exists', notExists: '❌ Not Exists' }
     },
     ko: {
-      title: 'RAG 관리',
-      subtitle: 'RAG 기반 챗봇에 필요한 문서 및 인덱스를 관리합니다',
+      title: '지식 관리',
+      subtitle: 'AI 챗봇을 위한 파일 및 지식 베이스를 관리합니다',
       uploadArea: '파일을 드래그하여 업로드하거나 클릭하여 선택하세요',
       refresh: '새로고침',
-      blobFiles: 'Blob 파일',
+      fileLibrary: '파일 라이브러리',
       documents: '문서',
-      index: '인덱스',
-      sync: '싱크 상태',
+      knowledgeIndex: '지식 인덱스',
+      syncOverview: '동기화 개요',
       fileName: '파일명',
       path: '경로',
       size: '크기',
@@ -344,7 +344,7 @@ export default function RAGManagement() {
   // Auto-refresh sync when window regains focus on sync tab
   useEffect(() => {
     const onFocus = () => {
-      if (activeTab === 'sync') refreshSync()
+      if (activeTab === 'sync-overview') refreshSync()
     }
     window.addEventListener('focus', onFocus)
     return () => window.removeEventListener('focus', onFocus)
@@ -623,15 +623,15 @@ export default function RAGManagement() {
           <div className="guidance-banner">
             {language === 'en' ? (
               <p>
-                📋 <strong>Note:</strong> Files live in <strong>Blob Storage</strong>, while the
-                <strong> Search Index</strong> holds their indexed content. These can differ.
-                Check the <strong>Sync Status</strong> tab to see if they're in sync.
+                📋 <strong>Note:</strong> Files are stored in the <strong>File Library</strong>, while the
+                <strong> Knowledge Index</strong> holds their searchable content. These can differ.
+                Check the <strong>Sync Overview</strong> tab to see if they're in sync.
               </p>
             ) : (
               <p>
-                📋 <strong>안내:</strong> 파일은 <strong>Blob Storage</strong>에 저장되고,
-                <strong> Search Index</strong>에는 인덱싱된 내용이 보관됩니다. 두 영역은 서로
-                다를 수 있으며, 동기화 여부는 <strong>Sync Status</strong> 탭에서 확인할 수
+                📋 <strong>안내:</strong> 파일은 <strong>파일 라이브러리</strong>에 저장되고,
+                <strong> 지식 인덱스</strong>에는 검색 가능한 내용이 보관됩니다. 두 영역은 서로
+                다를 수 있으며, 동기화 여부는 <strong>동기화 개요</strong> 탭에서 확인할 수
                 있습니다.
               </p>
             )}
@@ -639,18 +639,18 @@ export default function RAGManagement() {
 
           {/* Tabs */}
           <div className="tabs">
-            <button className={`tab ${activeTab === 'blob-files' ? 'active' : ''}`} onClick={() => {
-              setActiveTab('blob-files')
-              loadData() // Document Files 탭 클릭 시 전체 데이터 새로고침
-            }}>Document Files</button>
-            <button className={`tab ${activeTab === 'index' ? 'active' : ''}`} onClick={() => {
-              setActiveTab('index')
-              loadData() // Index 탭 클릭 시 전체 데이터 새로고침
-            }}>{currentT.index} (Search Service)</button>
-            <button className={`tab ${activeTab === 'sync' ? 'active' : ''}`} onClick={() => {
-              setActiveTab('sync')
-              refreshSync() // Sync 탭 클릭 시 자동 새로고침
-            }}>{currentT.sync}</button>
+            <button className={`tab ${activeTab === 'file-library' ? 'active' : ''}`} onClick={() => {
+              setActiveTab('file-library')
+              loadData() // File Library 탭 클릭 시 전체 데이터 새로고침
+            }}>{currentT.fileLibrary}</button>
+            <button className={`tab ${activeTab === 'knowledge-index' ? 'active' : ''}`} onClick={() => {
+              setActiveTab('knowledge-index')
+              loadData() // Knowledge Index 탭 클릭 시 전체 데이터 새로고침
+            }}>{currentT.knowledgeIndex}</button>
+            <button className={`tab ${activeTab === 'sync-overview' ? 'active' : ''}`} onClick={() => {
+              setActiveTab('sync-overview')
+              refreshSync() // Sync Overview 탭 클릭 시 자동 새로고침
+            }}>{currentT.syncOverview}</button>
           </div>
 
           {/* Content */}
@@ -659,9 +659,9 @@ export default function RAGManagement() {
               <div className="loading">{currentT.loading}</div>
             ) : (
               <>
-                {activeTab === 'blob-files' && <BlobFiles language={language} onUploadComplete={loadData} syncRows={syncRows} onNavigateToSync={() => setActiveTab('sync')} />}
+                {activeTab === 'file-library' && <BlobFiles language={language} onUploadComplete={loadData} syncRows={syncRows} onNavigateToSync={() => setActiveTab('sync-overview')} />}
 
-                {activeTab === 'index' && <IndexDocs language={language} />}
+                {activeTab === 'knowledge-index' && <IndexDocs language={language} />}
 
                 {activeTab === 'documents' && (
                   <div className="documents-table">
@@ -695,7 +695,7 @@ export default function RAGManagement() {
                   </div>
                 )}
 
-                {activeTab === 'sync' && (
+                {activeTab === 'sync-overview' && (
                   <>
                     {/* Search Controls */}
                     <div style={{

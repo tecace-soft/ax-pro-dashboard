@@ -1,4 +1,4 @@
-// RAG Management API Service
+// Knowledge Management API Service
 // Based on the API spec in src/docs/rag_management.md
 
 // Use proxy endpoint in development, direct URL in production
@@ -224,7 +224,7 @@ export async function deleteBlob(name: string): Promise<RAGResponse<BlobDeleteRe
   })
 }
 
-// Utility functions for RAG Management UI
+// Utility functions for Knowledge Management UI
 export async function getSyncStatus(): Promise<{
   documents: BlobItem[]
   indexDocuments: Document[]

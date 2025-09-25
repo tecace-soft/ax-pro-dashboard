@@ -33,8 +33,8 @@ export default function BlobFiles({ language = 'en', onUploadComplete, syncRows 
   // Language translations
   const t = {
     en: {
-      title: 'Document Files',
-      subtitle: 'Manage files in blob storage (list/upload/delete). Indexing is handled in the next section.',
+      title: 'File Library',
+      subtitle: 'Manage files in your library (upload/delete). Knowledge indexing is handled in the next section.',
       uploadArea: 'Drag text files here to upload or click to select',
       supportedFormats: 'Supported formats: .txt, .md, .json, .csv, .xml, .html, .css, .js, .ts',
       fileName: 'File Name',
@@ -62,8 +62,8 @@ export default function BlobFiles({ language = 'en', onUploadComplete, syncRows 
           clearSearch: 'Clear search'
     },
     ko: {
-      title: '문서 파일',
-      subtitle: 'Blob 저장소의 파일을 관리합니다 (목록/업로드/삭제). 인덱싱은 다음 섹션에서 처리됩니다.',
+      title: '파일 라이브러리',
+      subtitle: '파일 라이브러리의 파일을 관리합니다 (업로드/삭제). 지식 인덱싱은 다음 섹션에서 처리됩니다.',
       uploadArea: '텍스트 파일을 드래그하여 업로드하거나 클릭하여 선택하세요',
       supportedFormats: '지원 형식: .txt, .md, .json, .csv, .xml, .html, .css, .js, .ts',
       fileName: '파일명',

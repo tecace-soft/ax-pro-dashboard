@@ -841,7 +841,7 @@ export default function Sidebar({
                       <path d="M16 17H8" />
                       <polyline points="10,9 9,9 8,9" />
                     </svg>
-                    <span className="menu-text">RAG Management</span>
+                    <span className="menu-text">Knowledge Management</span>
                   </button>
                 </li>
               </ul>
