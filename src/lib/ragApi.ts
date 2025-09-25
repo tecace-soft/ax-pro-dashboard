@@ -47,6 +47,35 @@ export async function fetchChunkContentById(chunkId: string): Promise<string> {
   return content
 }
 
+// ✅ parent_id 리스트로 "한 방" 확인
+export async function checkSyncForBlobs(
+  parentIds: string[]
+): Promise<Record<string, "synced" | "unsynced">> {
+  const uniq = Array.from(new Set(parentIds))
+  // OData single quote escape
+  const esc = uniq.map((s) => s.replace(/'/g, "''"))
+  const inList = esc.join(",")
+
+  const payload = {
+    op: "search",
+    q: "*",
+    top: 1000, // 현재 페이지의 blob 개수보다 충분히 크게
+    filter: `search.in(parent_id, '${inList}', ',')`,
+    select: "parent_id", // 최소 필드만
+  }
+
+  console.debug('🔍 Checking sync for blobs:', { parentIds: uniq, payload })
+
+  const res = await callRAGAPI(payload)
+  const found = new Set<string>((res?.index?.value ?? []).map((v: any) => v.parent_id))
+
+  const map: Record<string, "synced" | "unsynced"> = {}
+  for (const id of parentIds) map[id] = found.has(id) ? "synced" : "unsynced"
+  
+  console.debug('📊 Sync check result:', map)
+  return map
+}
+
 export type BlobItem = {
   name: string
   size: number

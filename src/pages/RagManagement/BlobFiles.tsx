@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { IconUpload, IconTrash, IconRefresh, IconDownload, IconAlertTriangle, IconCheck, IconX } from '../../ui/icons'
-import { listBlobs, deleteBlob, uploadBlobFile, replaceBlobFile, BlobItem, RAGApiError } from '../../lib/ragApi'
+import { listBlobs, deleteBlob, uploadBlobFile, replaceBlobFile, BlobItem, RAGApiError, checkSyncForBlobs } from '../../lib/ragApi'
 import './BlobFiles.css'
 
 interface SyncRow {
@@ -20,6 +20,7 @@ interface BlobFilesProps {
 
 export default function BlobFiles({ language = 'en', onUploadComplete, syncRows = [], onNavigateToSync }: BlobFilesProps) {
   const [blobs, setBlobs] = useState<BlobItem[]>([])
+  const [syncStates, setSyncStates] = useState<Record<string, "synced" | "unsynced">>({})
   const [isLoading, setIsLoading] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -97,6 +98,12 @@ export default function BlobFiles({ language = 'en', onUploadComplete, syncRows 
       const items = await listBlobs()
       console.debug('📋 Loaded blobs:', items.length, 'items:', items.map(b => ({ name: b.name, etag: b.etag })))
       setBlobs(items)
+      
+      // ✅ parent_id로 한 방에 sync 상태 확인
+      const names = items.map((b) => b.name) // blob name = parent_id
+      const syncMap = await checkSyncForBlobs(names)
+      setSyncStates(syncMap)
+      
     } catch (error) {
       console.error('Failed to load blobs:', error)
       setError(
@@ -261,6 +268,13 @@ export default function BlobFiles({ language = 'en', onUploadComplete, syncRows 
 
   // Get sync status for a specific blob
   const getSyncStatus = (blobName: string) => {
+    // 새로운 방식: parent_id로 직접 확인
+    const syncState = syncStates[blobName]
+    if (syncState) {
+      return syncState === 'synced' ? 'synced' : 'needs_indexing'
+    }
+    
+    // 기존 방식: syncRows에서 찾기 (fallback)
     const syncRow = syncRows.find(row => row.key === blobName)
     return syncRow ? syncRow.status : 'unknown'
   }

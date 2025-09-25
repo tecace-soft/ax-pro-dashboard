@@ -64,11 +64,25 @@ const filenameFromUrl = (url?: string) => {
 
 const normalizeKey = (s?: string | null) => (s || '').trim()
 
-const keyFromIndexDoc = (d: IndexDocument) =>
-  normalizeKey(d.filepath) ||
-  normalizeKey(filenameFromUrl(d.url)) ||
-  normalizeKey(d.title) ||
-  ''
+const keyFromIndexDoc = (d: IndexDocument) => {
+  // filepath가 있으면 그것을 사용 (가장 정확함)
+  if (d.filepath) {
+    return normalizeKey(d.filepath)
+  }
+  
+  // URL에서 파일명 추출
+  const urlFilename = filenameFromUrl(d.url)
+  if (urlFilename) {
+    return normalizeKey(urlFilename)
+  }
+  
+  // title 사용
+  if (d.title) {
+    return normalizeKey(d.title)
+  }
+  
+  return ''
+}
 
 const computeSyncStatus = (blob: Document | undefined, idxDocs: IndexDocument[]): SyncStatus => {
   const blobExists = !!blob
@@ -92,15 +106,51 @@ const buildSyncRows = (blobs: Document[], idxs: IndexDocument[]): SyncRow[] => {
     idxMap.get(k)!.push(d)
   })
 
+
+  // 키 매칭 문제 해결: 인덱스 키를 blob 키와 매칭
+  const matchedKeys = new Set<string>()
+  const finalIdxMap = new Map<string, IndexDocument[]>()
+  
+  // 각 인덱스 문서에 대해 가장 적합한 blob 키를 찾기
+  idxs.forEach(d => {
+    const idxKey = keyFromIndexDoc(d)
+    if (!idxKey) return
+    
+    // 정확한 매칭 시도
+    if (blobMap.has(idxKey)) {
+      matchedKeys.add(idxKey)
+      if (!finalIdxMap.has(idxKey)) finalIdxMap.set(idxKey, [])
+      finalIdxMap.get(idxKey)!.push(d)
+      return
+    }
+    
+    // 부분 매칭 시도 (파일명만 비교)
+    const idxFilename = idxKey.split('/').pop() || idxKey
+    for (const blobKey of blobMap.keys()) {
+      const blobFilename = blobKey.split('/').pop() || blobKey
+      if (idxFilename === blobFilename) {
+        matchedKeys.add(blobKey)
+        if (!finalIdxMap.has(blobKey)) finalIdxMap.set(blobKey, [])
+        finalIdxMap.get(blobKey)!.push(d)
+        return
+      }
+    }
+    
+    // 매칭되지 않은 경우 원래 키 사용
+    matchedKeys.add(idxKey)
+    if (!finalIdxMap.has(idxKey)) finalIdxMap.set(idxKey, [])
+    finalIdxMap.get(idxKey)!.push(d)
+  })
+
   const allKeys = new Set<string>([
     ...Array.from(blobMap.keys()),
-    ...Array.from(idxMap.keys())
+    ...Array.from(matchedKeys)
   ])
 
   return Array.from(allKeys)
     .map(k => {
       const blob = blobMap.get(k)
-      const group = idxMap.get(k) || []
+      const group = finalIdxMap.get(k) || []
       const status = computeSyncStatus(blob, group).status
       return { key: k, blob: blob ?? null, indexDocs: group, indexCount: group.length, status }
     })
