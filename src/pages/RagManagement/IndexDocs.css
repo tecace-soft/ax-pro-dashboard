@@ -318,7 +318,8 @@
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  width: 100%;
+  width: 100% !important;
+  max-width: none !important;
 }
 
 .doc-info {
