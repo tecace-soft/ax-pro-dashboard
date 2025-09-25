@@ -26,9 +26,13 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
   const { statusByParentId, isLoading: isSyncLoading } = useSyncStatus()
 
   // 페이지네이션 상태
-  const [top, setTop] = useState(50)
+  const [top, setTop] = useState(200)
   const [skip, setSkip] = useState(0)
   const [totalCount, setTotalCount] = useState(0)
+  
+  // 검색 상태
+  const [searchQuery, setSearchQuery] = useState('')
+  const [filteredDocs, setFilteredDocs] = useState<IndexRow[]>([])
 
   // 다국어
   const t = {
@@ -56,7 +60,10 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
       viewContent: 'View Content',
       close: 'Close',
       contentPreview: 'Content Preview',
-      fullContent: 'Full Content'
+      fullContent: 'Full Content',
+      search: 'Search',
+      searchPlaceholder: 'Search by title, filepath, or content...',
+      clearSearch: 'Clear search'
     },
     ko: {
       headingTitle: '인덱스 (검색 서비스)',
@@ -82,7 +89,10 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
       viewContent: '내용 보기',
       close: '닫기',
       contentPreview: '내용 미리보기',
-      fullContent: '전체 내용'
+      fullContent: '전체 내용',
+      search: '검색',
+      searchPlaceholder: '제목, 파일 경로, 또는 내용으로 검색...',
+      clearSearch: '검색 지우기'
     }
   }
   const currentT = t[language]
@@ -92,12 +102,29 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
     loadAllIndexDocs()
   }, [])
 
-  // 페이지네이션 파라미터/전체 목록 변경 시 화면 조각 갱신
+  // 검색 기능
   useEffect(() => {
-    const page = allDocs.slice(skip, skip + top)
+    if (!searchQuery.trim()) {
+      setFilteredDocs(allDocs)
+    } else {
+      const query = searchQuery.toLowerCase()
+      const filtered = allDocs.filter(doc => 
+        (doc.title?.toLowerCase().includes(query)) ||
+        (doc.filepath?.toLowerCase().includes(query)) ||
+        (doc.parent_id?.toLowerCase().includes(query)) ||
+        (doc.chunk_id?.toLowerCase().includes(query)) ||
+        (doc.content?.toLowerCase().includes(query))
+      )
+      setFilteredDocs(filtered)
+    }
+  }, [searchQuery, allDocs])
+
+  // 페이지네이션 파라미터/필터된 목록 변경 시 화면 조각 갱신
+  useEffect(() => {
+    const page = filteredDocs.slice(skip, skip + top)
     setDocs(page)
-    setTotalCount(allDocs.length)
-  }, [top, skip, allDocs])
+    setTotalCount(filteredDocs.length)
+  }, [top, skip, filteredDocs])
 
   // 전체 페이지를 끝까지 수집
   const loadAllIndexDocs = async () => {
@@ -258,6 +285,35 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
 
       {/* Controls */}
       <div className="controls-section">
+        {/* Search */}
+        <div className="search-controls">
+          <div className="search-input-group">
+            <input
+              type="text"
+              placeholder={currentT.searchPlaceholder}
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value)
+                setSkip(0) // 검색 시 첫 페이지로
+              }}
+              className="search-input"
+              disabled={isLoading}
+            />
+            {searchQuery && (
+              <button
+                onClick={() => {
+                  setSearchQuery('')
+                  setSkip(0)
+                }}
+                className="clear-search-btn"
+                title={currentT.clearSearch}
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        </div>
+        
         <div className="pagination-controls">
           <div className="pagination-info">
             <span>{currentT.totalItems}: {totalCount}</span>

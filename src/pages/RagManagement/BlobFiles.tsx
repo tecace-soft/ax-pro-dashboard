@@ -25,6 +25,10 @@ export default function BlobFiles({ language = 'en', onUploadComplete, syncRows 
   const [isUploading, setIsUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({})
+  
+  // 검색 상태
+  const [searchQuery, setSearchQuery] = useState('')
+  const [filteredBlobs, setFilteredBlobs] = useState<BlobItem[]>([])
 
   // Language translations
   const t = {
@@ -52,7 +56,10 @@ export default function BlobFiles({ language = 'en', onUploadComplete, syncRows 
           uploadError: 'Failed to upload file',
           loadError: 'Failed to load files',
           noFiles: 'No files found',
-          dragOver: 'Drop files here to upload'
+          dragOver: 'Drop files here to upload',
+          search: 'Search',
+          searchPlaceholder: 'Search by filename...',
+          clearSearch: 'Clear search'
     },
     ko: {
       title: '문서 파일',
@@ -78,7 +85,10 @@ export default function BlobFiles({ language = 'en', onUploadComplete, syncRows 
           uploadError: '파일 업로드에 실패했습니다',
           loadError: '파일 목록을 불러오는데 실패했습니다',
           noFiles: '파일이 없습니다',
-          dragOver: '업로드하려면 파일을 여기에 놓으세요'
+          dragOver: '업로드하려면 파일을 여기에 놓으세요',
+          search: '검색',
+          searchPlaceholder: '파일명으로 검색...',
+          clearSearch: '검색 지우기'
     }
   }
 
@@ -88,6 +98,20 @@ export default function BlobFiles({ language = 'en', onUploadComplete, syncRows 
   useEffect(() => {
     loadBlobs()
   }, [])
+
+  // 검색 기능
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setFilteredBlobs(blobs)
+    } else {
+      const query = searchQuery.toLowerCase()
+      const filtered = blobs.filter(blob => 
+        blob.name.toLowerCase().includes(query) ||
+        blob.content_type?.toLowerCase().includes(query)
+      )
+      setFilteredBlobs(filtered)
+    }
+  }, [searchQuery, blobs])
 
   const loadBlobs = async () => {
     setIsLoading(true)
@@ -340,6 +364,29 @@ export default function BlobFiles({ language = 'en', onUploadComplete, syncRows 
 
       {/* Controls */}
       <div className="controls-section">
+        {/* Search */}
+        <div className="search-controls">
+          <div className="search-input-group">
+            <input
+              type="text"
+              placeholder={currentT.searchPlaceholder}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="search-input"
+              disabled={isLoading}
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="clear-search-btn"
+                title={currentT.clearSearch}
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        </div>
+        
         <button 
           onClick={loadBlobs} 
           className="refresh-btn"
@@ -392,7 +439,7 @@ export default function BlobFiles({ language = 'en', onUploadComplete, syncRows 
                 </tr>
               </thead>
               <tbody>
-                {blobs.map((blob) => {
+                {filteredBlobs.map((blob) => {
                   const syncStatus = getSyncStatus(blob.name)
                   return (
                     <tr key={blob.name}>

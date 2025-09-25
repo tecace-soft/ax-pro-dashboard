@@ -165,6 +165,10 @@ export default function RAGManagement() {
   const [indexDocuments, setIndexDocuments] = useState<IndexDocument[]>([])
   const [syncRows, setSyncRows] = useState<SyncRow[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  
+  // Sync Status 검색 상태
+  const [syncSearchQuery, setSyncSearchQuery] = useState('')
+  const [filteredSyncRows, setFilteredSyncRows] = useState<SyncRow[]>([])
   const [activeTab, setActiveTab] = useState<'blob-files' | 'documents' | 'index' | 'sync'>('blob-files')
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set())
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({})
@@ -195,6 +199,24 @@ export default function RAGManagement() {
       setActiveTab('sync')
     }
   }, [location.search])
+
+  // Sync Status 검색 기능
+  useEffect(() => {
+    if (!syncSearchQuery.trim()) {
+      setFilteredSyncRows(syncRows)
+    } else {
+      const query = syncSearchQuery.toLowerCase()
+      const filtered = syncRows.filter(row => 
+        row.key.toLowerCase().includes(query) ||
+        row.blob?.name?.toLowerCase().includes(query) ||
+        row.indexDocs.some(doc => 
+          doc.title?.toLowerCase().includes(query) ||
+          doc.filepath?.toLowerCase().includes(query)
+        )
+      )
+      setFilteredSyncRows(filtered)
+    }
+  }, [syncSearchQuery, syncRows])
 
   useEffect(() => {
     const loadRadarData = async () => {
@@ -675,27 +697,84 @@ export default function RAGManagement() {
 
                 {activeTab === 'sync' && (
                   <>
+                    {/* Search Controls */}
                     <div style={{
                       display: 'flex',
                       justifyContent: 'space-between',
-                      alignItems: 'center',
-                      margin: '8px 0 12px'
+                      alignItems: 'flex-start',
+                      margin: '8px 0 12px',
+                      padding: '12px 24px 0 12px',
+                      gap: '16px'
                     }}>
-                      <div style={{ fontSize: '0.9rem', opacity: 0.8 }}>
-                        {lastSyncRefreshed
-                          ? `Last updated: ${lastSyncRefreshed.toLocaleString()}`
-                          : '—'}
+                      {/* Search */}
+                      <div style={{ flex: 1, maxWidth: '400px' }}>
+                        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                          <input
+                            type="text"
+                            placeholder={language === 'en' ? 'Search by filename...' : '파일명으로 검색...'}
+                            value={syncSearchQuery}
+                            onChange={(e) => setSyncSearchQuery(e.target.value)}
+                            style={{
+                              width: '100%',
+                              padding: '8px 12px',
+                              paddingRight: '32px',
+                              border: '1px solid var(--border)',
+                              borderRadius: '6px',
+                              background: 'var(--bg-secondary)',
+                              color: 'var(--text)',
+                              fontSize: '0.875rem',
+                              transition: 'all 0.2s ease'
+                            }}
+                            disabled={isSyncLoading}
+                          />
+                          {syncSearchQuery && (
+                            <button
+                              onClick={() => setSyncSearchQuery('')}
+                              style={{
+                                position: 'absolute',
+                                right: '8px',
+                                top: '50%',
+                                transform: 'translateY(-50%)',
+                                background: 'none',
+                                border: 'none',
+                                color: 'var(--text-muted)',
+                                cursor: 'pointer',
+                                padding: '4px',
+                                borderRadius: '4px',
+                                transition: 'all 0.2s ease',
+                                fontSize: '12px',
+                                width: '20px',
+                                height: '20px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                              }}
+                              title={language === 'en' ? 'Clear search' : '검색 지우기'}
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
                       </div>
-                      <button
-                        onClick={refreshSync}
-                        disabled={isSyncLoading}
-                        className="pagination-btn"
-                        title={currentT.refresh}
-                        style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}
-                      >
-                        <IconRefresh />
-                        {isSyncLoading ? currentT.loading : currentT.refresh}
-                      </button>
+                      
+                      {/* Status and Refresh */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                        <div style={{ fontSize: '0.9rem', opacity: 0.8 }}>
+                          {lastSyncRefreshed
+                            ? `Last updated: ${lastSyncRefreshed.toLocaleString()}`
+                            : '—'}
+                        </div>
+                        <button
+                          onClick={refreshSync}
+                          disabled={isSyncLoading}
+                          className="pagination-btn"
+                          title={currentT.refresh}
+                          style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}
+                        >
+                          <IconRefresh />
+                          {isSyncLoading ? currentT.loading : currentT.refresh}
+                        </button>
+                      </div>
                     </div>
                     <div className="sync-table">
                     <table>
@@ -709,7 +788,7 @@ export default function RAGManagement() {
                         </tr>
                       </thead>
                       <tbody>
-                        {syncRows.map(row => {
+                        {filteredSyncRows.map(row => {
                           const blob = row.blob || undefined
                           const syncStatus: SyncStatus = computeSyncStatus(blob, row.indexDocs)
                           return (
