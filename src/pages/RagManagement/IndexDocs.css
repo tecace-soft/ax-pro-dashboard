@@ -334,6 +334,9 @@
   margin: 0 0 8px 0;
   font-size: 0.875rem;
   color: var(--text);
+  word-break: break-all;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
 }
 
 .doc-info p:last-child {
@@ -364,11 +367,13 @@
   color: var(--text);
   white-space: pre-wrap;
   word-break: break-word;
+  overflow-wrap: break-word;
   flex: 1;
-  overflow-y: auto;
+  overflow: auto;
   min-height: 200px;
-  max-height: 50vh;
+  max-height: 60vh;
   width: 100%;
+  box-sizing: border-box;
 }
 
 /* Custom scrollbar for content text */
