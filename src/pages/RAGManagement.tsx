@@ -377,7 +377,7 @@ export default function RAGManagement() {
       }
       
       // Step 2: Reindex the blob
-      const res = await reindexBlob(filepath)
+      const res = await reindexBlob(filepath, 1200, 200, false)
       if (!res.ok) {
         // Fallback: download and replace to trigger indexing
         const fb = await reindexBlobFallback(filepath)
@@ -388,9 +388,10 @@ export default function RAGManagement() {
       }
       
       // Step 3: Show success with chunk count
-      const chunkCount = res.ingest?.chunks ?? 0
+      const chunkCount = res.chunks_created ?? res.ingest?.chunks ?? 0
+      const deletedCount = res.deleted ?? 0
       await refreshSync()
-      alert(`Reindexed: ${filepath} (${chunkCount} chunks created)`)
+      alert(`Reindexed: ${filepath}\nDeleted: ${deletedCount} old chunks\nCreated: ${chunkCount} new chunks`)
       
     } catch (err) {
       console.error(err)

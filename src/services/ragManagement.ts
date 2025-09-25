@@ -24,6 +24,11 @@ interface RAGResponse<T = any> {
     success?: boolean
     message?: string
   }
+  // New reindex response format
+  deleted?: number
+  chunks_created?: number
+  // Search response format
+  value?: any[]
   meta: {
     version: string
   }
@@ -126,20 +131,6 @@ export async function listDocuments(options: {
   })
 }
 
-export async function searchDocuments(options: {
-  q: string
-  top?: number
-  filter?: string
-  select?: string
-}): Promise<RAGResponse<{ '@odata.count': number; value: Document[] }>> {
-  return callRAGAPI({
-    op: 'search',
-    q: options.q,
-    top: options.top || 5,
-    filter: options.filter || '',
-    select: options.select || 'chunk_id,parent_id,title,filepath,url,content',
-  })
-}
 
 export async function readDocument(id: string): Promise<RAGResponse<Document>> {
   return callRAGAPI({
@@ -369,13 +360,16 @@ export async function clearIndexByFile(name: string) {
   return result
 }
 
-export async function reindexBlob(name: string) {
-  console.debug('🔄 Calling reindex_blob for:', name)
+export async function reindexBlob(name: string, chunkSize: number = 1200, overlap: number = 200, makeEmbeddings: boolean = false) {
+  console.debug('🔄 Calling reindex for:', name, { chunkSize, overlap, makeEmbeddings })
   const result = await callRAGAPI({
-    op: 'reindex_blob',
+    op: 'reindex',
     name,
+    chunk_size: chunkSize,
+    overlap: overlap,
+    make_embeddings: makeEmbeddings,
   })
-  console.debug('📊 reindex_blob response:', result)
+  console.debug('📊 reindex response:', result)
   return result
 }
 
@@ -395,4 +389,17 @@ export async function reindexBlobFallback(name: string) {
     content: dl.data.content,
     content_type: mime,
   })
+}
+
+// Search operations
+export async function searchDocuments(query: string, top: number = 10, select?: string) {
+  console.debug('🔍 Calling search with query:', query, { top, select })
+  const result = await callRAGAPI({
+    op: 'search',
+    q: query,
+    top: top,
+    select: select || 'chunk_id,parent_id,title,filepath,url',
+  })
+  console.debug('📊 search response:', result)
+  return result
 }
