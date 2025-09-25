@@ -12,3 +12,81 @@ html, body {
 #root {
   height: 100%;
 }
+
+/* ScrollToTop 스타일 - 오른쪽 아래 고정 및 플로팅 */
+.scroll-to-top {
+  position: fixed !important;
+  bottom: 30px !important;
+  right: 30px !important;
+  left: auto !important;
+  top: auto !important;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #3be6ff 0%, #7c8cff 100%);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  color: white;
+  cursor: pointer;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 
+    0 8px 32px rgba(59, 230, 255, 0.3),
+    0 4px 16px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 99999 !important;
+  opacity: 0.9;
+  backdrop-filter: blur(10px);
+  float: right !important;
+  clear: both !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.scroll-to-top:hover {
+  opacity: 1;
+  transform: translateY(-3px) scale(1.05);
+  box-shadow: 
+    0 12px 40px rgba(59, 230, 255, 0.4),
+    0 6px 20px rgba(0, 0, 0, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.scroll-to-top:active {
+  transform: translateY(-1px) scale(1.02);
+  transition: all 0.1s ease;
+}
+
+/* 모바일에서 조금 더 작게 */
+@media (max-width: 768px) {
+  .scroll-to-top {
+    bottom: 20px !important;
+    right: 20px !important;
+    left: auto !important;
+    width: 48px;
+    height: 48px;
+  }
+}
+
+/* 매우 작은 화면에서 */
+@media (max-width: 480px) {
+  .scroll-to-top {
+    bottom: 15px !important;
+    right: 15px !important;
+    left: auto !important;
+    width: 44px;
+    height: 44px;
+  }
+}
+
+/* 강제로 오른쪽 위치 고정 */
+body .scroll-to-top,
+#root .scroll-to-top,
+* .scroll-to-top {
+  position: fixed !important;
+  bottom: 30px !important;
+  right: 30px !important;
+  left: auto !important;
+  top: auto !important;
+  float: right !important;
+}

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { IconLogout, IconX } from '../ui/icons'
 import { getAuthToken } from '../services/auth'
 import { fetchSessions } from '../services/sessions'
@@ -80,6 +80,11 @@ function buildDailyMessageData(
 
 export default function Dashboard() {
 	const navigate = useNavigate()
+	const location = useLocation()
+	const [searchParams] = useSearchParams()
+	
+	// 현재 페이지가 Dashboard인지 확인
+	const isDashboardPage = location.pathname === '/dashboard'
 	
 	// 메인 브랜치의 모든 기존 state 유지
 	const [isSettingsOpen, setIsSettingsOpen] = useState(false)
@@ -246,6 +251,17 @@ export default function Dashboard() {
 		setEndDate(formatDate(today))
 	}, [])
 
+	// 4. URL 파라미터로 섹션 스크롤 처리
+	useEffect(() => {
+		const section = searchParams.get('section')
+		if (section) {
+			// 페이지 로드 후 충분한 지연을 두고 스크롤 (DOM이 완전히 렌더링된 후)
+			setTimeout(() => {
+				scrollToSection(section)
+			}, 500)
+		}
+	}, [searchParams])
+
 	// Google Sheets 관련 useEffect는 그대로 유지
 	useEffect(() => {
 		const loadRadarData = async () => {
@@ -292,6 +308,22 @@ export default function Dashboard() {
 		promptInjection: 88
 	}
 
+	// 레이더 차트의 전체 점수 계산 (중앙에 표시되는 점수와 동일)
+	const overallScore = Math.round(
+		(radarProps.relevance + radarProps.tone + radarProps.length + 
+		 radarProps.accuracy + radarProps.toxicity + radarProps.promptInjection) / 6
+	)
+
+	// 선택된 레이더 날짜 포맷팅 (M/D 형식)
+	const formatRadarDate = (dateString: string) => {
+		if (!dateString) return ''
+		// YYYY-MM-DD 형식을 직접 파싱하여 시간대 문제 방지
+		const [year, month, day] = dateString.split('-').map(Number)
+		return `${month}/${day}`
+	}
+
+	const radarDate = formatRadarDate(selectedRadarDate)
+
 	const { data: dailyData, total: dailyTotal } = buildDailyMessageData(startDate, endDate, sessionRequests);
 
 	// 필요한 변수들 추가
@@ -333,48 +365,82 @@ export default function Dashboard() {
 	}
 
 	const scrollToConversations = () => {
-		const conversationsElement = document.querySelector('.conversations-module')
-		if (conversationsElement) {
-			conversationsElement.scrollIntoView({ 
-				behavior: 'smooth', 
-				block: 'start' 
-			})
-		}
-	}
-
-	const scrollToSection = (sectionId: string) => {
-		if (sectionId === 'content-module') {
-			const contentElement = document.querySelector('.content-module')
-			if (contentElement) {
-				contentElement.scrollIntoView({ 
-					behavior: 'smooth', 
-					block: 'start' 
-				})
-			}
-		} else if (sectionId === 'recent-conversations') {
-			const conversationsElement = document.querySelector('.conversations-module')
-			if (conversationsElement) {
-				conversationsElement.scrollIntoView({ 
-					behavior: 'smooth', 
-					block: 'start' 
-				})
-			}
-		} else if (sectionId === 'prompt-control') {
-			const promptControlElement = document.querySelector('.prompt-control-module')
-			if (promptControlElement) {
-				promptControlElement.scrollIntoView({ 
+		if (isDashboardPage) {
+			// Dashboard 페이지에서는 스크롤만 실행
+			const contentSections = document.querySelectorAll('.content-section')
+			// 첫 번째 content-section (Recent Conversations)
+			if (contentSections[0]) {
+				contentSections[0].scrollIntoView({ 
 					behavior: 'smooth', 
 					block: 'start' 
 				})
 			}
 		} else {
-			const element = document.getElementById(sectionId)
-			if (element) {
-				element.scrollIntoView({ 
-					behavior: 'smooth', 
-					block: 'start' 
-				})
+			// 다른 페이지에서는 Dashboard로 이동
+			navigate('/dashboard?section=recent-conversations')
+		}
+	}
+
+	const scrollToSection = (sectionId: string) => {
+		if (isDashboardPage) {
+			// Dashboard 페이지에서는 스크롤만 실행
+			const contentSections = document.querySelectorAll('.content-section')
+			
+			if (sectionId === 'performance-radar') {
+				// Performance Radar 섹션
+				const performanceElement = document.querySelector('.performance-radar-section')
+				if (performanceElement) {
+					performanceElement.scrollIntoView({ 
+						behavior: 'smooth', 
+						block: 'start' 
+					})
+				}
+			} else if (sectionId === 'daily-message-activity') {
+				// Daily Message Activity 섹션
+				const dailyActivityElement = document.querySelector('.daily-message-section')
+				if (dailyActivityElement) {
+					dailyActivityElement.scrollIntoView({ 
+						behavior: 'smooth', 
+						block: 'start' 
+					})
+				}
+			} else if (sectionId === 'recent-conversations') {
+				// 첫 번째 content-section (Recent Conversations)
+				if (contentSections[0]) {
+					contentSections[0].scrollIntoView({ 
+						behavior: 'smooth', 
+						block: 'start' 
+					})
+				}
+			} else if (sectionId === 'user-feedback') {
+				// 세 번째 content-section (User Feedback)
+				if (contentSections[2]) {
+					contentSections[2].scrollIntoView({ 
+						behavior: 'smooth', 
+						block: 'start' 
+					})
+				}
+			} else if (sectionId === 'prompt-control') {
+				// 네 번째 content-section (Prompt Control)
+				if (contentSections[3]) {
+					contentSections[3].scrollIntoView({ 
+						behavior: 'smooth', 
+						block: 'start' 
+					})
+				}
+			} else {
+				// 일반적인 ID로 스크롤 시도
+				const element = document.getElementById(sectionId)
+				if (element) {
+					element.scrollIntoView({ 
+						behavior: 'smooth', 
+						block: 'start' 
+					})
+				}
 			}
+		} else {
+			// 다른 페이지에서는 Dashboard로 이동
+			navigate(`/dashboard?section=${sectionId}`)
 		}
 	}
 
@@ -396,13 +462,15 @@ export default function Dashboard() {
 
 	return (
 		<div className="dashboard-layout">
-			<Header performanceScore={87} currentTime={currentTime} onSignOut={signOut} />
+			<Header performanceScore={overallScore} performanceDate={radarDate} currentTime={currentTime} onSignOut={signOut} />
 			
 			<div className="dashboard-content">
 				<Sidebar
 					conversations={totalMessages}
 					satisfaction={94.5}
 					documents={156}
+					performanceScore={overallScore}
+					performanceDate={radarDate}
 					activeFilters={activeFilters}
 					onFilterChange={handleFilterChange}
 					onSearch={handleSearch}

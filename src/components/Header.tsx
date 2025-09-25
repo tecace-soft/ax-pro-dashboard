@@ -1,12 +1,16 @@
 import { IconBell, IconMoon, IconUser, IconLogout } from '../ui/icons'
+import { useNavigate } from 'react-router-dom'
 
 interface HeaderProps {
   performanceScore: number
+  performanceDate?: string
   currentTime: string
   onSignOut: () => void
 }
 
-export default function Header({ performanceScore, currentTime, onSignOut }: HeaderProps) {
+export default function Header({ performanceScore, performanceDate, currentTime, onSignOut }: HeaderProps) {
+  const navigate = useNavigate()
+  
   const getPerformanceLabel = (score: number) => {
     if (score >= 90) return 'Excellent'
     if (score >= 80) return 'Good'
@@ -14,10 +18,14 @@ export default function Header({ performanceScore, currentTime, onSignOut }: Hea
     return 'Poor'
   }
 
+  const handleLogoClick = () => {
+    navigate('/dashboard')
+  }
+
   return (
     <header className="dashboard-header">
       <div className="header-left">
-        <div className="logo">
+        <div className="logo" onClick={handleLogoClick} style={{ cursor: 'pointer' }}>
           {/* 새로운 육각형 로고 */}
           <div className="logo-hexagon">
             <div className="hexagon-outer">
@@ -33,7 +41,7 @@ export default function Header({ performanceScore, currentTime, onSignOut }: Hea
       <div className="header-right">
         <div className="performance-indicator">
           <span className="performance-text">
-            TecAce Ax Pro: {performanceScore}% ({getPerformanceLabel(performanceScore)})
+            TecAce Ax Pro: {performanceScore}% ({getPerformanceLabel(performanceScore)}{performanceDate ? `, ${performanceDate}` : ''})
           </span>
           <span className="current-time">{currentTime}</span>
         </div>

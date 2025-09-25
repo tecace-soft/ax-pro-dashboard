@@ -14,11 +14,14 @@ import {
   IconUser
 } from '../ui/icons'
 import { useState } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 
 interface SidebarProps {
   conversations: number
   satisfaction: number
   documents: number
+  performanceScore: number
+  performanceDate?: string
   activeFilters: string[]
   onFilterChange: (filter: string) => void
   onSearch: (query: string) => void
@@ -36,6 +39,8 @@ export default function Sidebar({
   conversations, 
   satisfaction, 
   documents, 
+  performanceScore,
+  performanceDate,
   activeFilters, 
   onFilterChange, 
   onSearch,
@@ -47,13 +52,18 @@ export default function Sidebar({
   sessionRequests,
   requestDetails
 }: SidebarProps) {
+  const navigate = useNavigate()
+  const location = useLocation()
+  
+  // 현재 페이지가 Dashboard인지 확인
+  const isDashboardPage = location.pathname === '/dashboard'
   // 검색 관련 상태 추가
   const [searchQuery, setSearchQuery] = useState('')
   const [recentSearches, setRecentSearches] = useState<string[]>([
-    'HR policies',
-    'Leave management', 
-    'Performance reviews',
-    'Benefits enrollment'
+    'TecAce 주소',
+    '연차 휴가',
+    'MLB 메뉴',
+    '회사 대표'
   ])
   const [extractedKeywords, setExtractedKeywords] = useState<string[]>([])
   
@@ -74,8 +84,10 @@ export default function Sidebar({
   // 검색 실행 함수 - 범위별 검색
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault()
+    console.log('🔍 Handle search called with query:', searchQuery)
     if (searchQuery.trim()) {
       const newSearch = searchQuery.trim()
+      console.log('🔍 Processing search:', newSearch, 'scope:', searchScope)
       
       // 새로운 검색어를 recent searches에 추가
       if (!recentSearches.includes(newSearch)) {
@@ -87,7 +99,9 @@ export default function Sidebar({
       setShowSearchResults(true)
       
       try {
+        console.log('🔍 Starting search in scope:', searchScope)
         const results = await searchInScope(newSearch, searchScope)
+        console.log('🔍 Search completed, results:', results.length)
         setSearchResults(results)
       } catch (error) {
         console.error('Search failed:', error)
@@ -131,7 +145,56 @@ export default function Sidebar({
 
   // Recent Conversations 검색
   const searchConversations = async (query: string) => {
+    console.log('🔍 Searching conversations with query:', query)
     const results: any[] = []
+    
+    // 검색어를 키워드로 분리 (공백, 특수문자 기준)
+    const keywords = query.toLowerCase()
+      .split(/[\s,.\-!?]+/)
+      .filter(keyword => keyword.length > 0)
+    
+    console.log('🔍 Keywords:', keywords)
+    console.log('🔍 Sessions count:', sessions.length)
+    console.log('🔍 Session requests:', Object.keys(sessionRequests).length)
+    
+    // 테스트용 하드코딩된 데이터 추가
+    const testData = [
+      {
+        id: 'test-1',
+        sessionId: 'test-session-1',
+        userMessage: 'TecAce 주소가 어디인가요?',
+        aiResponse: 'TecAce Solutions의 주소는 서울시 가산동입니다',
+        timestamp: '2025-09-17 21:01:00',
+        matchType: 'userMessage',
+        source: 'conversations'
+      },
+      {
+        id: 'test-2', 
+        sessionId: 'test-session-2',
+        userMessage: '회사 주소를 알려주세요',
+        aiResponse: 'TecAce의 주소가 궁금하신가요? 주소는 840 140 Ave. NE Bellevue WA 98005입니다',
+        timestamp: '2025-09-10 12:59:05',
+        matchType: 'aiResponse',
+        source: 'conversations'
+      }
+    ]
+    
+    // 하드코딩된 데이터에서 검색
+    testData.forEach(item => {
+      const userMatch = keywords.every(keyword => 
+        item.userMessage.toLowerCase().includes(keyword)
+      )
+      const aiMatch = keywords.every(keyword => 
+        item.aiResponse.toLowerCase().includes(keyword)
+      )
+      const fullQueryMatch = item.userMessage.toLowerCase().includes(query.toLowerCase()) ||
+                            item.aiResponse.toLowerCase().includes(query.toLowerCase())
+      
+      if (userMatch || aiMatch || fullQueryMatch) {
+        console.log('✅ Found test match:', { userMessage: item.userMessage, aiResponse: item.aiResponse })
+        results.push(item)
+      }
+    })
     
     sessions.forEach(session => {
       const sessionId = session.sessionId || session.id
@@ -144,11 +207,20 @@ export default function Sidebar({
         const userMessage = detail?.userMessage || request.userMessage || request.message || ''
         const aiResponse = detail?.aiResponse || ''
         
-        const queryLower = query.toLowerCase()
-        const userMatch = userMessage.toLowerCase().includes(queryLower)
-        const aiMatch = aiResponse.toLowerCase().includes(queryLower)
+        // 모든 키워드가 포함되어 있는지 확인
+        const userMatch = keywords.every(keyword => 
+          userMessage.toLowerCase().includes(keyword)
+        )
+        const aiMatch = keywords.every(keyword => 
+          aiResponse.toLowerCase().includes(keyword)
+        )
         
-        if (userMatch || aiMatch) {
+        // 또는 전체 검색어가 포함되어 있는지 확인 (기존 방식)
+        const fullQueryMatch = userMessage.toLowerCase().includes(query.toLowerCase()) ||
+                              aiResponse.toLowerCase().includes(query.toLowerCase())
+        
+        if (userMatch || aiMatch || fullQueryMatch) {
+          console.log('✅ Found match:', { userMessage, aiResponse, userMatch, aiMatch, fullQueryMatch })
           results.push({
             id: `${sessionId}-${requestId}`,
             sessionId: sessionId,
@@ -164,19 +236,114 @@ export default function Sidebar({
       })
     })
     
+    console.log('🔍 Conversation search results:', results.length)
     return results
   }
 
-  // User Feedback 검색 (향후 구현)
+  // User Feedback 검색
   const searchFeedback = async (query: string) => {
-    // TODO: User Feedback 데이터에서 검색 구현
-    return []
+    try {
+      const { fetchUserFeedback } = await import('../services/userFeedback')
+      const feedbackData = await fetchUserFeedback()
+      
+      // 검색어를 키워드로 분리
+      const keywords = query.toLowerCase()
+        .split(/[\s,.\-!?]+/)
+        .filter(keyword => keyword.length > 0)
+      
+      const results = feedbackData
+        .filter(feedback => {
+          const feedbackText = feedback.feedback_text || ''
+          const chatMessage = feedback.chat_message || ''
+          const chatResponse = feedback.chat_response || ''
+          const userName = feedback.user_name || ''
+          
+          const searchText = `${feedbackText} ${chatMessage} ${chatResponse} ${userName}`.toLowerCase()
+          
+          // 모든 키워드가 포함되어 있는지 확인
+          const keywordMatch = keywords.every(keyword => 
+            searchText.includes(keyword)
+          )
+          
+          // 또는 전체 검색어가 포함되어 있는지 확인
+          const fullQueryMatch = searchText.includes(query.toLowerCase())
+          
+          return keywordMatch || fullQueryMatch
+        })
+        .map(feedback => ({
+          id: `feedback-${feedback.id}`,
+          title: `Feedback from ${feedback.user_name}`,
+          content: feedback.feedback_text || feedback.chat_message || '',
+          timestamp: feedback.timestamp || feedback.created_at || '',
+          reaction: feedback.reaction,
+          source: 'feedback',
+          type: 'feedback',
+          requestId: feedback.request_id,
+          conversationId: feedback.conversation_id
+        }))
+      
+      return results
+    } catch (error) {
+      console.error('Feedback search failed:', error)
+      return []
+    }
   }
 
-  // Knowledge Base 검색 (향후 구현)
+  // Knowledge Base 검색
   const searchKnowledge = async (query: string) => {
-    // TODO: Knowledge Base 문서에서 검색 구현
-    return []
+    try {
+      console.log('🔍 Searching knowledge base with query:', query)
+      const { searchDocuments } = await import('../services/ragManagement')
+      
+      // 검색어를 키워드로 분리
+      const keywords = query.toLowerCase()
+        .split(/[\s,.\-!?]+/)
+        .filter(keyword => keyword.length > 0)
+      
+      console.log('🔍 Knowledge keywords:', keywords)
+      
+      // 각 키워드별로 검색하고 결과를 합침
+      const searchPromises = keywords.map(keyword => {
+        console.log('🔍 Searching for keyword:', keyword)
+        return searchDocuments(keyword, 10, 'chunk_id,parent_id,title,filepath,content')
+      })
+      
+      // 전체 검색어로도 검색
+      searchPromises.push(
+        searchDocuments(query, 10, 'chunk_id,parent_id,title,filepath,content')
+      )
+      
+      const results = await Promise.all(searchPromises)
+      console.log('🔍 Raw search results:', results)
+      
+      const allDocs = results.flat().filter(doc => doc)
+      console.log('🔍 Filtered docs:', allDocs.length)
+      
+      // 중복 제거 (chunk_id 기준)
+      const uniqueDocs = new Map()
+      allDocs.forEach((doc: any) => {
+        const id = doc.chunk_id || doc.id
+        if (id && !uniqueDocs.has(id)) {
+          uniqueDocs.set(id, doc)
+        }
+      })
+      
+      const finalResults = Array.from(uniqueDocs.values()).map((doc: any) => ({
+        id: doc.chunk_id || doc.id,
+        title: doc.title || doc.filepath || 'Untitled Document',
+        content: doc.content || '',
+        filepath: doc.filepath || '',
+        parent_id: doc.parent_id || '',
+        source: 'knowledge',
+        type: 'document'
+      }))
+      
+      console.log('🔍 Final knowledge results:', finalResults.length)
+      return finalResults
+    } catch (error) {
+      console.error('Knowledge search failed:', error)
+      return []
+    }
   }
 
   // 검색어 클릭 시 재검색
@@ -260,9 +427,38 @@ export default function Sidebar({
   }
 
   const handleConversationsClick = () => {
-    console.log('Conversations clicked!') // 디버깅용
-    if (onScrollToConversations) {
-      onScrollToConversations()
+    if (isDashboardPage) {
+      // Dashboard 페이지에서는 스크롤만 실행
+      if (onScrollToConversations) {
+        onScrollToConversations()
+      }
+    } else {
+      // 다른 페이지에서는 Dashboard로 이동 후 스크롤
+      navigate('/dashboard?section=recent-conversations')
+    }
+  }
+
+  const handleUserFeedbackClick = () => {
+    if (isDashboardPage) {
+      // Dashboard 페이지에서는 스크롤만 실행
+      if (onScrollToSection) {
+        onScrollToSection('user-feedback')
+      }
+    } else {
+      // 다른 페이지에서는 Dashboard로 이동 후 스크롤
+      navigate('/dashboard?section=user-feedback')
+    }
+  }
+
+  const handlePromptControlClick = () => {
+    if (isDashboardPage) {
+      // Dashboard 페이지에서는 스크롤만 실행
+      if (onScrollToSection) {
+        onScrollToSection('prompt-control')
+      }
+    } else {
+      // 다른 페이지에서는 Dashboard로 이동 후 스크롤
+      navigate('/dashboard?section=prompt-control')
     }
   }
 
@@ -437,8 +633,8 @@ export default function Sidebar({
                 
                 <div className="profile-metrics">
                   <div className="profile-metric">
-                    <span className="profile-metric-value">87%</span>
-                    <span className="profile-metric-label">Performance</span>
+                    <span className="profile-metric-value">{performanceScore}%</span>
+                    <span className="profile-metric-label">Performance{performanceDate ? ` ${performanceDate}` : ''}</span>
                   </div>
                   <div className="profile-metric-divider"></div>
                   <div className="profile-metric">
@@ -525,13 +721,25 @@ export default function Sidebar({
 
             {/* 검색 입력 */}
             <form onSubmit={handleSearch} className="search-form">
-              <input
-                type="text"
-                className="search-input"
-                placeholder={`Search in ${searchScopes.find(s => s.key === searchScope)?.label.toLowerCase()}...`}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
+              <div className="search-input-group">
+                <input
+                  type="text"
+                  className="search-input"
+                  placeholder={`Search in ${searchScopes.find(s => s.key === searchScope)?.label.toLowerCase()}...`}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+                <button 
+                  type="submit" 
+                  className="search-button"
+                  disabled={!searchQuery.trim()}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <path d="m21 21-4.35-4.35"></path>
+                  </svg>
+                </button>
+              </div>
             </form>
             
             {/* Recent Searches */}
@@ -552,7 +760,10 @@ export default function Sidebar({
                         onClick={() => removeSearch(search)}
                         title="Remove search"
                       >
-                        ×
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <line x1="18" y1="6" x2="6" y2="18"></line>
+                          <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
                       </button>
                     </div>
                   ))}
@@ -569,8 +780,12 @@ export default function Sidebar({
                 <button 
                   className="popup-close"
                   onClick={() => setShowSearchResults(false)}
+                  title="Close search results"
                 >
-                  ×
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
                 </button>
               </div>
               <div className="popup-content">
@@ -582,14 +797,31 @@ export default function Sidebar({
                 ) : searchResults.length > 0 ? (
                   <div className="search-results-list">
                     {searchResults.map((result, index) => (
-                      <div key={index} className="search-result-item">
+                      <div key={result.id || index} className="search-result-item">
                         <div className="result-header">
-                          <span className="result-session">{result.sessionId}</span>
+                          <span className="result-source">{result.source}</span>
                           <span className="result-timestamp">{result.timestamp}</span>
                         </div>
-                        <div className="result-match">
-                          <span className="result-content">{result.userMessage}</span>
-                          <span className="result-message">{result.aiResponse}</span>
+                        <div className="result-title">{result.title}</div>
+                        <div className="result-content">
+                          {result.source === 'conversations' ? (
+                            <>
+                              <div className="user-message">{result.userMessage}</div>
+                              <div className="ai-response">{result.aiResponse}</div>
+                            </>
+                          ) : result.source === 'feedback' ? (
+                            <div className="feedback-content">
+                              <div className="reaction">Reaction: {result.reaction}</div>
+                              <div className="feedback-text">{result.content}</div>
+                            </div>
+                          ) : result.source === 'knowledge' ? (
+                            <div className="knowledge-content">
+                              <div className="file-path">{result.filepath}</div>
+                              <div className="document-content">{result.content?.substring(0, 200)}...</div>
+                            </div>
+                          ) : (
+                            <div className="generic-content">{result.content}</div>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -754,7 +986,7 @@ export default function Sidebar({
               <ul className="menu-list">
                 <li 
                   className="menu-item"
-                  onClick={scrollToRecentConversations}
+                  onClick={handleConversationsClick}
                 >
                   <button className="menu-button">
                     <svg className="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -769,7 +1001,7 @@ export default function Sidebar({
                 </li>
                 <li 
                   className="menu-item"
-                  onClick={scrollToUserFeedback}
+                  onClick={handleUserFeedbackClick}
                 >
                   <button className="menu-button">
                     {/* Chat Bubble Icon */}
@@ -781,13 +1013,28 @@ export default function Sidebar({
                 </li>
                 <li 
                   className="menu-item"
-                  onClick={scrollToPromptControl}
+                  onClick={handlePromptControlClick}
                 >
                   <button className="menu-button">
                     <svg className="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
                     </svg>
                     <span className="menu-text">Prompt Control</span>
+                  </button>
+                </li>
+                <li className="menu-item">
+                  <button 
+                    className="menu-button"
+                    onClick={() => navigate('/rag-management')}
+                  >
+                    <svg className="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                      <polyline points="14,2 14,8 20,8" />
+                      <path d="M16 13H8" />
+                      <path d="M16 17H8" />
+                      <polyline points="10,9 9,9 8,9" />
+                    </svg>
+                    <span className="menu-text">Knowledge Management</span>
                   </button>
                 </li>
               </ul>
