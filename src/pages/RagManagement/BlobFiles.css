@@ -171,6 +171,53 @@
   word-break: break-all;
 }
 
+/* Sync Status Button */
+.sync-status-btn {
+  padding: 6px;
+  background: none;
+  border: 1px solid rgba(59, 230, 255, 0.12);
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+}
+
+.sync-status-btn:hover {
+  background: rgba(124, 140, 255, 0.08);
+  border-color: var(--primary);
+  transform: scale(1.05);
+}
+
+/* Sync Status Icons */
+.sync-icon {
+  width: 16px;
+  height: 16px;
+  transition: all 0.2s ease;
+}
+
+.sync-icon.synced {
+  color: #22c55e;
+}
+
+.sync-icon.needs-indexing {
+  color: #f59e0b;
+}
+
+.sync-icon.orphaned {
+  color: #ef4444;
+}
+
+.sync-icon.unknown {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: bold;
+}
+
 /* Action Buttons */
 .action-buttons {
   display: flex;

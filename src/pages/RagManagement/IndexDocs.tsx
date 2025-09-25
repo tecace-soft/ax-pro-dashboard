@@ -1,7 +1,9 @@
 // src/pages/RagManagement/IndexDocs.tsx
 import { useState, useEffect } from 'react'
-import { IconRefresh, IconEye, IconAlertTriangle } from '../../ui/icons'
+import { useNavigate } from 'react-router-dom'
+import { IconRefresh, IconEye, IconAlertTriangle, IconCheck, IconX } from '../../ui/icons'
 import { listIndexDocsRows, IndexDoc, RAGApiError } from '../../lib/ragApi'
+import { useSyncStatus } from '../../hooks/useSyncStatus'
 import './IndexDocs.css'
 
 interface IndexDocsProps {
@@ -9,6 +11,8 @@ interface IndexDocsProps {
 }
 
 export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
+  const navigate = useNavigate()
+  
   // 전체 수집본 & 현재 페이지 조각
   const [allDocs, setAllDocs] = useState<IndexDoc[]>([])
   const [docs, setDocs] = useState<IndexDoc[]>([])
@@ -16,6 +20,9 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedDoc, setSelectedDoc] = useState<IndexDoc | null>(null)
+  
+  // Sync status hook
+  const { statusByParentId, isLoading: isSyncLoading } = useSyncStatus()
 
   // 페이지네이션 상태
   const [top, setTop] = useState(50)
@@ -153,6 +160,59 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
     return chunkId.length > 30 ? chunkId.substring(0, 30) + '...' : chunkId
   }
 
+  // Get sync status for a document
+  const getSyncStatus = (parentId: string | null | undefined) => {
+    if (!parentId) return 'unknown'
+    return statusByParentId.get(parentId) || 'unknown'
+  }
+
+  // Render sync status pill
+  const renderSyncStatus = (parentId: string | null | undefined) => {
+    const status = getSyncStatus(parentId)
+    
+    const handleSyncClick = () => {
+      // Navigate to RAG Management page with sync tab
+      navigate('/rag-management?tab=sync')
+    }
+
+    const getStatusConfig = () => {
+      switch (status) {
+        case 'synced':
+          return {
+            icon: <IconCheck className="sync-icon synced" />,
+            label: 'Synced',
+            className: 'sync-pill synced'
+          }
+        case 'orphaned':
+          return {
+            icon: <IconX className="sync-icon orphaned" />,
+            label: 'Orphaned',
+            className: 'sync-pill orphaned'
+          }
+        default:
+          return {
+            icon: <span className="sync-icon unknown">—</span>,
+            label: 'Unknown',
+            className: 'sync-pill unknown'
+          }
+      }
+    }
+
+    const config = getStatusConfig()
+
+    return (
+      <button
+        className={config.className}
+        onClick={handleSyncClick}
+        title={`${config.label} - Click to view sync details`}
+        disabled={isSyncLoading}
+      >
+        {config.icon}
+        <span>{config.label}</span>
+      </button>
+    )
+  }
+
   const handleRefresh = () => {
     loadAllIndexDocs()
   }
@@ -249,6 +309,7 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
                   <th>{currentT.parentId}</th>
                   <th>{currentT.chunkId}</th>
                   <th>URL</th>
+                  <th>Sync</th>
                   <th>{currentT.actions}</th>
                 </tr>
               </thead>
@@ -272,12 +333,30 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
                           rel="noopener noreferrer"
                           className="url-link"
                           title="Open in new tab"
+                          onClick={async (e) => {
+                            // Handle link opening errors gracefully
+                            try {
+                              // Let the default behavior handle the link opening
+                            } catch (error) {
+                              e.preventDefault()
+                              console.error('Failed to open URL:', error)
+                              alert('링크를 열 수 없습니다. 파일이 삭제되었거나 접근 권한이 없을 수 있습니다.')
+                            }
+                          }}
                         >
                           🔗
                         </a>
                       ) : (
-                        'N/A'
+                        <span 
+                          className="url-disabled" 
+                          title="링크가 제공되지 않았습니다(스토리지 공개 액세스 불가)."
+                        >
+                          🔗
+                        </span>
                       )}
+                    </td>
+                    <td>
+                      {renderSyncStatus(doc.parent_id)}
                     </td>
                     <td>
                       <div className="action-buttons">

@@ -7,6 +7,17 @@ const RAG_API_URL = import.meta.env.DEV
   : (import.meta.env.VITE_RAG_API_URL || 'https://hr-ax-pro-rag-management.eastus2.inference.ml.azure.com/score')
 const RAG_API_KEY = import.meta.env.VITE_RAG_API_KEY
 
+// Safe select fields that are guaranteed to be supported by backend
+const SAFE_SELECT = new Set(["chunk_id","parent_id","title","url","filepath","content"]);
+
+// Sanitize select parameter to prevent 424 errors
+export function sanitizeSelect(select?: string): string | undefined {
+  if (!select) return undefined;           // ← 생략이 가장 안전
+  const parts = select.split(",").map(s => s.trim()).filter(Boolean);
+  const safe = parts.filter(p => SAFE_SELECT.has(p));
+  return safe.length ? safe.join(",") : undefined;
+}
+
 export type BlobItem = {
   name: string
   size: number
@@ -64,6 +75,7 @@ export type IndexDoc = {
   filepath?: string | null
   content?: string | null
   original_id?: string | null
+  sas_url?: string | null
 }
 
 export type ListIndexDocsResponse = {
@@ -124,6 +136,18 @@ async function callRAGAPI<T = any>(payload: Record<string, unknown>): Promise<T>
 
   if (!response.ok) {
     const text = await response.text().catch(() => '')
+    
+    // Special handling for 424 (Failed Dependency) errors
+    if (response.status === 424) {
+      console.error('🚫 424 Error - Request field not supported:', { payload, response: text })
+      throw new RAGApiError(
+        '요청 필드가 지원되지 않아 실패했어요. 페이지를 새로고침했는데도 계속되면 관리자에게 문의하세요.',
+        'UNSUPPORTED_FIELD',
+        response.status,
+        { payload, response: text }
+      )
+    }
+    
     throw new RAGApiError(`HTTP ${response.status}`, 'HTTP_ERROR', response.status, text)
   }
 
@@ -213,7 +237,7 @@ export function isTextFile(file: File): boolean {
 
 // Index Operations
 export async function listIndexDocs({
-  select = 'chunk_id,parent_id,title,url,filepath',
+  select,
   top = 50,
   skip = 0
 }: {
@@ -221,12 +245,18 @@ export async function listIndexDocs({
   top?: number
   skip?: number
 } = {}): Promise<ListIndexDocsResponse> {
-  const response = await callRAGAPI({
+  const payload: any = {
     op: 'list_docs',
-    select,
     top,
     skip,
-  })
+  }
+  
+  const safeSelect = sanitizeSelect(select)
+  if (safeSelect) {
+    payload.select = safeSelect
+  }
+  
+  const response = await callRAGAPI(payload)
 
   // Basic empty guard
   if (!response) {
@@ -322,19 +352,25 @@ export async function listBlobsUnified(prefix: string | null = null): Promise<{ 
 export async function listIndexDocsUnified({
   top = 50,
   skip = 0,
-  select = 'chunk_id,parent_id,title,url,filepath,content',
+  select,
 }: { top?: number; skip?: number; select?: string } = {}): Promise<{
   ok: true
   items: IndexDoc[]
   total: number
   context?: string
 }> {
-  const env = await callRAGAPI<{ route?: string; index?: any; data?: any; value?: any[] }>({
+  const payload: any = {
     op: 'list_docs',
     top,
     skip,
-    select,
-  })
+  }
+  
+  const safeSelect = sanitizeSelect(select)
+  if (safeSelect) {
+    payload.select = safeSelect
+  }
+  
+  const env = await callRAGAPI<{ route?: string; index?: any; data?: any; value?: any[] }>(payload)
 
   if (env.route !== 'list_docs') {
     throw new RAGApiError(`Route mismatch: ${env['route']}`, 'INVALID_RESPONSE', undefined, env)
@@ -351,7 +387,9 @@ export async function listIndexDocsUnified({
     title: v.title,
     url: v.url,
     filepath: v.filepath,
+    content: v.content,
     original_id: v.original_id ?? null,
+    sas_url: v.sas_url,
     ['@search.score']: v['@search.score'],
   }))
 
@@ -506,8 +544,19 @@ export async function listBlobs(prefix: string = '', top: number = 100): Promise
 }
 
 // List index docs - returns value array directly
-export async function listIndexDocsRows({ top = 50, skip = 0, select = 'chunk_id,parent_id,title,url,filepath,content' }: { top?: number; skip?: number; select?: string } = {}) {
-  const res: any = await callRAGAPI({ op: 'list_docs', top, skip, select })
+export async function listIndexDocsRows({ top = 50, skip = 0, select }: { top?: number; skip?: number; select?: string } = {}) {
+  const payload: any = {
+    op: 'list_docs',
+    top,
+    skip,
+  }
+  
+  const safeSelect = sanitizeSelect(select)
+  if (safeSelect) {
+    payload.select = safeSelect
+  }
+  
+  const res: any = await callRAGAPI(payload)
   
   // New API returns index payload directly
   if (!res || !res.value) {

@@ -397,12 +397,21 @@ export async function reindexBlobFallback(name: string) {
 // Search operations
 export async function searchDocuments(query: string, top: number = 10, select?: string) {
   console.debug('🔍 Calling search with query:', query, { top, select })
-  const result = await callRAGAPI({
+  
+  const payload: any = {
     op: 'search',
     q: query,
     top: top,
-    select: select || 'chunk_id,parent_id,title,filepath,url',
-  })
+  }
+  
+  // Use sanitizeSelect from ragApi.ts
+  const { sanitizeSelect } = await import('../lib/ragApi')
+  const safeSelect = sanitizeSelect(select)
+  if (safeSelect) {
+    payload.select = safeSelect
+  }
+  
+  const result = await callRAGAPI(payload)
   console.debug('📊 search response:', result)
   return result
 }

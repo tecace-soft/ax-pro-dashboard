@@ -33,6 +33,7 @@ interface IndexDocument {
   filepath?: string | null
   url?: string
   content?: string
+  sas_url?: string | null
 }
 
 interface SyncStatus {
@@ -135,6 +136,15 @@ export default function RAGManagement() {
   const isRAGManagementPage = location.pathname === '/rag-management'
 
   useEffect(() => { window.scrollTo(0, 0) }, [])
+
+  // Handle URL query parameters for tab navigation
+  useEffect(() => {
+    const urlParams = new URLSearchParams(location.search)
+    const tab = urlParams.get('tab')
+    if (tab === 'sync') {
+      setActiveTab('sync')
+    }
+  }, [location.search])
 
   useEffect(() => {
     const loadRadarData = async () => {
@@ -517,7 +527,20 @@ export default function RAGManagement() {
 
           {/* Guidance Banner */}
           <div className="guidance-banner">
-            <p>📋 <strong>Note:</strong> Document Files = Blob File Storage / Index = Search Index. They may differ, and sync status will be shown under Sync Status tab.</p>
+            {language === 'en' ? (
+              <p>
+                📋 <strong>Note:</strong> Files live in <strong>Blob Storage</strong>, while the
+                <strong> Search Index</strong> holds their indexed content. These can differ.
+                Check the <strong>Sync Status</strong> tab to see if they're in sync.
+              </p>
+            ) : (
+              <p>
+                📋 <strong>안내:</strong> 파일은 <strong>Blob Storage</strong>에 저장되고,
+                <strong> Search Index</strong>에는 인덱싱된 내용이 보관됩니다. 두 영역은 서로
+                다를 수 있으며, 동기화 여부는 <strong>Sync Status</strong> 탭에서 확인할 수
+                있습니다.
+              </p>
+            )}
           </div>
 
           {/* Tabs */}
@@ -542,7 +565,7 @@ export default function RAGManagement() {
               <div className="loading">{currentT.loading}</div>
             ) : (
               <>
-                {activeTab === 'blob-files' && <BlobFiles language={language} onUploadComplete={loadData} />}
+                {activeTab === 'blob-files' && <BlobFiles language={language} onUploadComplete={loadData} syncRows={syncRows} onNavigateToSync={() => setActiveTab('sync')} />}
 
                 {activeTab === 'index' && <IndexDocs language={language} />}
 
@@ -656,7 +679,10 @@ export default function RAGManagement() {
                                   )}
                                   {syncStatus.indexExists && (
                                     <button 
-                                      onClick={() => handleUnsync(row.key)} 
+                                      onClick={() => {
+                                        const parentId = row.indexDocs[0]?.parent_id || row.key
+                                        handleUnsync(parentId)
+                                      }} 
                                       title={currentT.unsyncAction}
                                       disabled={isSyncing[row.key]}
                                     >

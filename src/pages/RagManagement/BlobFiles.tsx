@@ -1,14 +1,24 @@
 import { useState, useEffect } from 'react'
-import { IconUpload, IconTrash, IconRefresh, IconDownload, IconAlertTriangle } from '../../ui/icons'
+import { IconUpload, IconTrash, IconRefresh, IconDownload, IconAlertTriangle, IconCheck, IconX } from '../../ui/icons'
 import { listBlobs, deleteBlob, uploadBlobFile, replaceBlobFile, BlobItem, RAGApiError } from '../../lib/ragApi'
 import './BlobFiles.css'
+
+interface SyncRow {
+  key: string
+  blob?: any | null
+  indexDocs: any[]
+  indexCount: number
+  status: 'synced' | 'needs_indexing' | 'orphaned'
+}
 
 interface BlobFilesProps {
   language?: 'en' | 'ko'
   onUploadComplete?: () => void // 업로드 완료 시 부모 컴포넌트 새로고침을 위한 콜백
+  syncRows?: SyncRow[] // sync 상태 데이터
+  onNavigateToSync?: () => void // Sync Status 탭으로 이동하는 콜백
 }
 
-export default function BlobFiles({ language = 'en', onUploadComplete }: BlobFilesProps) {
+export default function BlobFiles({ language = 'en', onUploadComplete, syncRows = [], onNavigateToSync }: BlobFilesProps) {
   const [blobs, setBlobs] = useState<BlobItem[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
@@ -249,6 +259,33 @@ export default function BlobFiles({ language = 'en', onUploadComplete }: BlobFil
     return new Date(dateString).toLocaleString()
   }
 
+  // Get sync status for a specific blob
+  const getSyncStatus = (blobName: string) => {
+    const syncRow = syncRows.find(row => row.key === blobName)
+    return syncRow ? syncRow.status : 'unknown'
+  }
+
+  // Get sync status icon
+  const getSyncStatusIcon = (status: string) => {
+    switch (status) {
+      case 'synced':
+        return <IconCheck className="sync-icon synced" />
+      case 'needs_indexing':
+        return <IconAlertTriangle className="sync-icon needs-indexing" />
+      case 'orphaned':
+        return <IconX className="sync-icon orphaned" />
+      default:
+        return <span className="sync-icon unknown">?</span>
+    }
+  }
+
+  // Handle sync status click
+  const handleSyncStatusClick = () => {
+    if (onNavigateToSync) {
+      onNavigateToSync()
+    }
+  }
+
   return (
     <div className="blob-files">
       <div className="blob-header">
@@ -336,38 +373,51 @@ export default function BlobFiles({ language = 'en', onUploadComplete }: BlobFil
                   <th>{currentT.size}</th>
                   <th>{currentT.lastModified}</th>
                   <th>{currentT.contentType}</th>
+                  <th>Sync Status</th>
                   <th>{currentT.actions}</th>
                 </tr>
               </thead>
               <tbody>
-                {blobs.map((blob) => (
-                  <tr key={blob.name}>
-                    <td className="file-name">{blob.name}</td>
-                    <td>{formatFileSize(blob.size as any)}</td>
-                    <td>{formatDate(blob.last_modified as any)}</td>
-                    <td>{blob.content_type || 'Unknown'}</td>
-                    <td>
-                      <div className="action-buttons">
-                        {(blob as any).url_with_sas || blob.url ? (
-                          <button 
-                            onClick={() => handleDownload(blob)}
-                            title={currentT.download}
-                            className="action-btn download-btn"
-                          >
-                            <IconDownload />
-                          </button>
-                        ) : null}
+                {blobs.map((blob) => {
+                  const syncStatus = getSyncStatus(blob.name)
+                  return (
+                    <tr key={blob.name}>
+                      <td className="file-name">{blob.name}</td>
+                      <td>{formatFileSize(blob.size as any)}</td>
+                      <td>{formatDate(blob.last_modified as any)}</td>
+                      <td>{blob.content_type || 'Unknown'}</td>
+                      <td>
                         <button 
-                          onClick={() => handleDelete(blob)}
-                          title={currentT.delete}
-                          className="action-btn delete-btn"
+                          onClick={handleSyncStatusClick}
+                          className="sync-status-btn"
+                          title={`Click to view sync details in Sync Status tab`}
                         >
-                          <IconTrash />
+                          {getSyncStatusIcon(syncStatus)}
                         </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td>
+                        <div className="action-buttons">
+                          {(blob as any).url_with_sas || blob.url ? (
+                            <button 
+                              onClick={() => handleDownload(blob)}
+                              title={currentT.download}
+                              className="action-btn download-btn"
+                            >
+                              <IconDownload />
+                            </button>
+                          ) : null}
+                          <button 
+                            onClick={() => handleDelete(blob)}
+                            title={currentT.delete}
+                            className="action-btn delete-btn"
+                          >
+                            <IconTrash />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           )}
