@@ -29,6 +29,28 @@ export default function ApiTest() {
 
   const testAuth = () => testEndpoint('Auth Token', getAuthToken)
   
+  const testAuthDirect = () => testEndpoint('Auth Direct', async () => {
+    // Test the auth endpoint directly to see raw response
+    const response = await fetch('/api/auth/token/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        username: 'tecacehq',
+        password: 'qwe123!@#'
+      })
+    })
+    
+    const data = await response.json()
+    return {
+      status: response.status,
+      ok: response.ok,
+      headers: Object.fromEntries(response.headers.entries()),
+      body: data
+    }
+  })
+  
   const testSessions = () => testEndpoint('Sessions', async () => {
     const token = await getAuthToken()
     const today = new Date()
@@ -59,6 +81,9 @@ export default function ApiTest() {
         </button>
         <button onClick={testAuth} disabled={loading.auth}>
           Test Auth (/api)
+        </button>
+        <button onClick={testAuthDirect} disabled={loading.authDirect}>
+          Test Auth Direct (Raw)
         </button>
         <button onClick={testSessions} disabled={loading.sessions}>
           Test Sessions (/api)
