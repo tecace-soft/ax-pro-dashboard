@@ -206,13 +206,17 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 		
 		async function fetchToken() {
 			try {
+				console.log('🔐 Attempting to fetch auth token...')
 				const token = await getAuthToken()
 				if (!cancelled) {
+					console.log('✅ Auth token received successfully')
 					setAuthToken(token)
 				}
 			} catch (error) {
 				if (!cancelled) {
-					console.error('Failed to get auth token:', error)
+					console.error('❌ Failed to get auth token:', error)
+					// Show user-friendly error
+					alert('Failed to authenticate. Please check your connection and try refreshing the page.')
 				}
 			}
 		}
@@ -243,8 +247,12 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 
 	// 최적화된 데이터 로딩 함수
 	const loadConversationsOptimized = async () => {
-		if (!authToken) return
+		if (!authToken) {
+			console.log('⏳ No auth token available, skipping conversations load')
+			return
+		}
 
+		console.log('📅 Loading conversations for date range:', { startDate, endDate })
 		const cacheKey = conversationsCache.generateKey(startDate, endDate)
 		
 		// 1. 캐시에서 데이터 확인
@@ -252,6 +260,7 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 			conversationsCache.getFromStorage<CacheData>(cacheKey)
 		
 		if (cachedData && cachedData.sessions && cachedData.sessionRequests && cachedData.requestDetails) {
+			console.log('💾 Using cached conversation data')
 			setSessions(cachedData.sessions)
 			setSessionRequests(cachedData.sessionRequests)
 			setRequestDetails(cachedData.requestDetails)
@@ -260,16 +269,21 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 		}
 
 		// 2. 캐시에 없으면 API 호출
+		console.log('🌐 Loading conversations from API...')
 		setIsLoadingSessions(true)
 		setLoadingState(prev => ({ ...prev, sessions: true, progress: 10 }))
 		
 		const apiStartDate = getApiStartDate(startDate)
 		const apiEndDate = getApiEndDate(endDate)
+		console.log('📊 API date range:', { apiStartDate, apiEndDate })
 		
 		try {
 			// 1. Sessions만 먼저 로드
+			console.log('🔄 Fetching sessions...')
 			const sessionsResponse = await fetchSessions(authToken, apiStartDate, apiEndDate)
+			console.log('📥 Sessions response:', sessionsResponse)
 			const sessions = sessionsResponse.sessions || []
+			console.log(`✅ Loaded ${sessions.length} sessions`)
 			setSessions(sessions)
 			setLoadingState(prev => ({ ...prev, sessions: false, requests: true, progress: 30 }))
 			
@@ -403,19 +417,26 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 
 	// Load all admin feedback separately (not dependent on date range)
 	useEffect(() => {
-		if (!authToken) return
+		if (!authToken) {
+			console.log('⏳ No auth token available, skipping admin feedback load')
+			return
+		}
 
 		let cancelled = false
 		
 		async function loadAllAdminFeedback() {
 			try {
+				console.log('📋 Loading admin feedback...')
 				const allFeedback = await getAllAdminFeedback()
 				if (!cancelled) {
+					console.log(`✅ Loaded ${Object.keys(allFeedback).length} admin feedback entries`)
 					setAdminFeedback(allFeedback)
 				}
 			} catch (error) {
 				if (!cancelled) {
-					console.error('Failed to load all admin feedback:', error)
+					console.error('❌ Failed to load admin feedback:', error)
+					// Show user-friendly error for admin feedback
+					alert('Failed to load admin feedback. Please check your connection.')
 				}
 			}
 		}
