@@ -1,10 +1,8 @@
 // RAG API Client for Blob Management
 // Handles communication with the deployed Azure ML endpoint
 
-// Use proxy endpoint in development, direct URL in production
-const RAG_API_URL = import.meta.env.DEV 
-  ? '/rag-api' 
-  : (import.meta.env.VITE_RAG_API_URL || 'https://hr-ax-pro-rag-management.eastus2.inference.ml.azure.com/score')
+// Always use proxy endpoint (works in both dev and production)
+const RAG_API_URL = '/rag-api'
 const RAG_API_KEY = import.meta.env.VITE_RAG_API_KEY
 
 // Safe select fields that are guaranteed to be supported by backend

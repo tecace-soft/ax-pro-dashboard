@@ -1,10 +1,8 @@
 // Knowledge Management API Service
 // Based on the API spec in src/docs/rag_management.md
 
-// Use proxy endpoint in development, direct URL in production
-const RAG_API_URL = import.meta.env.DEV 
-  ? '/rag-api' 
-  : (import.meta.env.VITE_RAG_API_URL || 'https://hr-ax-pro-rag-management.eastus2.inference.ml.azure.com/score')
+// Always use proxy endpoint (works in both dev and production)
+const RAG_API_URL = '/rag-api'
 const RAG_API_KEY = import.meta.env.VITE_RAG_API_KEY
 
 interface RAGResponse<T = any> {
