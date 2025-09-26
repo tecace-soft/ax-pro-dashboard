@@ -21,8 +21,6 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }))
 // Generic proxy handler
 async function proxyRequest(req, res, targetUrl, options = {}) {
   try {
-    console.log(`🔗 ${req.method} ${req.url} → ${targetUrl}`)
-    
     // Prepare headers - forward important headers from client
     const headers = {
       'Content-Type': 'application/json',
@@ -47,30 +45,22 @@ async function proxyRequest(req, res, targetUrl, options = {}) {
       body: req.method !== 'GET' && req.method !== 'HEAD' ? JSON.stringify(req.body) : undefined,
     })
 
-    console.log(`📥 ${response.status} ${response.statusText}`)
-
     let data
     const contentType = response.headers.get('content-type')
     if (contentType && contentType.includes('application/json')) {
-      data = await response.json().catch((e) => {
-        console.error('❌ JSON parse error:', e.message)
-        return {}
-      })
+      data = await response.json().catch(() => ({}))
     } else {
       const text = await response.text()
-      console.log(`📄 Non-JSON response (${text.length} chars)`)
       data = { message: text }
     }
     
     if (!response.ok) {
-      console.error(`❌ ${response.status} error:`, data)
       return res.status(response.status).json(data)
     }
 
-    console.log(`✅ Success`)
     res.json(data)
   } catch (error) {
-    console.error('❌ Proxy error:', error.message)
+    console.error('Proxy error:', error.message)
     res.status(500).json({
       error: {
         code: 'PROXY_ERROR',
@@ -101,17 +91,6 @@ app.post('/rag-api', async (req, res) => {
 // Main API Proxy (monitor.assistace.tecace.com)
 app.use('/api', async (req, res) => {
   const targetUrl = `https://monitor.assistace.tecace.com/api${req.url}`
-  
-  // Special logging for auth requests
-  if (req.url.includes('/auth/token')) {
-    console.log('🔐 AUTH REQUEST:', {
-      method: req.method,
-      url: req.url,
-      body: req.body,
-      targetUrl
-    })
-  }
-  
   await proxyRequest(req, res, targetUrl)
 })
 
