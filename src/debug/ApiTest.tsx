@@ -11,11 +11,16 @@ export default function ApiTest() {
   const testEndpoint = async (name: string, testFn: () => Promise<any>) => {
     setLoading(prev => ({ ...prev, [name]: true }))
     try {
+      console.log(`🧪 Testing ${name}...`)
       const result = await testFn()
       setResults(prev => ({ ...prev, [name]: { success: true, data: result } }))
       console.log(`✅ ${name} success:`, result)
     } catch (error) {
-      setResults(prev => ({ ...prev, [name]: { success: false, error: error instanceof Error ? error.message : String(error) } }))
+      setResults(prev => ({ ...prev, [name]: { 
+        success: false, 
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      } }))
       console.error(`❌ ${name} failed:`, error)
     } finally {
       setLoading(prev => ({ ...prev, [name]: false }))
@@ -81,7 +86,12 @@ export default function ApiTest() {
               </pre>
             ) : (
               <div style={{ color: 'red' }}>
-                Error: {result.error}
+                <div><strong>Error:</strong> {result.error}</div>
+                {result.stack && (
+                  <pre style={{ fontSize: '10px', marginTop: '10px', background: '#f5f5f5', padding: '5px' }}>
+                    {result.stack}
+                  </pre>
+                )}
               </div>
             )}
           </div>
