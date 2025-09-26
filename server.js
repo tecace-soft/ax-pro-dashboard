@@ -100,7 +100,18 @@ app.post('/rag-api', async (req, res) => {
 
 // Main API Proxy (monitor.assistace.tecace.com)
 app.use('/api', async (req, res) => {
-  const targetUrl = `https://monitor.assistace.tecace.com${req.url}`
+  const targetUrl = `https://monitor.assistace.tecace.com/api${req.url}`
+  
+  // Special logging for auth requests
+  if (req.url.includes('/auth/token')) {
+    console.log('🔐 AUTH REQUEST:', {
+      method: req.method,
+      url: req.url,
+      body: req.body,
+      targetUrl
+    })
+  }
+  
   await proxyRequest(req, res, targetUrl)
 })
 
