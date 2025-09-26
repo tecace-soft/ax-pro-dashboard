@@ -21,9 +21,7 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }))
 // Generic proxy handler
 async function proxyRequest(req, res, targetUrl, options = {}) {
   try {
-    console.log(`🔗 Proxying ${req.method} request to:`, targetUrl)
-    console.log(`📤 Request headers:`, req.headers)
-    console.log(`📤 Request body:`, req.body)
+    console.log(`🔗 ${req.method} ${req.url} → ${targetUrl}`)
     
     // Prepare headers - forward important headers from client
     const headers = {
@@ -42,8 +40,6 @@ async function proxyRequest(req, res, targetUrl, options = {}) {
       headers['User-Agent'] = req.headers['user-agent']
     }
     
-    console.log(`📤 Outgoing headers:`, headers)
-    
     // Make the request
     const response = await fetch(targetUrl, {
       method: req.method,
@@ -51,36 +47,34 @@ async function proxyRequest(req, res, targetUrl, options = {}) {
       body: req.method !== 'GET' && req.method !== 'HEAD' ? JSON.stringify(req.body) : undefined,
     })
 
-    console.log(`📥 Response status: ${response.status}`)
-    console.log(`📥 Response headers:`, Object.fromEntries(response.headers.entries()))
+    console.log(`📥 ${response.status} ${response.statusText}`)
 
     let data
     const contentType = response.headers.get('content-type')
     if (contentType && contentType.includes('application/json')) {
       data = await response.json().catch((e) => {
-        console.error('❌ Failed to parse JSON response:', e)
+        console.error('❌ JSON parse error:', e.message)
         return {}
       })
     } else {
       const text = await response.text()
-      console.log(`📥 Non-JSON response:`, text)
+      console.log(`📄 Non-JSON response (${text.length} chars)`)
       data = { message: text }
     }
     
     if (!response.ok) {
-      console.error(`❌ API error (${response.status}):`, data)
+      console.error(`❌ ${response.status} error:`, data)
       return res.status(response.status).json(data)
     }
 
-    console.log(`✅ API success:`, data)
+    console.log(`✅ Success`)
     res.json(data)
   } catch (error) {
-    console.error('❌ Proxy error:', error)
+    console.error('❌ Proxy error:', error.message)
     res.status(500).json({
       error: {
         code: 'PROXY_ERROR',
-        message: error instanceof Error ? error.message : 'Unknown proxy error',
-        stack: error instanceof Error ? error.stack : undefined
+        message: error instanceof Error ? error.message : 'Unknown proxy error'
       }
     })
   }
