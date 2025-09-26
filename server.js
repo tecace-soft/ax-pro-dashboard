@@ -18,43 +18,37 @@ app.use(cors())
 app.use(express.json({ limit: '50mb' }))
 app.use(express.urlencoded({ extended: true, limit: '50mb' }))
 
-// RAG API Proxy
-app.post('/rag-api', async (req, res) => {
+// Generic proxy handler
+async function proxyRequest(req, res, targetUrl, options = {}) {
   try {
-    console.log('🔗 Proxying RAG API request:', req.body)
+    console.log(`🔗 Proxying ${req.method} request to:`, targetUrl)
     
-    if (!RAG_API_KEY) {
-      return res.status(500).json({
-        error: {
-          code: 'NO_API_KEY',
-          message: 'RAG API key is not configured'
-        }
-      })
+    // Prepare headers
+    const headers = {
+      'Content-Type': 'application/json',
+      ...options.headers
     }
-
-    const response = await fetch(RAG_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${RAG_API_KEY}`,
-      },
-      body: JSON.stringify(req.body),
+    
+    // Forward original headers if needed
+    if (req.headers.authorization) {
+      headers.Authorization = req.headers.authorization
+    }
+    
+    // Make the request
+    const response = await fetch(targetUrl, {
+      method: req.method,
+      headers,
+      body: req.method !== 'GET' ? JSON.stringify(req.body) : undefined,
     })
 
-    const data = await response.json()
+    const data = await response.json().catch(() => ({}))
     
     if (!response.ok) {
-      console.error('❌ RAG API error:', response.status, data)
-      return res.status(response.status).json({
-        error: {
-          code: 'RAG_API_ERROR',
-          message: `RAG API returned ${response.status}`,
-          details: data
-        }
-      })
+      console.error(`❌ API error (${response.status}):`, data)
+      return res.status(response.status).json(data)
     }
 
-    console.log('✅ RAG API success')
+    console.log(`✅ API success`)
     res.json(data)
   } catch (error) {
     console.error('❌ Proxy error:', error)
@@ -65,6 +59,38 @@ app.post('/rag-api', async (req, res) => {
       }
     })
   }
+}
+
+// RAG API Proxy
+app.post('/rag-api', async (req, res) => {
+  if (!RAG_API_KEY) {
+    return res.status(500).json({
+      error: {
+        code: 'NO_API_KEY',
+        message: 'RAG API key is not configured'
+      }
+    })
+  }
+
+  await proxyRequest(req, res, RAG_API_URL, {
+    headers: {
+      'Authorization': `Bearer ${RAG_API_KEY}`,
+    }
+  })
+})
+
+// Main API Proxy (monitor.assistace.tecace.com)
+app.use('/api', async (req, res) => {
+  const targetUrl = `https://monitor.assistace.tecace.com${req.url}`
+  await proxyRequest(req, res, targetUrl)
+})
+
+// Prompt API Proxy (botda0313.azurewebsites.net)
+app.use('/prompt-api', async (req, res) => {
+  // Rewrite path: /prompt-api/xyz -> /api/xyz
+  const rewrittenPath = req.url.replace(/^\//, '/api/')
+  const targetUrl = `https://botda0313.azurewebsites.net${rewrittenPath}`
+  await proxyRequest(req, res, targetUrl)
 })
 
 // Serve static files
