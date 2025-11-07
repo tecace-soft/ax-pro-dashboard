@@ -5,8 +5,9 @@ import { getAuthToken } from '../services/auth'
 import { fetchSessions } from '../services/sessions'
 import { fetchSessionRequests } from '../services/requests'
 import { fetchRequestDetail } from '../services/requestDetails'
-import { fetchSessionsN8N, fetchSessionRequestsN8N, fetchRequestDetailN8N } from '../services/conversationsN8N'
+import { fetchAllConversationsN8N, fetchSessionsN8N, fetchSessionRequestsN8N, fetchRequestDetailN8N } from '../services/conversationsN8N'
 import { getAdminFeedbackBatch, getAllAdminFeedback, saveAdminFeedback, updateAdminFeedback, deleteAdminFeedback, updateAdminFeedbackPromptApply } from '../services/adminFeedback'
+import { getAllAdminFeedbackN8N, saveAdminFeedbackN8N, updateAdminFeedbackN8N, deleteAdminFeedbackN8N, updateAdminFeedbackApplyN8N, AdminFeedbackDataN8N } from '../services/adminFeedbackN8N'
 import { ensureChatDataExists } from '../services/chatData'
 import { AdminFeedbackData } from '../services/supabase'
 import { updatePromptWithFeedback } from '../services/promptUpdater'
@@ -146,7 +147,11 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 
 	const handleDeleteAdminFeedback = async (requestId: string) => {
 		try {
-			await deleteAdminFeedback(requestId)
+			if (isN8NRoute) {
+				await deleteAdminFeedbackN8N(requestId) // requestId is chat_id for n8n
+			} else {
+				await deleteAdminFeedback(requestId)
+			}
 			
 			// Update local state
 			setAdminFeedback(prev => {
@@ -175,14 +180,25 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 	const handleTogglePromptApply = async (requestId: string, currentValue: boolean) => {
 		try {
 			const newValue = !currentValue
-			await updateAdminFeedbackPromptApply(requestId, newValue)
-			setAdminFeedback(prev => ({
-				...prev,
-				[requestId]: {
-					...prev[requestId],
-					prompt_apply: newValue
-				}
-			}))
+			if (isN8NRoute) {
+				await updateAdminFeedbackApplyN8N(requestId, newValue) // requestId is chat_id for n8n
+				setAdminFeedback(prev => ({
+					...prev,
+					[requestId]: {
+						...prev[requestId],
+						prompt_apply: newValue // Map apply to prompt_apply for UI
+					}
+				}))
+			} else {
+				await updateAdminFeedbackPromptApply(requestId, newValue)
+				setAdminFeedback(prev => ({
+					...prev,
+					[requestId]: {
+						...prev[requestId],
+						prompt_apply: newValue
+					}
+				}))
+			}
 		} catch (error) {
 			console.error('Failed to update prompt_apply:', error)
 		}
@@ -248,108 +264,48 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 	// 최적화된 데이터 로딩 함수
 	const loadConversationsOptimized = async () => {
 		if (isN8NRoute) {
-			// N8N route: Use Supabase
+			// N8N route: Use Supabase - fetch all chats, group by session_id, order by session.created_at
 			if (!startDate || !endDate) return
 
 			setIsLoadingSessions(true)
 			setLoadingState(prev => ({ ...prev, sessions: true, progress: 10 }))
 
 			try {
-				// 1. Sessions만 먼저 로드
-				const sessionsResponse = await fetchSessionsN8N(startDate, endDate)
-				const sessions = sessionsResponse.sessions || []
-				setSessions(sessions)
-				setLoadingState(prev => ({ ...prev, sessions: false, requests: true, progress: 30 }))
+				// Fetch all chats, group by session_id, and order by session.created_at
+				const { sessions: sessionsList, sessionRequests: sessionRequestsMap } = await fetchAllConversationsN8N(startDate, endDate)
+				
+				setSessions(sessionsList)
+				setLoadingState(prev => ({ ...prev, sessions: false, requests: false, progress: 50 }))
 
-				// 2. Session Requests 병렬 로드
-				const requestPromises = sessions
-					.filter(session => session.sessionId)
-					.map(session =>
-						fetchSessionRequestsN8N(session.sessionId, startDate, endDate)
-							.catch(error => {
-								console.error(`Failed to fetch requests for session ${session.sessionId}:`, error)
-								return { requests: [] }
-							})
-					)
-
-				const requestResponses = await Promise.all(requestPromises)
-				setLoadingState(prev => ({ ...prev, requests: false, details: true, progress: 50 }))
-
-				// 3. Session Requests 저장 및 Request ID 수집
-				const sessionRequestsMap: Record<string, any[]> = {}
+				// Build requestDetails from the chat data (chat_message and response are already in sessionRequests)
+				const requestDetailsMap: Record<string, any> = {}
 				const allRequestIds: string[] = []
 
-				requestResponses.forEach((requestResponse, index) => {
-					const sessionId = sessions[index]?.sessionId
-					if (requestResponse?.requests && sessionId) {
-						sessionRequestsMap[sessionId] = requestResponse.requests
-						requestResponse.requests.forEach((request: any) => {
-							const requestId = request.requestId || request.id
-							if (requestId) {
-								allRequestIds.push(requestId)
-							}
-						})
-					}
-				})
-
-				// 4. 세션 데이터를 먼저 표시 (사용자가 바로 볼 수 있게)
-				setSessionRequests(sessionRequestsMap)
-				setIsLoadingSessions(false) // 세션 로딩 완료
-				setLoadingState(prev => ({
-					...prev,
-					progress: 60,
-					totalDetails: allRequestIds.length,
-					loadedDetails: 0
-				}))
-
-				// 5. Request Details를 개별적으로 로딩 (각각 완료되면 바로 표시)
-				if (allRequestIds.length > 0) {
-					const requestDetailsMap: Record<string, any> = {}
-					let loadedCount = 0
-
-					// 모든 Request Details를 병렬로 로딩
-					const detailPromises = allRequestIds.map(async (requestId) => {
-						try {
-							const detailResponse = await fetchRequestDetailN8N(requestId)
-							if (detailResponse?.request) {
-								requestDetailsMap[requestId] = detailResponse.request
-
-								// 개별 메시지가 로딩되면 바로 상태 업데이트
-								loadedCount++
-								const progress = 60 + Math.round((loadedCount / allRequestIds.length) * 30)
-
-								// 상태 업데이트 (배치로 처리하여 성능 최적화)
-								if (loadedCount % 5 === 0 || loadedCount === allRequestIds.length) {
-									setRequestDetails(prev => ({ ...prev, ...requestDetailsMap }))
-									setLoadingState(prev => ({
-										...prev,
-										progress,
-										loadedDetails: loadedCount
-									}))
-								}
-							}
-						} catch (error) {
-							console.error(`Failed to fetch detail for request ${requestId}:`, error)
-							loadedCount++
-
-							if (loadedCount % 5 === 0 || loadedCount === allRequestIds.length) {
-								setRequestDetails(prev => ({ ...prev, ...requestDetailsMap }))
-								setLoadingState(prev => ({
-									...prev,
-									loadedDetails: loadedCount
-								}))
+				Object.values(sessionRequestsMap).forEach((requests) => {
+					requests.forEach((request: any) => {
+						const requestId = request.requestId || request.id
+						if (requestId) {
+							allRequestIds.push(requestId)
+							// Store chat_message and response directly in requestDetails
+							requestDetailsMap[requestId] = {
+								inputText: request.chat_message || '',
+								outputText: request.response || ''
 							}
 						}
 					})
+				})
 
-					// 모든 요청이 완료될 때까지 대기
-					await Promise.all(detailPromises)
-
-					// 최종 상태 업데이트
-					setRequestDetails(requestDetailsMap)
-				}
-
-				setLoadingState(prev => ({ ...prev, progress: 100 }))
+				// Set the data
+				setSessionRequests(sessionRequestsMap)
+				setRequestDetails(requestDetailsMap)
+				setIsLoadingSessions(false)
+				setLoadingState(prev => ({
+					...prev,
+					progress: 100,
+					totalDetails: allRequestIds.length,
+					loadedDetails: allRequestIds.length,
+					details: false
+				}))
 
 			} catch (error) {
 				console.error('Failed to load n8n conversations:', error)
@@ -529,6 +485,45 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 
 	// Load all admin feedback separately (not dependent on date range)
 	useEffect(() => {
+		if (isN8NRoute) {
+			// N8N route: Load from n8n Supabase (no auth token needed)
+			let cancelled = false
+			
+			async function loadAllAdminFeedbackN8N() {
+				try {
+					const allFeedbackN8N = await getAllAdminFeedbackN8N()
+					if (!cancelled) {
+						// Map n8n feedback format (chat_id, apply) to UI format (request_id, prompt_apply)
+						const mappedFeedback: Record<string, AdminFeedbackData> = {}
+						Object.entries(allFeedbackN8N).forEach(([chatId, feedback]) => {
+							mappedFeedback[chatId] = {
+								id: feedback.id,
+								request_id: chatId, // Use chat_id as request_id for UI compatibility
+								feedback_verdict: feedback.feedback_verdict || 'good',
+								feedback_text: feedback.feedback_text || '',
+								corrected_response: feedback.corrected_response || null,
+								prompt_apply: feedback.apply !== undefined ? feedback.apply : true, // Map apply to prompt_apply
+								created_at: feedback.created_at,
+								updated_at: feedback.updated_at || undefined
+							}
+						})
+						setAdminFeedback(mappedFeedback)
+					}
+				} catch (error) {
+					if (!cancelled) {
+						console.error('Failed to load n8n admin feedback:', error)
+					}
+				}
+			}
+			
+			loadAllAdminFeedbackN8N()
+			
+			return () => {
+				cancelled = true
+			}
+		}
+
+		// Standard route: Need auth token
 		if (!authToken) return
 
 		let cancelled = false
@@ -551,7 +546,7 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 		return () => {
 			cancelled = true
 		}
-	}, [authToken])
+	}, [authToken, isN8NRoute])
 
 	function toggleSessionExpansion(sessionId: string) {
 		const newExpanded = new Set(expandedSessions)
@@ -598,8 +593,30 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 				}))
 			}
 		} else if (type === 'positive') {
+			// Optimistically update UI immediately
+			setAdminFeedback(prev => ({
+				...prev,
+				[requestId]: {
+					id: undefined,
+					request_id: requestId,
+					feedback_verdict: 'good',
+					feedback_text: '',
+					corrected_response: null,
+					prompt_apply: true,
+					created_at: new Date().toISOString(),
+					updated_at: undefined
+				}
+			}))
 			// Auto-submit positive feedback with empty text
-			await submitPositiveFeedback(requestId)
+			submitPositiveFeedback(requestId).catch(error => {
+				// Revert optimistic update on error
+				setAdminFeedback(prev => {
+					const newState = { ...prev }
+					delete newState[requestId]
+					return newState
+				})
+				console.error('Failed to submit positive feedback:', error)
+			})
 		} else {
 			// Toggle inline form for negative feedback
 			if (expandedFeedbackForms.has(requestId)) {
@@ -659,17 +676,20 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 	}
 
 	const removePositiveFeedback = async (requestId: string) => {
-		setSubmittingFeedbackRequests(prev => new Set(prev).add(requestId))
+		// Optimistically remove feedback from state immediately
+		const previousFeedback = adminFeedback[requestId]
+		setAdminFeedback(prev => {
+			const newState = { ...prev }
+			delete newState[requestId]
+			return newState
+		})
 		
 		try {
-			await deleteAdminFeedback(requestId)
-			
-			// Update local state
-			setAdminFeedback(prev => {
-				const newState = { ...prev }
-				delete newState[requestId]
-				return newState
-			})
+			if (isN8NRoute) {
+				await deleteAdminFeedbackN8N(requestId) // requestId is chat_id for n8n
+			} else {
+				await deleteAdminFeedback(requestId)
+			}
 			
 			// Update system prompt to reflect the deletion
 			await updatePromptWithFeedback()
@@ -678,12 +698,13 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 			triggerPromptRefresh()
 		} catch (error) {
 			console.error('Failed to remove positive feedback:', error)
-		} finally {
-			setSubmittingFeedbackRequests(prev => {
-				const newSet = new Set(prev)
-				newSet.delete(requestId)
-				return newSet
-			})
+			// Revert optimistic update on error
+			if (previousFeedback) {
+				setAdminFeedback(prev => ({
+					...prev,
+					[requestId]: previousFeedback
+				}))
+			}
 		}
 	}
 
@@ -692,14 +713,32 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 		
 		try {
 			// Delete existing negative feedback and save positive
-			await deleteAdminFeedback(requestId)
-			const savedFeedback = await saveAdminFeedback(requestId, 'good', '')
-			
-			// Update local state
-			setAdminFeedback(prev => ({
-				...prev,
-				[requestId]: savedFeedback
-			}))
+			if (isN8NRoute) {
+				await deleteAdminFeedbackN8N(requestId) // requestId is chat_id for n8n
+				const savedFeedbackN8N = await saveAdminFeedbackN8N(requestId, 'good', '')
+				// Map n8n format to UI format
+				const savedFeedback: AdminFeedbackData = {
+					id: savedFeedbackN8N.id,
+					request_id: requestId,
+					feedback_verdict: savedFeedbackN8N.feedback_verdict || 'good',
+					feedback_text: savedFeedbackN8N.feedback_text || '',
+					corrected_response: savedFeedbackN8N.corrected_response || null,
+					prompt_apply: savedFeedbackN8N.apply !== undefined ? savedFeedbackN8N.apply : true,
+					created_at: savedFeedbackN8N.created_at,
+					updated_at: savedFeedbackN8N.updated_at || undefined
+				}
+				setAdminFeedback(prev => ({
+					...prev,
+					[requestId]: savedFeedback
+				}))
+			} else {
+				await deleteAdminFeedback(requestId)
+				const savedFeedback = await saveAdminFeedback(requestId, 'good', '')
+				setAdminFeedback(prev => ({
+					...prev,
+					[requestId]: savedFeedback
+				}))
+			}
 			
 			// Update system prompt to reflect the deletion of negative feedback
 			await updatePromptWithFeedback()
@@ -746,7 +785,11 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 		setSubmittingFeedbackRequests(prev => new Set(prev).add(requestId))
 		
 		try {
-			await deleteAdminFeedback(requestId)
+			if (isN8NRoute) {
+				await deleteAdminFeedbackN8N(requestId) // requestId is chat_id for n8n
+			} else {
+				await deleteAdminFeedback(requestId)
+			}
 			
 			// Update local state
 			setAdminFeedback(prev => {
@@ -790,43 +833,67 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 		
 		try {
 			// Delete existing positive feedback and save negative
-			await deleteAdminFeedback(requestId)
-			
-			// Ensure chat data exists first
-			const requestDetail = requestDetails[requestId]
-			if (requestDetail) {
-				// Find the session ID for this request
-				let sessionId = ''
-				for (const [sId, requests] of Object.entries(sessionRequests)) {
-					if (requests.some(r => (r.requestId || r.id) === requestId)) {
-						sessionId = sId
-						break
+			if (isN8NRoute) {
+				await deleteAdminFeedbackN8N(requestId) // requestId is chat_id for n8n
+				// For n8n, chat data already exists in Supabase, no need to ensure it exists
+				const savedFeedbackN8N = await saveAdminFeedbackN8N(
+					requestId, // chat_id
+					'bad', 
+					formData.text,
+					formData.preferredResponse.trim() || undefined
+				)
+				// Map n8n format to UI format
+				const savedFeedback: AdminFeedbackData = {
+					id: savedFeedbackN8N.id,
+					request_id: requestId,
+					feedback_verdict: savedFeedbackN8N.feedback_verdict || 'bad',
+					feedback_text: savedFeedbackN8N.feedback_text || '',
+					corrected_response: savedFeedbackN8N.corrected_response || null,
+					prompt_apply: savedFeedbackN8N.apply !== undefined ? savedFeedbackN8N.apply : true,
+					created_at: savedFeedbackN8N.created_at,
+					updated_at: savedFeedbackN8N.updated_at || undefined
+				}
+				setAdminFeedback(prev => ({
+					...prev,
+					[requestId]: savedFeedback
+				}))
+			} else {
+				await deleteAdminFeedback(requestId)
+				
+				// Ensure chat data exists first
+				const requestDetail = requestDetails[requestId]
+				if (requestDetail) {
+					// Find the session ID for this request
+					let sessionId = ''
+					for (const [sId, requests] of Object.entries(sessionRequests)) {
+						if (requests.some(r => (r.requestId || r.id) === requestId)) {
+							sessionId = sId
+							break
+						}
+					}
+					
+					if (sessionId) {
+						await ensureChatDataExists(
+							requestId,
+							sessionId,
+							requestDetail.inputText || '',
+							requestDetail.outputText || ''
+						)
 					}
 				}
 				
-				if (sessionId) {
-					await ensureChatDataExists(
-						requestId,
-						sessionId,
-						requestDetail.inputText || '',
-						requestDetail.outputText || ''
-					)
-				}
+				// Save negative feedback
+				const savedFeedback = await saveAdminFeedback(
+					requestId, 
+					'bad', 
+					formData.text,
+					formData.preferredResponse.trim() || undefined
+				)
+				setAdminFeedback(prev => ({
+					...prev,
+					[requestId]: savedFeedback
+				}))
 			}
-			
-			// Save negative feedback
-			const savedFeedback = await saveAdminFeedback(
-				requestId, 
-				'bad', 
-				formData.text,
-				formData.preferredResponse.trim() || undefined
-			)
-			
-			// Update local state
-			setAdminFeedback(prev => ({
-				...prev,
-				[requestId]: savedFeedback
-			}))
 			
 			// Close the form and modal
 			closeFeedbackForm(requestId)
@@ -854,48 +921,62 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 	}
 
 	const submitPositiveFeedback = async (requestId: string) => {
-		setSubmittingFeedbackRequests(prev => new Set(prev).add(requestId))
+		// Don't set loading state immediately - optimistic update already happened
+		// Only set loading if there's an error and we need to revert
 		
 		try {
-			// Ensure chat data exists first
-			const requestDetail = requestDetails[requestId]
-			if (requestDetail) {
-				// Find the session ID for this request
-				let sessionId = ''
-				for (const [sId, requests] of Object.entries(sessionRequests)) {
-					if (requests.some(r => (r.requestId || r.id) === requestId)) {
-						sessionId = sId
-						break
+			if (isN8NRoute) {
+				// For n8n, chat data already exists in Supabase, no need to ensure it exists
+				const savedFeedbackN8N = await saveAdminFeedbackN8N(requestId, 'good', '') // requestId is chat_id for n8n
+				// Map n8n format to UI format
+				const savedFeedback: AdminFeedbackData = {
+					id: savedFeedbackN8N.id,
+					request_id: requestId,
+					feedback_verdict: savedFeedbackN8N.feedback_verdict || 'good',
+					feedback_text: savedFeedbackN8N.feedback_text || '',
+					corrected_response: savedFeedbackN8N.corrected_response || null,
+					prompt_apply: savedFeedbackN8N.apply !== undefined ? savedFeedbackN8N.apply : true,
+					created_at: savedFeedbackN8N.created_at,
+					updated_at: savedFeedbackN8N.updated_at || undefined
+				}
+				setAdminFeedback(prev => ({
+					...prev,
+					[requestId]: savedFeedback
+				}))
+			} else {
+				// Ensure chat data exists first
+				const requestDetail = requestDetails[requestId]
+				if (requestDetail) {
+					// Find the session ID for this request
+					let sessionId = ''
+					for (const [sId, requests] of Object.entries(sessionRequests)) {
+						if (requests.some(r => (r.requestId || r.id) === requestId)) {
+							sessionId = sId
+							break
+						}
+					}
+					
+					if (sessionId) {
+						await ensureChatDataExists(
+							requestId,
+							sessionId,
+							requestDetail.inputText || '',
+							requestDetail.outputText || ''
+						)
 					}
 				}
 				
-				if (sessionId) {
-					await ensureChatDataExists(
-						requestId,
-						sessionId,
-						requestDetail.inputText || '',
-						requestDetail.outputText || ''
-					)
-				}
+				// Save positive feedback with empty text (no corrected response for positive feedback)
+				const savedFeedback = await saveAdminFeedback(requestId, 'good', '')
+				setAdminFeedback(prev => ({
+					...prev,
+					[requestId]: savedFeedback
+				}))
 			}
-			
-			// Save positive feedback with empty text (no corrected response for positive feedback)
-			const savedFeedback = await saveAdminFeedback(requestId, 'good', '')
-			
-			// Update local state
-			setAdminFeedback(prev => ({
-				...prev,
-				[requestId]: savedFeedback
-			}))
 			
 		} catch (error) {
 			console.error('Failed to submit positive feedback:', error)
-		} finally {
-			setSubmittingFeedbackRequests(prev => {
-				const newSet = new Set(prev)
-				newSet.delete(requestId)
-				return newSet
-			})
+			// Revert optimistic update on error - already handled in handleFeedbackClick
 		}
 	}
 
@@ -921,41 +1002,64 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 		setSubmittingFeedbackRequests(prev => new Set(prev).add(requestId))
 		
 		try {
-			// Ensure chat data exists first
-			const requestDetail = requestDetails[requestId]
-			if (requestDetail) {
-				// Find the session ID for this request
-				let sessionId = ''
-				for (const [sId, requests] of Object.entries(sessionRequests)) {
-					if (requests.some(r => (r.requestId || r.id) === requestId)) {
-						sessionId = sId
-						break
+			if (isN8NRoute) {
+				// For n8n, chat data already exists in Supabase, no need to ensure it exists
+				const savedFeedbackN8N = await saveAdminFeedbackN8N(
+					requestId, // chat_id
+					'bad', 
+					formData.text,
+					formData.preferredResponse.trim() || undefined
+				)
+				// Map n8n format to UI format
+				const savedFeedback: AdminFeedbackData = {
+					id: savedFeedbackN8N.id,
+					request_id: requestId,
+					feedback_verdict: savedFeedbackN8N.feedback_verdict || 'bad',
+					feedback_text: savedFeedbackN8N.feedback_text || '',
+					corrected_response: savedFeedbackN8N.corrected_response || null,
+					prompt_apply: savedFeedbackN8N.apply !== undefined ? savedFeedbackN8N.apply : true,
+					created_at: savedFeedbackN8N.created_at,
+					updated_at: savedFeedbackN8N.updated_at || undefined
+				}
+				setAdminFeedback(prev => ({
+					...prev,
+					[requestId]: savedFeedback
+				}))
+			} else {
+				// Ensure chat data exists first
+				const requestDetail = requestDetails[requestId]
+				if (requestDetail) {
+					// Find the session ID for this request
+					let sessionId = ''
+					for (const [sId, requests] of Object.entries(sessionRequests)) {
+						if (requests.some(r => (r.requestId || r.id) === requestId)) {
+							sessionId = sId
+							break
+						}
+					}
+					
+					if (sessionId) {
+						await ensureChatDataExists(
+							requestId,
+							sessionId,
+							requestDetail.inputText || '',
+							requestDetail.outputText || ''
+						)
 					}
 				}
 				
-				if (sessionId) {
-					await ensureChatDataExists(
-						requestId,
-						sessionId,
-						requestDetail.inputText || '',
-						requestDetail.outputText || ''
-					)
-				}
+				// Save negative feedback with separate fields
+				const savedFeedback = await saveAdminFeedback(
+					requestId, 
+					'bad', 
+					formData.text,
+					formData.preferredResponse.trim() || undefined
+				)
+				setAdminFeedback(prev => ({
+					...prev,
+					[requestId]: savedFeedback
+				}))
 			}
-			
-			// Save negative feedback with separate fields
-			const savedFeedback = await saveAdminFeedback(
-				requestId, 
-				'bad', 
-				formData.text,
-				formData.preferredResponse.trim() || undefined
-			)
-			
-			// Update local state
-			setAdminFeedback(prev => ({
-				...prev,
-				[requestId]: savedFeedback
-			}))
 			
 			// Close the inline form with animation
 			closeFeedbackForm(requestId)
@@ -987,43 +1091,69 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 		try {
 			const verdict = feedbackModal.type === 'positive' ? 'good' : 'bad'
 			
-			// Ensure chat data exists first (required for foreign key constraint)
-			const requestDetail = requestDetails[feedbackModal.requestId]
-			if (requestDetail) {
-				// Find the session ID for this request
-				let sessionId = ''
-				for (const [sId, requests] of Object.entries(sessionRequests)) {
-					if (requests.some(r => (r.requestId || r.id) === feedbackModal.requestId)) {
-						sessionId = sId
-						break
+			if (isN8NRoute) {
+				// For n8n, chat data already exists in Supabase, no need to ensure it exists
+				let savedFeedbackN8N: AdminFeedbackDataN8N
+				if (feedbackModal.mode === 'edit' || feedbackModal.existingFeedback) {
+					// Update existing feedback (preserve existing corrected_response if any)
+					const existingCorrectedResponse = feedbackModal.existingFeedback?.corrected_response
+					savedFeedbackN8N = await updateAdminFeedbackN8N(feedbackModal.requestId, verdict, feedbackText, existingCorrectedResponse || undefined)
+				} else {
+					// Save new feedback (modal doesn't have corrected response field)
+					savedFeedbackN8N = await saveAdminFeedbackN8N(feedbackModal.requestId, verdict, feedbackText)
+				}
+				// Map n8n format to UI format
+				const savedFeedback: AdminFeedbackData = {
+					id: savedFeedbackN8N.id,
+					request_id: feedbackModal.requestId,
+					feedback_verdict: savedFeedbackN8N.feedback_verdict || verdict,
+					feedback_text: savedFeedbackN8N.feedback_text || '',
+					corrected_response: savedFeedbackN8N.corrected_response || null,
+					prompt_apply: savedFeedbackN8N.apply !== undefined ? savedFeedbackN8N.apply : true,
+					created_at: savedFeedbackN8N.created_at,
+					updated_at: savedFeedbackN8N.updated_at || undefined
+				}
+				setAdminFeedback(prev => ({
+					...prev,
+					[feedbackModal.requestId!]: savedFeedback
+				}))
+			} else {
+				// Ensure chat data exists first (required for foreign key constraint)
+				const requestDetail = requestDetails[feedbackModal.requestId]
+				if (requestDetail) {
+					// Find the session ID for this request
+					let sessionId = ''
+					for (const [sId, requests] of Object.entries(sessionRequests)) {
+						if (requests.some(r => (r.requestId || r.id) === feedbackModal.requestId)) {
+							sessionId = sId
+							break
+						}
+					}
+					
+					if (sessionId) {
+						await ensureChatDataExists(
+							feedbackModal.requestId,
+							sessionId,
+							requestDetail.inputText || '',
+							requestDetail.outputText || ''
+						)
 					}
 				}
 				
-				if (sessionId) {
-					await ensureChatDataExists(
-						feedbackModal.requestId,
-						sessionId,
-						requestDetail.inputText || '',
-						requestDetail.outputText || ''
-					)
+				let savedFeedback: AdminFeedbackData
+				if (feedbackModal.mode === 'edit' || feedbackModal.existingFeedback) {
+					// Update existing feedback (preserve existing corrected_response if any)
+					const existingCorrectedResponse = feedbackModal.existingFeedback?.corrected_response
+					savedFeedback = await updateAdminFeedback(feedbackModal.requestId, verdict, feedbackText, existingCorrectedResponse || undefined)
+				} else {
+					// Save new feedback (modal doesn't have corrected response field)
+					savedFeedback = await saveAdminFeedback(feedbackModal.requestId, verdict, feedbackText)
 				}
+				setAdminFeedback(prev => ({
+					...prev,
+					[feedbackModal.requestId!]: savedFeedback
+				}))
 			}
-			
-			let savedFeedback: AdminFeedbackData
-			if (feedbackModal.mode === 'edit' || feedbackModal.existingFeedback) {
-				// Update existing feedback (preserve existing corrected_response if any)
-				const existingCorrectedResponse = feedbackModal.existingFeedback?.corrected_response
-				savedFeedback = await updateAdminFeedback(feedbackModal.requestId, verdict, feedbackText, existingCorrectedResponse || undefined)
-			} else {
-				// Save new feedback (modal doesn't have corrected response field)
-				savedFeedback = await saveAdminFeedback(feedbackModal.requestId, verdict, feedbackText)
-			}
-			
-			// Update local state
-			setAdminFeedback(prev => ({
-				...prev,
-				[feedbackModal.requestId!]: savedFeedback
-			}))
 			
 			closeFeedbackModal()
 			
@@ -1299,12 +1429,16 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 																						<div className="request-date">No date available</div>
 																					)}
 																				</div>
-																				<div className="request-actions">
+																				<div className="request-actions" onClick={(e) => e.stopPropagation()}>
 																					<button 
-																						className={`thumbs-btn thumbs-up ${adminFeedback[requestId]?.feedback_verdict === 'good' ? 'submitted' : ''} ${submittingFeedbackRequests.has(requestId) ? 'loading' : ''}`}
+																						className={`thumbs-btn thumbs-up ${adminFeedback[requestId]?.feedback_verdict === 'good' ? 'submitted' : ''}`}
 																						title="Thumbs Up"
-																						onClick={() => handleFeedbackClick('positive', requestId)}
-																						disabled={submittingFeedbackRequests.has(requestId) || isLoadingDetail}
+																						onClick={(e) => {
+																							e.preventDefault()
+																							e.stopPropagation()
+																							handleFeedbackClick('positive', requestId)
+																						}}
+																						disabled={isLoadingDetail}
 																					>
 																						<svg fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
 																							<path d="M20 8h-5.612l1.123-3.367c.202-.608.1-1.282-.275-1.802S14.253 2 13.612 2H12c-.297 0-.578.132-.769.36L6.531 8H4c-1.103 0-2 .897-2 2v9c0 1.103.897 2 2 2h13.307a2.01 2.01 0 0 0 1.873-1.298l2.757-7.351A1 1 0 0 0 22 12v-2c0-1.103-.897-2-2-2zM4 10h2v9H4v-9zm16 1.819L17.307 19H8V9.362L12.468 4h1.146l-1.562 4.683A.998.998 0 0 0 13 10h7v1.819z"></path>
@@ -1313,7 +1447,11 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 																					<button 
 																						className={`thumbs-btn thumbs-down ${adminFeedback[requestId]?.feedback_verdict === 'bad' ? 'submitted' : ''} ${submittingFeedbackRequests.has(requestId) ? 'loading' : ''}`}
 																						title="Thumbs Down"
-																						onClick={() => handleFeedbackClick('negative', requestId)}
+																						onClick={(e) => {
+																							e.preventDefault()
+																							e.stopPropagation()
+																							handleFeedbackClick('negative', requestId)
+																						}}
 																						disabled={submittingFeedbackRequests.has(requestId) || isLoadingDetail}
 																					>
 																						<svg fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">

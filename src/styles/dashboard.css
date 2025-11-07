@@ -1616,19 +1616,7 @@ input:checked + .toggle-slider::before {
   box-shadow: 0 4px 12px rgba(59,230,255,0.3); }
 .submit-feedback-btn:disabled{ opacity: 0.5;
   cursor: not-allowed; }
-/* Thumbs up/down buttons */ .thumbs-btn{ background: transparent;
-  border: 1px solid rgba(255,255,255,0.2);
-  border-radius: 6px;
-  padding: 6px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  color: rgba(255,255,255,0.6); }
-.thumbs-btn:hover{ border-color: rgba(255,255,255,0.4);
-  color: rgba(255,255,255,0.8); }
-.thumbs-btn.submitted{ border-color: #3be6ff;
-  color: #3be6ff; }
-.thumbs-btn svg{ width: 16px;
-  height: 16px; }
+/* Duplicate thumbs-btn styles removed - using the ones defined earlier */
 /* Session messages count */ .session-messages{ color: rgba(255,255,255,0.6);
   font-size: 12px; }
 /* Request datetime */ .request-datetime{ display: flex;
