@@ -1,9 +1,11 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useLocation } from 'react-router-dom'
 import { IconX } from '../ui/icons'
 import { getAuthToken } from '../services/auth'
 import { fetchSessions } from '../services/sessions'
 import { fetchSessionRequests } from '../services/requests'
 import { fetchRequestDetail } from '../services/requestDetails'
+import { fetchSessionsN8N, fetchSessionRequestsN8N, fetchRequestDetailN8N } from '../services/conversationsN8N'
 import { getAdminFeedbackBatch, getAllAdminFeedback, saveAdminFeedback, updateAdminFeedback, deleteAdminFeedback, updateAdminFeedbackPromptApply } from '../services/adminFeedback'
 import { ensureChatDataExists } from '../services/chatData'
 import { AdminFeedbackData } from '../services/supabase'
@@ -77,6 +79,8 @@ interface ContentProps {
 }
 
 export default function Content({ startDate, endDate, onDateChange }: ContentProps) {
+	const location = useLocation()
+	const isN8NRoute = location.pathname === '/dashboard-n8n' || location.pathname === '/rag-n8n'
 	const [authToken, setAuthToken] = useState<string | null>(null)
 	const [sessions, setSessions] = useState<any[]>([])
 	const [isLoadingSessions, setIsLoadingSessions] = useState(false)
@@ -243,6 +247,120 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 
 	// 최적화된 데이터 로딩 함수
 	const loadConversationsOptimized = async () => {
+		if (isN8NRoute) {
+			// N8N route: Use Supabase
+			if (!startDate || !endDate) return
+
+			setIsLoadingSessions(true)
+			setLoadingState(prev => ({ ...prev, sessions: true, progress: 10 }))
+
+			try {
+				// 1. Sessions만 먼저 로드
+				const sessionsResponse = await fetchSessionsN8N(startDate, endDate)
+				const sessions = sessionsResponse.sessions || []
+				setSessions(sessions)
+				setLoadingState(prev => ({ ...prev, sessions: false, requests: true, progress: 30 }))
+
+				// 2. Session Requests 병렬 로드
+				const requestPromises = sessions
+					.filter(session => session.sessionId)
+					.map(session =>
+						fetchSessionRequestsN8N(session.sessionId, startDate, endDate)
+							.catch(error => {
+								console.error(`Failed to fetch requests for session ${session.sessionId}:`, error)
+								return { requests: [] }
+							})
+					)
+
+				const requestResponses = await Promise.all(requestPromises)
+				setLoadingState(prev => ({ ...prev, requests: false, details: true, progress: 50 }))
+
+				// 3. Session Requests 저장 및 Request ID 수집
+				const sessionRequestsMap: Record<string, any[]> = {}
+				const allRequestIds: string[] = []
+
+				requestResponses.forEach((requestResponse, index) => {
+					const sessionId = sessions[index]?.sessionId
+					if (requestResponse?.requests && sessionId) {
+						sessionRequestsMap[sessionId] = requestResponse.requests
+						requestResponse.requests.forEach((request: any) => {
+							const requestId = request.requestId || request.id
+							if (requestId) {
+								allRequestIds.push(requestId)
+							}
+						})
+					}
+				})
+
+				// 4. 세션 데이터를 먼저 표시 (사용자가 바로 볼 수 있게)
+				setSessionRequests(sessionRequestsMap)
+				setIsLoadingSessions(false) // 세션 로딩 완료
+				setLoadingState(prev => ({
+					...prev,
+					progress: 60,
+					totalDetails: allRequestIds.length,
+					loadedDetails: 0
+				}))
+
+				// 5. Request Details를 개별적으로 로딩 (각각 완료되면 바로 표시)
+				if (allRequestIds.length > 0) {
+					const requestDetailsMap: Record<string, any> = {}
+					let loadedCount = 0
+
+					// 모든 Request Details를 병렬로 로딩
+					const detailPromises = allRequestIds.map(async (requestId) => {
+						try {
+							const detailResponse = await fetchRequestDetailN8N(requestId)
+							if (detailResponse?.request) {
+								requestDetailsMap[requestId] = detailResponse.request
+
+								// 개별 메시지가 로딩되면 바로 상태 업데이트
+								loadedCount++
+								const progress = 60 + Math.round((loadedCount / allRequestIds.length) * 30)
+
+								// 상태 업데이트 (배치로 처리하여 성능 최적화)
+								if (loadedCount % 5 === 0 || loadedCount === allRequestIds.length) {
+									setRequestDetails(prev => ({ ...prev, ...requestDetailsMap }))
+									setLoadingState(prev => ({
+										...prev,
+										progress,
+										loadedDetails: loadedCount
+									}))
+								}
+							}
+						} catch (error) {
+							console.error(`Failed to fetch detail for request ${requestId}:`, error)
+							loadedCount++
+
+							if (loadedCount % 5 === 0 || loadedCount === allRequestIds.length) {
+								setRequestDetails(prev => ({ ...prev, ...requestDetailsMap }))
+								setLoadingState(prev => ({
+									...prev,
+									loadedDetails: loadedCount
+								}))
+							}
+						}
+					})
+
+					// 모든 요청이 완료될 때까지 대기
+					await Promise.all(detailPromises)
+
+					// 최종 상태 업데이트
+					setRequestDetails(requestDetailsMap)
+				}
+
+				setLoadingState(prev => ({ ...prev, progress: 100 }))
+
+			} catch (error) {
+				console.error('Failed to load n8n conversations:', error)
+				setIsLoadingSessions(false)
+			} finally {
+				setLoadingState(prev => ({ ...prev, details: false, progress: 0, loadedDetails: 0, totalDetails: 0 }))
+			}
+			return
+		}
+
+		// Standard route: Use API (original logic)
 		if (!authToken) return
 
 		const cacheKey = conversationsCache.generateKey(startDate, endDate)
@@ -386,6 +504,14 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 
 	// Fetch sessions when token is available or dates change
 	useEffect(() => {
+		if (isN8NRoute) {
+			// N8N route: No auth token needed, just dates
+			if (!startDate || !endDate) return
+			loadConversationsOptimized()
+			return
+		}
+
+		// Standard route: Need auth token
 		if (!authToken) return
 
 		let cancelled = false
@@ -399,7 +525,7 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 		return () => {
 			cancelled = true
 		}
-	}, [authToken, startDate, endDate])
+	}, [authToken, startDate, endDate, isN8NRoute])
 
 	// Load all admin feedback separately (not dependent on date range)
 	useEffect(() => {
@@ -1069,23 +1195,52 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 									<p className="muted">Loading conversations...</p>
 								) : sessions.length > 0 ? (
 									<div className="sessions-list">
-										{sessions.map((session, index) => {
-											const sessionId = session.sessionId || session.id || `Session ${index + 1}`
+										{sessions
+											.map((session, index) => {
+												const sessionId = session.sessionId || session.id || `Session ${index + 1}`
+												const requests = sessionRequests[sessionId] || []
+												
+												// Calculate last message date for sorting
+												const getLastMessageTimestamp = () => {
+													if (requests.length === 0) return 0;
+													
+													const timestamps = requests
+														.map(request => request.createdAt)
+														.filter(timestamp => timestamp)
+														.map(timestamp => new Date(timestamp).getTime())
+														.sort((a, b) => b - a);
+													
+													return timestamps.length > 0 ? timestamps[0] : 0;
+												};
+												
+												return {
+													...session,
+													sessionId,
+													requests,
+													lastMessageTimestamp: getLastMessageTimestamp()
+												};
+											})
+											.sort((a, b) => b.lastMessageTimestamp - a.lastMessageTimestamp) // Sort by most recent last message first
+											.map((sessionData, index) => {
+											const sessionId = sessionData.sessionId
 											const isExpanded = expandedSessions.has(sessionId)
-											const requests = sessionRequests[sessionId] || []
+											const requests = sessionData.requests
+											
+											// Convert timestamp back to Date object for display
+											const lastMessageDate = sessionData.lastMessageTimestamp > 0 ? new Date(sessionData.lastMessageTimestamp) : null;
 											
 											return (
 												<div key={sessionId} className="session-container">
 													<div className="session-row" onClick={() => toggleSessionExpansion(sessionId)}>
 														<div className="session-left">
 															<div className="session-datetime">
-																{session.createdAt ? (
+																{sessionData.createdAt ? (
 																	<>
 																		<span className="session-date">
-																			{new Date(session.createdAt).toLocaleDateString()}
+																			{new Date(sessionData.createdAt).toLocaleDateString()}
 																		</span>
 																		<span className="session-time">
-																			{new Date(session.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+																			{new Date(sessionData.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
 																		</span>
 																	</>
 																) : (
@@ -1094,6 +1249,21 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 															</div>
 															<div className="session-messages">
 																{requests.length === 1 ? '1 message' : `${requests.length} messages`}
+															</div>
+															<div className="session-last-message">
+																{lastMessageDate ? (
+																	<>
+																		<span className="last-message-label">Last Message Date: </span>
+																		<span className="last-message-date">
+																			{lastMessageDate.toLocaleDateString()}
+																		</span>
+																		<span className="last-message-time">
+																			{lastMessageDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+																		</span>
+																	</>
+																) : (
+																	<span className="last-message-label">Last Message Date: No data</span>
+																)}
 															</div>
 														</div>
 														<div className="session-right">
@@ -1107,7 +1277,7 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 													{isExpanded && (
 														<div className="requests-container">
 															{requests.length > 0 ? (
-																requests.map((request, reqIndex) => {
+																requests.map((request: any, reqIndex: number) => {
 																	const requestId = request.requestId || request.id
 																	const detail = requestDetails[requestId]
 																	const isLoadingDetail = loadingState.details && !detail

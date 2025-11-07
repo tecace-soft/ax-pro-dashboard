@@ -1,7 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
+import { useLocation } from 'react-router-dom'
 import { fetchSystemPrompt, updateSystemPrompt } from '../services/prompt'
+import { fetchSystemPromptN8N, saveSystemPromptN8N } from '../services/promptN8N'
 
 export default function PromptControl() {
+  const location = useLocation()
+  const isN8NRoute = location.pathname === '/dashboard-n8n' || location.pathname === '/rag-n8n'
   const [promptText, setPromptText] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null)
@@ -23,8 +27,10 @@ export default function PromptControl() {
   useEffect(() => {
     async function loadSystemPrompt() {
       try {
-        console.log('Attempting to fetch system prompt...')
-        const content = await fetchSystemPrompt()
+        console.log('Attempting to fetch system prompt...', isN8NRoute ? '(N8N)' : '(Standard)')
+        const content = isN8NRoute 
+          ? await fetchSystemPromptN8N()
+          : await fetchSystemPrompt()
         console.log('System prompt received:', content)
         setPromptText(content)
         setLastRefreshed(new Date())
@@ -37,7 +43,7 @@ export default function PromptControl() {
     }
     
     loadSystemPrompt()
-  }, [])
+  }, [isN8NRoute])
 
   // Auto-refresh when key changes (triggered by admin feedback submission)
   useEffect(() => {
@@ -49,7 +55,9 @@ export default function PromptControl() {
   const handleRefresh = async () => {
     setIsRefreshing(true)
     try {
-      const content = await fetchSystemPrompt()
+      const content = isN8NRoute
+        ? await fetchSystemPromptN8N()
+        : await fetchSystemPrompt()
       setPromptText(content)
       setLastRefreshed(new Date())
     } catch (error) {
@@ -68,55 +76,69 @@ export default function PromptControl() {
     setShowConfirmation(false)
     
     try {
-      // Step 1: Save the system prompt
-      console.log('💾 Saving system prompt...')
-      await updateSystemPrompt(promptText)
-      console.log('✅ System prompt saved successfully')
-      
-      // Step 2: Force reload the chatbot with the new prompt
-      console.log('🔄 Force reloading chatbot...')
-      const response = await fetch('/prompt-api/force-prompt-reload', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
-      
-      console.log('📊 Force reload response status:', response.status)
-      
-      if (!response.ok) {
-        console.error('❌ Force reload HTTP error:', response.status, response.statusText)
+      if (isN8NRoute) {
+        // N8N route: Save to Supabase
+        console.log('💾 Saving system prompt to N8N Supabase...')
+        await saveSystemPromptN8N(promptText)
+        console.log('✅ N8N system prompt saved successfully')
+        
         setResponseModal({
           isOpen: true,
-          message: `HTTP Error: ${response.status} ${response.statusText}`,
-          isSuccess: false
+          message: 'Prompt saved successfully to Supabase',
+          isSuccess: true
         })
-        return
-      }
-      
-      const responseText = await response.text()
-      console.log('📄 Force reload response text:', responseText)
-      
-      let data
-      try {
-        data = JSON.parse(responseText)
-        console.log('📋 Force reload parsed data:', data)
-      } catch (parseError) {
-        console.error('❌ Failed to parse force reload JSON:', parseError)
+      } else {
+        // Standard route: Use existing API flow
+        // Step 1: Save the system prompt
+        console.log('💾 Saving system prompt...')
+        await updateSystemPrompt(promptText)
+        console.log('✅ System prompt saved successfully')
+        
+        // Step 2: Force reload the chatbot with the new prompt
+        console.log('🔄 Force reloading chatbot...')
+        const response = await fetch('/prompt-api/force-prompt-reload', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        })
+        
+        console.log('📊 Force reload response status:', response.status)
+        
+        if (!response.ok) {
+          console.error('❌ Force reload HTTP error:', response.status, response.statusText)
+          setResponseModal({
+            isOpen: true,
+            message: `HTTP Error: ${response.status} ${response.statusText}`,
+            isSuccess: false
+          })
+          return
+        }
+        
+        const responseText = await response.text()
+        console.log('📄 Force reload response text:', responseText)
+        
+        let data
+        try {
+          data = JSON.parse(responseText)
+          console.log('📋 Force reload parsed data:', data)
+        } catch (parseError) {
+          console.error('❌ Failed to parse force reload JSON:', parseError)
+          setResponseModal({
+            isOpen: true,
+            message: 'Failed to parse server response',
+            isSuccess: false
+          })
+          return
+        }
+        
+        // Show the response message in modal
         setResponseModal({
           isOpen: true,
-          message: 'Failed to parse server response',
-          isSuccess: false
+          message: data.message || 'No message received',
+          isSuccess: data.status === 'Complete prompt reload successful'
         })
-        return
       }
-      
-      // Show the response message in modal
-      setResponseModal({
-        isOpen: true,
-        message: data.message || 'No message received',
-        isSuccess: data.status === 'Complete prompt reload successful'
-      })
       
     } catch (error) {
       console.error('❌ Save operation failed:', error)
@@ -185,7 +207,7 @@ export default function PromptControl() {
             className="refresh-icon-btn"
             onClick={handleRefresh}
             disabled={isRefreshing}
-            title="Refresh prompt from API"
+            title={isN8NRoute ? "Refresh prompt from Supabase" : "Refresh prompt from API"}
           >
             {isRefreshing ? (
               <svg className="refresh-spinner" viewBox="0 0 24 24" fill="none">
@@ -238,7 +260,11 @@ export default function PromptControl() {
         <div className="modal-backdrop" role="dialog" aria-modal="true">
           <div className="confirmation-modal card">
             <div className="confirmation-content">
-              <p>This will update the system prompt for HR AX Pro. Are you sure you would like to proceed?</p>
+              <p>
+                {isN8NRoute 
+                  ? 'This will save a new prompt entry to Supabase. Are you sure you would like to proceed?'
+                  : 'This will update the system prompt for HR AX Pro. Are you sure you would like to proceed?'}
+              </p>
             </div>
             <button 
               className="btn btn-ghost confirmation-no-btn" 
