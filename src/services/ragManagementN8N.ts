@@ -246,17 +246,25 @@ export async function fetchFilesFromSupabase(): Promise<FileListResponse> {
       filesList.map(async (file) => {
         try {
           // Check if file is indexed in documents table
+          // Use ILIKE for case-insensitive matching and handle potential whitespace
           let docQuery = supabaseN8N
             .from('documents')
-            .select('id, created_at, metadata')
-            .eq('metadata->>fileName', file.name)
+            .select('id, metadata')
+            .ilike('metadata->>fileName', file.name.trim())
           
           if (groupId) {
             docQuery = docQuery.eq('metadata->>groupId', groupId)
           }
           
-          const { data: docsData } = await docQuery.limit(1)
+          const { data: docsData, error: docError } = await docQuery.limit(1)
+          
+          if (docError) {
+            console.warn(`⚠️ Error checking index status for ${file.name}:`, docError.message)
+          }
+          
           const isIndexed = docsData && docsData.length > 0
+          
+          console.log(`📊 File: ${file.name}, Indexed: ${isIndexed}, Docs found: ${docsData?.length || 0}`)
           
           return {
             id: file.id || file.name,
@@ -269,7 +277,7 @@ export async function fetchFilesFromSupabase(): Promise<FileListResponse> {
             syncStatus: isIndexed ? 'synced' as const : 'pending' as const
           }
         } catch (fileError) {
-          console.error(`Error processing storage file ${file.name}:`, fileError)
+          console.error(`❌ Error processing storage file ${file.name}:`, fileError)
           return {
             id: file.id || file.name,
             name: file.name,

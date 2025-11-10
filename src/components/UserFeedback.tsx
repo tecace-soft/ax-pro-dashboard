@@ -1,23 +1,35 @@
 import { useState, useEffect } from 'react'
+import { useLocation } from 'react-router-dom'
 import { fetchUserFeedback } from '../services/userFeedback'
 import { UserFeedbackData } from '../services/supabase'
+import { fetchUserFeedbackN8N, UserFeedbackDataN8N } from '../services/userFeedbackN8N'
 
 export default function UserFeedback() {
-  const [userFeedbacks, setUserFeedbacks] = useState<UserFeedbackData[]>([])
+  const location = useLocation()
+  const isN8NRoute = location.pathname === '/dashboard-n8n'
+  
+  const [userFeedbacks, setUserFeedbacks] = useState<(UserFeedbackData | UserFeedbackDataN8N)[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     loadUserFeedback()
-  }, [])
+  }, [isN8NRoute])
 
   const loadUserFeedback = async () => {
     setIsLoading(true)
     setError(null)
     
     try {
-      const data = await fetchUserFeedback()
-      setUserFeedbacks(data)
+      if (isN8NRoute) {
+        // Use n8n Supabase for dashboard-n8n route
+        const data = await fetchUserFeedbackN8N()
+        setUserFeedbacks(data)
+      } else {
+        // Use original Supabase for regular dashboard route
+        const data = await fetchUserFeedback()
+        setUserFeedbacks(data)
+      }
     } catch (error) {
       console.error('Failed to load user feedback:', error)
       setError('Failed to load user feedback')
@@ -88,43 +100,54 @@ export default function UserFeedback() {
           </div>
         ) : (
           <div className="feedback-list">
-            {userFeedbacks.map((feedback) => (
-              <div key={feedback.id} className="feedback-item">
-                                 <div className="feedback-header">
-                   <div className="feedback-meta">
-                     <div className="feedback-user-name">{feedback.user_name}</div>
-                     <div className="feedback-date">{formatDate(feedback.created_at || feedback.timestamp)}</div>
-                   </div>
-                   {getReactionIcon(feedback.reaction)}
-                 </div>
-                 
-                 <div className="feedback-body">
-                   {feedback.feedback_text && (
-                     <div className="feedback-text">
-                       <span className="feedback-label">Feedback:</span>
-                       <span className="feedback-content">{feedback.feedback_text}</span>
-                     </div>
-                   )}
-                   
-                   {(feedback.chat_message || feedback.chat_response) && (
-                     <div className="chat-conversation">
-                       {feedback.chat_message && (
-                         <div className="chat-row">
-                           <span className="chat-label user">Message:</span>
-                           <span className="chat-text">{feedback.chat_message}</span>
-                         </div>
-                       )}
-                       {feedback.chat_response && (
-                         <div className="chat-row">
-                           <span className="chat-label ai">Response:</span>
-                           <span className="chat-text">{feedback.chat_response}</span>
-                         </div>
-                       )}
-                     </div>
-                   )}
-                 </div>
-              </div>
-            ))}
+            {userFeedbacks.map((feedback) => {
+              // Handle both UserFeedbackData and UserFeedbackDataN8N formats
+              const feedbackId = feedback.id || `feedback-${Math.random()}`
+              const userName = feedback.user_name || 'Unknown User'
+              const timestamp = feedback.created_at || feedback.timestamp || ''
+              const reaction = feedback.reaction || ''
+              const feedbackText = feedback.feedback_text
+              const chatMessage = feedback.chat_message
+              const chatResponse = feedback.chat_response
+              
+              return (
+                <div key={feedbackId} className="feedback-item">
+                  <div className="feedback-header">
+                    <div className="feedback-meta">
+                      <div className="feedback-user-name">{userName}</div>
+                      <div className="feedback-date">{formatDate(timestamp)}</div>
+                    </div>
+                    {getReactionIcon(reaction)}
+                  </div>
+                  
+                  <div className="feedback-body">
+                    {feedbackText && (
+                      <div className="feedback-text">
+                        <span className="feedback-label">Feedback:</span>
+                        <span className="feedback-content">{feedbackText}</span>
+                      </div>
+                    )}
+                    
+                    {(chatMessage || chatResponse) && (
+                      <div className="chat-conversation">
+                        {chatMessage && (
+                          <div className="chat-row">
+                            <span className="chat-label user">Message:</span>
+                            <span className="chat-text">{chatMessage}</span>
+                          </div>
+                        )}
+                        {chatResponse && (
+                          <div className="chat-row">
+                            <span className="chat-label ai">Response:</span>
+                            <span className="chat-text">{chatResponse}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
           </div>
         )}
       </div>

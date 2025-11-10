@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
-import { IconUpload, IconTrash, IconRefresh, IconDownload, IconAlertTriangle, IconCheck, IconX } from '../../ui/icons'
+import { IconUpload, IconTrash, IconRefresh, IconDownload, IconAlertTriangle, IconCheck, IconCheckCircle, IconX } from '../../ui/icons'
 import { listBlobs, deleteBlob, uploadBlobFile, replaceBlobFile, BlobItem, RAGApiError, checkSyncForBlobs } from '../../lib/ragApi'
 import { fetchFilesFromSupabase, uploadFilesToSupabase, deleteFileFromSupabase } from '../../services/ragManagementN8N'
 import './BlobFiles.css'
@@ -149,8 +149,11 @@ export default function BlobFiles({ language = 'en', onUploadComplete, syncRows 
         // Set sync states based on syncStatus
         const syncMap: Record<string, "synced" | "unsynced"> = {}
         response.files.forEach(f => {
-          syncMap[f.name] = f.syncStatus === 'synced' ? 'synced' : 'unsynced'
+          const status = f.syncStatus === 'synced' ? 'synced' : 'unsynced'
+          syncMap[f.name] = status
+          console.log(`📌 File: ${f.name}, SyncStatus: ${f.syncStatus}, Mapped to: ${status}`)
         })
+        console.log('📋 Final syncMap:', syncMap)
         setSyncStates(syncMap)
       } else {
         // Use Azure for regular route
@@ -406,7 +409,8 @@ export default function BlobFiles({ language = 'en', onUploadComplete, syncRows 
   const getSyncStatusIcon = (status: string) => {
     switch (status) {
       case 'synced':
-        return <IconCheck className="sync-icon synced" />
+        // Use CheckCircle icon for synced status to make it more visually distinct
+        return <IconCheckCircle className="sync-icon synced" />
       case 'needs_indexing':
         return <IconAlertTriangle className="sync-icon needs-indexing" />
       case 'orphaned':
@@ -540,6 +544,10 @@ export default function BlobFiles({ language = 'en', onUploadComplete, syncRows 
               <tbody>
                 {filteredBlobs.map((blob) => {
                   const syncStatus = getSyncStatus(blob.name)
+                  // Debug logging for n8n route
+                  if (isN8NRoute) {
+                    console.log(`🎯 Rendering file: ${blob.name}, SyncStatus: ${syncStatus}, syncStates[${blob.name}]: ${syncStates[blob.name]}`)
+                  }
                   return (
                     <tr key={blob.name}>
                       <td className="file-name">{blob.name}</td>
