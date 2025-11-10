@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
+import { useLocation } from 'react-router-dom'
 import { IconUpload, IconTrash, IconRefresh, IconDownload, IconAlertTriangle, IconCheck, IconX } from '../../ui/icons'
 import { listBlobs, deleteBlob, uploadBlobFile, replaceBlobFile, BlobItem, RAGApiError, checkSyncForBlobs } from '../../lib/ragApi'
+import { fetchFilesFromSupabase, uploadFilesToSupabase, deleteFileFromSupabase } from '../../services/ragManagementN8N'
 import './BlobFiles.css'
 
 interface SyncRow {
@@ -19,6 +21,9 @@ interface BlobFilesProps {
 }
 
 export default function BlobFiles({ language = 'en', onUploadComplete, syncRows = [], onNavigateToSync }: BlobFilesProps) {
+  const location = useLocation()
+  const isN8NRoute = location.pathname === '/rag-n8n'
+  
   const [blobs, setBlobs] = useState<BlobItem[]>([])
   const [syncStates, setSyncStates] = useState<Record<string, "synced" | "unsynced">>({})
   const [isLoading, setIsLoading] = useState(false)
@@ -118,16 +123,47 @@ export default function BlobFiles({ language = 'en', onUploadComplete, syncRows 
     setError(null)
     
     try {
-      console.debug('🔄 Loading blobs...')
-      const items = await listBlobs()
-      console.debug('📋 Loaded blobs:', items.length, 'items:', items.map(b => ({ name: b.name, etag: b.etag })))
-      setBlobs(items)
-      
-      // ✅ parent_id로 한 방에 sync 상태 확인
-      const names = items.map((b) => b.name) // blob name = parent_id
-      const syncMap = await checkSyncForBlobs(names)
-      setSyncStates(syncMap)
-      
+      if (isN8NRoute) {
+        // Use Supabase for n8n route
+        console.debug('🔄 Loading files from Supabase...')
+        const response = await fetchFilesFromSupabase()
+        
+        if (!response.success) {
+          throw new Error(response.message || 'Failed to fetch files')
+        }
+        
+        // Convert RAGFile to BlobItem format
+        const items: BlobItem[] = response.files.map(f => ({
+          name: f.name,
+          size: f.size,
+          last_modified: f.lastModified,
+          content_type: f.type,
+          etag: f.id, // Use file ID as etag
+          url: undefined,
+          url_with_sas: undefined
+        }))
+        
+        console.debug('📋 Loaded files:', items.length)
+        setBlobs(items)
+        
+        // Set sync states based on syncStatus
+        const syncMap: Record<string, "synced" | "unsynced"> = {}
+        response.files.forEach(f => {
+          syncMap[f.name] = f.syncStatus === 'synced' ? 'synced' : 'unsynced'
+        })
+        setSyncStates(syncMap)
+      } else {
+        // Use Azure for regular route
+        console.debug('🔄 Loading blobs...')
+        const items = await listBlobs()
+        console.debug('📋 Loaded blobs:', items.length, 'items:', items.map(b => ({ name: b.name, etag: b.etag })))
+        setBlobs(items)
+        
+        // ✅ parent_id로 한 방에 sync 상태 확인
+        const names = items.map((b) => b.name) // blob name = parent_id
+        const syncMap = await checkSyncForBlobs(names)
+        setSyncStates(syncMap)
+      }
     } catch (error) {
       console.error('Failed to load blobs:', error)
       setError(
@@ -145,95 +181,123 @@ export default function BlobFiles({ language = 'en', onUploadComplete, syncRows 
     setError(null)
     
     const fileArray = Array.from(files)
-    const results = []
-
-    for (const file of fileArray) {
+    
+    if (isN8NRoute) {
+      // Use Supabase for n8n route
       try {
-        setUploadProgress(prev => ({ ...prev, [file.name]: 0 }))
+        const results = await uploadFilesToSupabase(fileArray)
         
-        // Always refresh the blob list first to get the most current state
-        console.debug('🔄 Refreshing blob list before upload check...')
-        await loadBlobs()
+        const successful = results.filter(r => r.success)
+        const failed = results.filter(r => !r.success)
         
-        // Check if file already exists in current state
-        const existingBlob = blobs.find(b => b.name === file.name)
-        console.debug('🔍 Checking existing blob:', { 
-          fileName: file.name, 
-          existingBlob: !!existingBlob, 
-          etag: existingBlob?.etag,
-          allBlobs: blobs.map(b => b.name)
-        })
+        if (successful.length > 0) {
+          await loadBlobs()
+          if (onUploadComplete) {
+            onUploadComplete()
+          }
+          alert(`${currentT.uploadSuccess}: ${successful.map(r => r.fileName).join(', ')}`)
+        }
         
-        if (existingBlob) {
-          // Ask for confirmation before replacing
-          const confirmMessage = `${currentT.confirmReplace}\n\nFile: ${file.name}`
-          console.debug('🔄 File exists, asking for confirmation...')
-          if (!confirm(confirmMessage)) {
-            console.debug('❌ User cancelled replacement')
-            results.push({ file: file.name, success: false, error: 'Cancelled by user' })
-            setUploadProgress(prev => ({ ...prev, [file.name]: 0 }))
-            continue
+        if (failed.length > 0) {
+          alert(`${currentT.uploadError}: ${failed.map(r => `${r.fileName} (${r.error || r.message})`).join(', ')}`)
+        }
+      } catch (error) {
+        console.error('Upload failed:', error)
+        alert(`${currentT.uploadError}: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      } finally {
+        setIsUploading(false)
+      }
+    } else {
+      // Use Azure for regular route
+      const results = []
+
+      for (const file of fileArray) {
+        try {
+          setUploadProgress(prev => ({ ...prev, [file.name]: 0 }))
+          
+          // Always refresh the blob list first to get the most current state
+          console.debug('🔄 Refreshing blob list before upload check...')
+          await loadBlobs()
+          
+          // Check if file already exists in current state
+          const existingBlob = blobs.find(b => b.name === file.name)
+          console.debug('🔍 Checking existing blob:', { 
+            fileName: file.name, 
+            existingBlob: !!existingBlob, 
+            etag: existingBlob?.etag,
+            allBlobs: blobs.map(b => b.name)
+          })
+          
+          if (existingBlob) {
+            // Ask for confirmation before replacing
+            const confirmMessage = `${currentT.confirmReplace}\n\nFile: ${file.name}`
+            console.debug('🔄 File exists, asking for confirmation...')
+            if (!confirm(confirmMessage)) {
+              console.debug('❌ User cancelled replacement')
+              results.push({ file: file.name, success: false, error: 'Cancelled by user' })
+              setUploadProgress(prev => ({ ...prev, [file.name]: 0 }))
+              continue
+            }
+            
+            // Use replace for existing files (backend handles same-name conflicts)
+            console.debug('✅ User confirmed, proceeding with replace...')
+            await replaceBlobFile(file, existingBlob.etag)
+            results.push({ file: file.name, success: true, action: 'replaced' })
+          } else {
+            // Use upload for new files
+            console.debug('⬆️ File is new, proceeding with upload...')
+            await uploadBlobFile(file)
+            results.push({ file: file.name, success: true, action: 'uploaded' })
           }
           
-          // Use replace for existing files (backend handles same-name conflicts)
-          console.debug('✅ User confirmed, proceeding with replace...')
-          await replaceBlobFile(file, existingBlob.etag)
-          results.push({ file: file.name, success: true, action: 'replaced' })
-        } else {
-          // Use upload for new files
-          console.debug('⬆️ File is new, proceeding with upload...')
-          await uploadBlobFile(file)
-          results.push({ file: file.name, success: true, action: 'uploaded' })
+          setUploadProgress(prev => ({ ...prev, [file.name]: 100 }))
+          
+          // Refresh the blob list after each successful upload
+          console.debug('🔄 Refreshing blob list after upload...')
+          await loadBlobs()
+          
+          // Notify parent component that upload is complete
+          if (onUploadComplete) {
+            onUploadComplete()
+          }
+          
+        } catch (error) {
+          console.error(`Failed to upload ${file.name}:`, error)
+          results.push({ 
+            file: file.name, 
+            success: false, 
+            error: error instanceof Error ? error.message : 'Unknown error' 
+          })
+        }
+      }
+
+      // Show results
+      const successful = results.filter(r => r.success)
+      const failed = results.filter(r => !r.success)
+
+      if (successful.length > 0) {
+        const uploaded = successful.filter(r => r.action === 'uploaded')
+        const replaced = successful.filter(r => r.action === 'replaced')
+        
+        let message = ''
+        if (uploaded.length > 0) {
+          message += `${currentT.uploadSuccess}: ${uploaded.map(r => r.file).join(', ')}`
+        }
+        if (replaced.length > 0) {
+          if (message) message += '\n'
+          message += `Replaced: ${replaced.map(r => r.file).join(', ')}`
         }
         
-        setUploadProgress(prev => ({ ...prev, [file.name]: 100 }))
-        
-        // Refresh the blob list after each successful upload
-        console.debug('🔄 Refreshing blob list after upload...')
-        await loadBlobs()
-        
-        // Notify parent component that upload is complete
-        if (onUploadComplete) {
-          onUploadComplete()
-        }
-        
-      } catch (error) {
-        console.error(`Failed to upload ${file.name}:`, error)
-        results.push({ 
-          file: file.name, 
-          success: false, 
-          error: error instanceof Error ? error.message : 'Unknown error' 
-        })
+        alert(message)
       }
-    }
 
-    // Show results
-    const successful = results.filter(r => r.success)
-    const failed = results.filter(r => !r.success)
-
-    if (successful.length > 0) {
-      const uploaded = successful.filter(r => r.action === 'uploaded')
-      const replaced = successful.filter(r => r.action === 'replaced')
-      
-      let message = ''
-      if (uploaded.length > 0) {
-        message += `${currentT.uploadSuccess}: ${uploaded.map(r => r.file).join(', ')}`
+      if (failed.length > 0) {
+        alert(`${currentT.uploadError}: ${failed.map(r => `${r.file} (${r.error})`).join(', ')}`)
       }
-      if (replaced.length > 0) {
-        if (message) message += '\n'
-        message += `Replaced: ${replaced.map(r => r.file).join(', ')}`
-      }
-      
-      alert(message)
-      // Note: loadBlobs() is already called after each successful upload above
-    }
 
-    if (failed.length > 0) {
-      alert(`${currentT.uploadError}: ${failed.map(r => `${r.file} (${r.error})`).join(', ')}`)
+      setUploadProgress({})
+      setIsUploading(false)
     }
-
-    setUploadProgress({})
-    setIsUploading(false)
   }
 
   const handleDelete = async (blob: BlobItem) => {
@@ -242,9 +306,21 @@ export default function BlobFiles({ language = 'en', onUploadComplete, syncRows 
     if (!confirm(confirmMessage)) return
 
     try {
-      await deleteBlob(blob.name)
-      alert(`${currentT.deleteSuccess}: ${blob.name}`)
-      loadBlobs() // Refresh the list
+      if (isN8NRoute) {
+        // Use Supabase for n8n route
+        const result = await deleteFileFromSupabase(blob.name)
+        if (result.success) {
+          alert(result.message)
+          loadBlobs()
+        } else {
+          alert(result.message)
+        }
+      } else {
+        // Use Azure for regular route
+        await deleteBlob(blob.name)
+        alert(`${currentT.deleteSuccess}: ${blob.name}`)
+        loadBlobs()
+      }
     } catch (error) {
       console.error('Failed to delete blob:', error)
       alert(`${currentT.deleteError}: ${blob.name}`)
@@ -252,28 +328,51 @@ export default function BlobFiles({ language = 'en', onUploadComplete, syncRows 
   }
 
   const handleDownload = async (blob: BlobItem) => {
-    const url = (blob as any).url_with_sas || blob.url
-    if (!url) {
-      alert('Download URL not available for this file')
-      return
-    }
-
-    // Open in a new tab/window for viewing; keep current page
-    try {
-      const w = window.open(url, '_blank', 'noopener')
-      if (!w) {
-        // Popup blocked fallback
-        const a = document.createElement('a')
-        a.href = url
-        a.target = '_blank'
-        a.rel = 'noopener'
-        document.body.appendChild(a)
-        a.click()
-        a.remove()
+    if (isN8NRoute) {
+      // Use Supabase for n8n route - get signed URL
+      try {
+        const { supabaseN8N } = await import('../../services/supabaseN8N')
+        const filePath = `files/${blob.name}`
+        
+        const { data: urlData, error: urlError } = await supabaseN8N.storage
+          .from('knowledge-base')
+          .createSignedUrl(filePath, 3600)
+        
+        if (urlError || !urlData) {
+          alert(`Failed to get download URL: ${urlError?.message || 'Unknown error'}`)
+          return
+        }
+        
+        window.open(urlData.signedUrl, '_blank', 'noopener')
+      } catch (e) {
+        console.error('Failed to get download URL:', e)
+        alert('Failed to download file')
       }
-    } catch (e) {
-      console.error('Open in new window failed:', e)
-      window.open(url, '_blank')
+    } else {
+      // Use Azure for regular route
+      const url = (blob as any).url_with_sas || blob.url
+      if (!url) {
+        alert('Download URL not available for this file')
+        return
+      }
+
+      // Open in a new tab/window for viewing; keep current page
+      try {
+        const w = window.open(url, '_blank', 'noopener')
+        if (!w) {
+          // Popup blocked fallback
+          const a = document.createElement('a')
+          a.href = url
+          a.target = '_blank'
+          a.rel = 'noopener'
+          document.body.appendChild(a)
+          a.click()
+          a.remove()
+        }
+      } catch (e) {
+        console.error('Open in new window failed:', e)
+        window.open(url, '_blank')
+      }
     }
   }
 

@@ -12,6 +12,16 @@ import {
   reindexBlob,
   reindexBlobFallback
 } from '../services/ragManagement'
+import {
+  uploadFilesToSupabase,
+  fetchFilesFromSupabase,
+  deleteFileFromSupabase,
+  fetchVectorDocuments,
+  indexFileToVector,
+  checkIndexingStatus,
+  RAGFile,
+  VectorDocument
+} from '../services/ragManagementN8N'
 import { fetchDailyAggregatesWithMode, DailyRow, filterSimulatedData, EstimationMode } from '../services/dailyAggregates'
 import Header from '../components/Header'
 import Sidebar from '../components/Sidebar'
@@ -34,6 +44,30 @@ interface IndexDocument {
   url?: string
   content?: string
   sas_url?: string | null
+}
+
+// N8N Supabase types
+interface SupabaseFile {
+  id: string
+  name: string
+  size: number
+  last_modified: string
+  url?: string
+}
+
+interface SupabaseIndexDocument {
+  id: string
+  chunk_id: string
+  parent_id?: string | null
+  title?: string | null
+  filepath?: string | null
+  content?: string
+  metadata?: {
+    fileName?: string
+    groupId?: string
+    chunkIndex?: number
+    [key: string]: any
+  }
 }
 
 interface SyncStatus {
@@ -91,6 +125,53 @@ const computeSyncStatus = (blob: Document | undefined, idxDocs: IndexDocument[])
 }
 
 const buildSyncRows = (blobs: Document[], idxs: IndexDocument[]): SyncRow[] => {
+  // For n8n route: Match by fileName directly from metadata
+  const location = window.location
+  const isN8NRoute = location.pathname === '/rag-n8n'
+  
+  if (isN8NRoute) {
+    // Create blob map by filename (not path)
+    const blobMap = new Map<string, Document>()
+    blobs.forEach(b => {
+      const fileName = b.name // Storage files are already just filenames
+      blobMap.set(fileName, b)
+    })
+
+    // Group indexed documents by fileName from metadata
+    const idxMap = new Map<string, IndexDocument[]>()
+    idxs.forEach(d => {
+      // For n8n, fileName is stored in parent_id (which we set from metadata.fileName)
+      // Also check filepath and title as fallbacks
+      const fileName = d.parent_id || d.filepath || d.title || ''
+      if (!fileName || fileName === 'Unknown') return
+      
+      if (!idxMap.has(fileName)) idxMap.set(fileName, [])
+      idxMap.get(fileName)!.push(d)
+    })
+
+    // Combine all unique fileNames
+    const allFileNames = new Set<string>([
+      ...Array.from(blobMap.keys()),
+      ...Array.from(idxMap.keys())
+    ])
+
+    return Array.from(allFileNames)
+      .map(fileName => {
+        const blob = blobMap.get(fileName)
+        const group = idxMap.get(fileName) || []
+        const status = computeSyncStatus(blob, group).status
+        return { 
+          key: fileName, 
+          blob: blob ?? null, 
+          indexDocs: group, 
+          indexCount: group.length, 
+          status 
+        }
+      })
+      .sort((a, b) => a.key.localeCompare(b.key))
+  }
+  
+  // Original logic for non-n8n routes
   const blobMap = new Map<string, Document>()
   blobs.forEach(b => blobMap.set(normalizeKey(b.name), b))
 
@@ -201,6 +282,21 @@ export default function RAGManagementN8N() {
       setFilteredSyncRows(filtered)
     }
   }, [syncSearchQuery, syncRows])
+
+  // Auto-refresh sync status periodically for n8n route
+  useEffect(() => {
+    if (location.pathname !== '/rag-n8n') return
+    
+    const interval = setInterval(() => {
+      // Only refresh if we're on sync overview tab or file library tab
+      if (activeTab === 'sync-overview' || activeTab === 'file-library') {
+        refreshSync().catch(err => console.error('Auto-refresh failed:', err))
+      }
+    }, 30000) // Refresh every 30 seconds
+    
+    return () => clearInterval(interval)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, location.pathname])
 
   useEffect(() => {
     const loadRadarData = async () => {
@@ -336,15 +432,55 @@ export default function RAGManagementN8N() {
   const loadData = async () => {
     setIsLoading(true)
     try {
-      const blobResponse = await listBlobs('')
-      const blobs: Document[] = blobResponse.ok ? (blobResponse.data?.items || []) : []
+      // Use Supabase for n8n route
+      const filesResponse = await fetchFilesFromSupabase()
+      const files: SupabaseFile[] = filesResponse.success 
+        ? filesResponse.files.map(f => ({
+            id: f.id,
+            name: f.name,
+            size: f.size,
+            last_modified: f.lastModified,
+            url: undefined
+          }))
+        : []
 
-      const indexResponse = await listDocuments({ top: 100, select: 'chunk_id,parent_id,title,filepath,url' })
-      const idxs: IndexDocument[] = indexResponse.ok ? (indexResponse.data?.value || []) : []
+      const docsResponse = await fetchVectorDocuments(1000, 0)
+      const idxs: SupabaseIndexDocument[] = docsResponse.success
+        ? docsResponse.documents.map((doc) => {
+            // Extract fileName from metadata - it's in metadata.fileName
+            const fileName = doc.metadata?.fileName || 'Unknown'
+            return {
+              id: doc.id.toString(),
+              chunk_id: doc.id.toString(),
+              parent_id: fileName, // Use fileName as parent_id for grouping
+              title: fileName, // Use fileName as title
+              filepath: fileName, // Use fileName as filepath
+              content: doc.content,
+              metadata: doc.metadata
+            }
+          })
+        : []
+
+      // Convert to Document format for compatibility
+      const blobs: Document[] = files.map(f => ({
+        name: f.name,
+        size: f.size,
+        last_modified: f.last_modified,
+        url: f.url
+      }))
+
+      // Convert to IndexDocument format for compatibility
+      const indexDocs: IndexDocument[] = idxs.map(doc => ({
+        chunk_id: doc.chunk_id,
+        parent_id: doc.parent_id,
+        title: doc.title,
+        filepath: doc.filepath,
+        content: doc.content
+      }))
 
       setDocuments(blobs)
-      setIndexDocuments(idxs)
-      setSyncRows(buildSyncRows(blobs, idxs))
+      setIndexDocuments(indexDocs)
+      setSyncRows(buildSyncRows(blobs, indexDocs))
     } catch (error) {
       console.error('Failed to load data:', error)
     } finally {
@@ -355,18 +491,55 @@ export default function RAGManagementN8N() {
   const refreshSync = async () => {
     setIsSyncLoading(true)
     try {
-      const blobResponse = await listBlobs('')
-      const blobs = blobResponse.ok ? (blobResponse.data?.items || []) : []
+      // Use Supabase for n8n route
+      const filesResponse = await fetchFilesFromSupabase()
+      const files: SupabaseFile[] = filesResponse.success 
+        ? filesResponse.files.map(f => ({
+            id: f.id,
+            name: f.name,
+            size: f.size,
+            last_modified: f.lastModified,
+            url: undefined
+          }))
+        : []
 
-      const indexResponse = await listDocuments({ 
-        top: 1000,
-        select: 'chunk_id,parent_id,title,filepath,url'
-      })
-      const idxs = indexResponse.ok ? (indexResponse.data?.value || []) : []
+      const docsResponse = await fetchVectorDocuments(1000, 0)
+      const idxs: SupabaseIndexDocument[] = docsResponse.success
+        ? docsResponse.documents.map((doc) => {
+            // Extract fileName from metadata - it's in metadata.fileName
+            const fileName = doc.metadata?.fileName || 'Unknown'
+            return {
+              id: doc.id.toString(),
+              chunk_id: doc.id.toString(),
+              parent_id: fileName, // Use fileName as parent_id for grouping
+              title: fileName, // Use fileName as title
+              filepath: fileName, // Use fileName as filepath
+              content: doc.content,
+              metadata: doc.metadata
+            }
+          })
+        : []
+
+      // Convert to Document format for compatibility
+      const blobs: Document[] = files.map(f => ({
+        name: f.name,
+        size: f.size,
+        last_modified: f.last_modified,
+        url: f.url
+      }))
+
+      // Convert to IndexDocument format for compatibility
+      const indexDocs: IndexDocument[] = idxs.map(doc => ({
+        chunk_id: doc.chunk_id,
+        parent_id: doc.parent_id,
+        title: doc.title,
+        filepath: doc.filepath,
+        content: doc.content
+      }))
 
       setDocuments(blobs)
-      setIndexDocuments(idxs)
-      setSyncRows(buildSyncRows(blobs, idxs))
+      setIndexDocuments(indexDocs)
+      setSyncRows(buildSyncRows(blobs, indexDocs))
       setLastSyncRefreshed(new Date())
     } catch (e) {
       console.error('Sync refresh failed:', e)
@@ -400,12 +573,23 @@ export default function RAGManagementN8N() {
   const handleFileUpload = async (files: FileList) => {
     setIsLoading(true)
     try {
-      const { success, failed } = await uploadFiles(files)
-      if (success.length > 0) loadData()
-      if (failed.length > 0) alert(`Failed to upload: ${failed.map(f => f.name).join(', ')}`)
+      // Use Supabase for n8n route
+      const fileArray = Array.from(files)
+      const results = await uploadFilesToSupabase(fileArray)
+      
+      const success = results.filter(r => r.success).map(r => r.fileName)
+      const failed = results.filter(r => !r.success)
+      
+      if (success.length > 0) {
+        loadData()
+        alert(`Successfully uploaded: ${success.join(', ')}`)
+      }
+      if (failed.length > 0) {
+        alert(`Failed to upload: ${failed.map(f => f.fileName).join(', ')}\n${failed.map(f => f.message).join('\n')}`)
+      }
     } catch (e) {
       console.error('Upload failed:', e)
-      alert('Upload failed. Please try again.')
+      alert(`Upload failed: ${e instanceof Error ? e.message : 'Unknown error'}`)
     } finally {
       setIsLoading(false)
     }
@@ -415,16 +599,17 @@ export default function RAGManagementN8N() {
     const fileName = filepath.split('/').pop() || filepath
     if (!confirm(`Are you sure you want to delete "${fileName}"?\n\nThis action cannot be undone.`)) return
     try {
-      const res = await deleteBlob(filepath)
-      if (res.ok) {
+      // Use Supabase for n8n route
+      const result = await deleteFileFromSupabase(fileName)
+      if (result.success) {
         loadData()
-        alert(`Successfully deleted: ${fileName}`)
+        alert(result.message)
       } else {
-        alert(`Failed to delete file: ${res.error?.message || 'Unknown error'}`)
+        alert(result.message)
       }
     } catch (e) {
       console.error('Failed to delete file:', e)
-      alert('Failed to delete file. Please try again.')
+      alert(`Failed to delete file: ${e instanceof Error ? e.message : 'Unknown error'}`)
     }
   }
 
@@ -432,49 +617,46 @@ export default function RAGManagementN8N() {
     try {
       setIsSyncing(p => ({ ...p, [filepath]: true }))
       
-      const clearRes = await clearIndexByFile(filepath)
-      if (!clearRes.ok) {
-        throw new Error(`Failed to clear old chunks: ${clearRes.error?.message || 'Unknown error'}`)
+      // Use Supabase for n8n route - call n8n webhook to index
+      const fileName = filepath.split('/').pop() || filepath
+      
+      // First, delete existing indexed documents for this file
+      const { groupId } = await import('../services/ragManagementN8N').then(m => m.getSessionContext?.() || { groupId: null })
+      if (groupId) {
+        const { supabaseN8N } = await import('../services/supabaseN8N')
+        await supabaseN8N
+          .from('documents')
+          .delete()
+          .eq('metadata->>fileName', fileName)
+          .eq('metadata->>groupId', groupId)
+      } else {
+        const { supabaseN8N } = await import('../services/supabaseN8N')
+        await supabaseN8N
+          .from('documents')
+          .delete()
+          .eq('metadata->>fileName', fileName)
       }
       
-      const res = await reindexBlob(filepath, 1200, 200, false)
-      if (!res.ok) {
-        const fb = await reindexBlobFallback(filepath)
-        if (!fb.ok) throw new Error(fb.error?.message || 'Reindex failed')
-        await refreshSync()
-        alert(`Reindexed: ${filepath} (using fallback method)`)
-        return
-      }
+      // Call n8n webhook to index the file
+      const result = await indexFileToVector(fileName)
       
-      console.debug('🔍 Reindex response structure:', res)
-      
-      const route = res?.route
-      const ingest = res?.ingest as any
-      const ok = res?.ok && (ingest?.ok ?? ingest?.success ?? true)
-      
-      if (ok && route === 'reindex_file') {
-        const created = Number(ingest?.chunks_created ?? 0)
-        const deleted = Number(ingest?.deleted ?? 0)
-        const fileName = ingest?.name ?? filepath
+      if (result.success) {
+        // Wait a bit for indexing to start, then refresh
+        setTimeout(async () => {
+          await refreshSync()
+        }, 2000)
         
-        console.debug('📊 Parsed counts:', { created, deleted, fileName })
-        
-        await refreshSync()
-        
-        let message = `Reindexed: ${fileName}\n`
-        if (created > 0) {
-          message += `Created: ${created} new chunks`
-        } else {
-          message += `Created: 0 new chunks`
+        let message = `Indexing initiated for: ${fileName}`
+        if (result.workflowId) {
+          message += `\nWorkflow ID: ${result.workflowId}`
         }
-        if (deleted > 0) {
-          message += `\nDeleted: ${deleted} old chunks`
+        if (result.estimatedTime) {
+          message += `\nEstimated time: ${result.estimatedTime}`
         }
-        
+        message += `\n\nSync status will update automatically once indexing completes.`
         alert(message)
       } else {
-        const error = ingest?.error || res?.error || 'Unknown error'
-        throw new Error(`Reindex failed: ${error}`)
+        throw new Error(result.message)
       }
       
     } catch (err) {
@@ -489,13 +671,48 @@ export default function RAGManagementN8N() {
     if (!confirm(`Remove "${filepath}" from index?`)) return
     try {
       setIsSyncing(p => ({ ...p, [filepath]: true }))
-      const res = await clearIndexByFile(filepath)
-      if (!res.ok) throw new Error(res.error?.message || 'Unsync failed')
+      
+      // Use Supabase for n8n route - delete documents from documents table
+      const fileName = filepath.split('/').pop() || filepath
+      const { supabaseN8N } = await import('../services/supabaseN8N')
+      const { groupId } = await import('../services/ragManagementN8N').then(m => m.getSessionContext?.() || { groupId: null })
+      
+      let query = supabaseN8N
+        .from('documents')
+        .delete()
+        .eq('metadata->>fileName', fileName)
+      
+      if (groupId) {
+        query = query.eq('metadata->>groupId', groupId)
+      }
+      
+      const { error } = await query
+      
+      if (error) {
+        throw new Error(error.message || 'Unsync failed')
+      }
+      
+      // Update files table to mark as not indexed
+      let fileQuery = supabaseN8N
+        .from('files')
+        .update({
+          is_indexed: false,
+          indexed_at: null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('file_name', fileName)
+      
+      if (groupId) {
+        fileQuery = fileQuery.eq('group_id', groupId)
+      }
+      
+      await fileQuery
+      
       await refreshSync()
       alert(`Removed from index: ${filepath}`)
     } catch (err) {
       console.error(err)
-      alert(`Failed to unsync: ${filepath}`)
+      alert(`Failed to unsync: ${filepath}\n\nError: ${err instanceof Error ? err.message : 'Unknown error'}`)
     } finally {
       setIsSyncing(p => ({ ...p, [filepath]: false }))
     }
@@ -504,32 +721,26 @@ export default function RAGManagementN8N() {
   const handleDownload = async (filepath: string) => {
     try {
       const fileName = filepath.split('/').pop() || filepath
-      if (indexDocuments.some(doc => doc.filepath === filepath)) {
-        alert(`Cannot download "${fileName}" directly.\n\nThis document is indexed but the original file content is not available for download.`)
+      
+      // Use Supabase for n8n route - get signed URL from storage
+      const { supabaseN8N } = await import('../services/supabaseN8N')
+      const filePath = `files/${fileName}`
+      
+      const { data: urlData, error: urlError } = await supabaseN8N.storage
+        .from('knowledge-base')
+        .createSignedUrl(filePath, 3600)
+      
+      if (urlError || !urlData) {
+        alert(`Failed to get download URL: ${urlError?.message || 'Unknown error'}`)
         return
       }
-      const res = await downloadBlob(filepath)
-      if (res.ok && res.data?.content) {
-        const ext = fileName.split('.').pop()?.toLowerCase()
-        let mimeType = 'application/octet-stream'
-        if (ext === 'txt') mimeType = 'text/plain'
-        if (ext === 'pdf') mimeType = 'application/pdf'
-        if (ext === 'doc') mimeType = 'application/msword'
-        if (ext === 'docx') mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-        const blob = new Blob([res.data.content], { type: mimeType })
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = fileName
-        a.click()
-        URL.revokeObjectURL(url)
-        alert(`Downloaded: ${fileName}`)
-      } else {
-        alert(`Failed to download file: ${res.error?.message || 'Unknown error'}`)
-      }
+      
+      // Open download URL
+      window.open(urlData.signedUrl, '_blank')
+      alert(`Downloading: ${fileName}`)
     } catch (e) {
       console.error('Failed to download file:', e)
-      alert('Failed to download file. Please try again.')
+      alert(`Failed to download file: ${e instanceof Error ? e.message : 'Unknown error'}`)
     }
   }
 
