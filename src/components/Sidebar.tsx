@@ -56,7 +56,8 @@ export default function Sidebar({
   const location = useLocation()
   
   // 현재 페이지가 Dashboard인지 확인
-  const isDashboardPage = location.pathname === '/dashboard'
+  const isDashboardPage = location.pathname === '/dashboard' || location.pathname === '/dashboard-n8n'
+  const isN8NRoute = location.pathname === '/dashboard-n8n' || location.pathname === '/rag-n8n'
   // 검색 관련 상태 추가
   const [searchQuery, setSearchQuery] = useState('')
   const [recentSearches, setRecentSearches] = useState<string[]>([
@@ -434,7 +435,7 @@ export default function Sidebar({
       }
     } else {
       // 다른 페이지에서는 Dashboard로 이동 후 스크롤
-      navigate('/dashboard?section=recent-conversations')
+      navigate(isN8NRoute ? '/dashboard-n8n?section=recent-conversations' : '/dashboard?section=recent-conversations')
     }
   }
 
@@ -446,7 +447,7 @@ export default function Sidebar({
       }
     } else {
       // 다른 페이지에서는 Dashboard로 이동 후 스크롤
-      navigate('/dashboard?section=user-feedback')
+      navigate(isN8NRoute ? '/dashboard-n8n?section=user-feedback' : '/dashboard?section=user-feedback')
     }
   }
 
@@ -458,7 +459,7 @@ export default function Sidebar({
       }
     } else {
       // 다른 페이지에서는 Dashboard로 이동 후 스크롤
-      navigate('/dashboard?section=prompt-control')
+      navigate(isN8NRoute ? '/dashboard-n8n?section=prompt-control' : '/dashboard?section=prompt-control')
     }
   }
 
@@ -1025,7 +1026,7 @@ export default function Sidebar({
                 <li className="menu-item">
                   <button 
                     className="menu-button"
-                    onClick={() => navigate('/rag-management')}
+                    onClick={() => navigate(isN8NRoute ? '/rag-n8n' : '/rag-management')}
                   >
                     <svg className="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />

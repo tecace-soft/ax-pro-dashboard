@@ -37,6 +37,7 @@ import {
 	Download,
 	Eye,
 	Check,
+	CheckCircle2,
 	AlertTriangle,
 	ChevronUp
 } from 'lucide-react'
@@ -80,5 +81,6 @@ export const IconRefresh = RefreshCw
 export const IconDownload = Download
 export const IconEye = Eye
 export const IconCheck = Check
+export const IconCheckCircle = CheckCircle2
 export const IconAlertTriangle = AlertTriangle
 export const IconChevronUp = ChevronUp

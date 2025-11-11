@@ -1,8 +1,9 @@
 // src/pages/RagManagement/IndexDocs.tsx
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { IconRefresh, IconEye, IconAlertTriangle, IconCheck, IconX } from '../../ui/icons'
 import { listIndexDocsRows, IndexDoc, IndexRow, RAGApiError, fetchChunkContentById } from '../../lib/ragApi'
+import { fetchVectorDocuments, VectorDocument } from '../../services/ragManagementN8N'
 import { useSyncStatus } from '../../hooks/useSyncStatus'
 import SyncBadge from '../../components/SyncBadge'
 import './IndexDocs.css'
@@ -13,6 +14,8 @@ interface IndexDocsProps {
 
 export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
   const navigate = useNavigate()
+  const location = useLocation()
+  const isN8NRoute = location.pathname === '/rag-n8n'
   
   // 전체 수집본 & 현재 페이지 조각
   const [allDocs, setAllDocs] = useState<IndexRow[]>([])
@@ -22,8 +25,27 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
   const [error, setError] = useState<string | null>(null)
   const [selectedDoc, setSelectedDoc] = useState<IndexRow | null>(null)
   
-  // Sync status hook
+  // Sync status hook (for regular route)
   const { statusByParentId, isLoading: isSyncLoading } = useSyncStatus()
+  
+  // For n8n route: fetch files to compute sync status
+  const [n8nFiles, setN8nFiles] = useState<string[]>([])
+  useEffect(() => {
+    if (isN8NRoute) {
+      const loadFiles = async () => {
+        try {
+          const { fetchFilesFromSupabase } = await import('../../services/ragManagementN8N')
+          const response = await fetchFilesFromSupabase()
+          if (response.success) {
+            setN8nFiles(response.files.map(f => f.name))
+          }
+        } catch (err) {
+          console.error('Failed to load files for sync status:', err)
+        }
+      }
+      loadFiles()
+    }
+  }, [isN8NRoute])
 
   // 페이지네이션 상태
   const [top, setTop] = useState(200)
@@ -131,34 +153,135 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
     setIsLoading(true)
     setError(null)
     try {
-      console.log('🔍 Loading ALL index docs by paging…')
-      const PAGE_SIZE = 100       // 백엔드가 허용하는 최대 페이지 사이즈
-      const HARD_CAP = 10000      // 폭주 방지 상한
-      let acc: IndexRow[] = []
-      let pageSkip = 0
+      if (isN8NRoute) {
+        // Use Supabase for n8n route - group by fileName
+        console.log('🔍 [IndexDocs] Loading ALL index docs from Supabase for n8n route…')
+        const PAGE_SIZE = 100
+        const HARD_CAP = 10000
+        let allDocuments: any[] = []
+        let pageSkip = 0
 
-      while (pageSkip < HARD_CAP) {
-        const batch = await listIndexDocsRows({ top: PAGE_SIZE, skip: pageSkip })
-        if (!Array.isArray(batch) || batch.length === 0) break
-        
-        // Convert IndexDoc to IndexRow and exclude content for performance
-        const rows: IndexRow[] = batch.map(doc => ({
-          ...doc,
-          content: undefined, // Don't load content initially
-          _contentLoaded: false,
-          _contentLoading: false,
-          _contentError: null,
-        }))
-        
-        acc = acc.concat(rows)
-        console.log(`📦 got ${rows.length} (acc: ${acc.length}) at skip=${pageSkip}`)
-        if (batch.length < PAGE_SIZE) break
-        pageSkip += PAGE_SIZE
+        while (pageSkip < HARD_CAP) {
+          console.log(`🔍 [IndexDocs] Fetching page at offset ${pageSkip}...`)
+          const response = await fetchVectorDocuments(PAGE_SIZE, pageSkip)
+          console.log(`📦 [IndexDocs] Response:`, { 
+            success: response.success, 
+            count: response.documents?.length || 0,
+            total: response.total,
+            message: response.message 
+          })
+          
+          if (!response.success) {
+            console.error('❌ [IndexDocs] fetchVectorDocuments failed:', response.message)
+            setError(response.message || 'Failed to fetch documents from Supabase')
+            break
+          }
+          
+          if (!response.documents || response.documents.length === 0) {
+            console.log('ℹ️ [IndexDocs] No more documents to fetch')
+            break
+          }
+          
+          allDocuments = allDocuments.concat(response.documents)
+          console.log(`📦 [IndexDocs] got ${response.documents.length} documents (acc: ${allDocuments.length}) at skip=${pageSkip}`)
+          if (response.documents.length < PAGE_SIZE) break
+          pageSkip += PAGE_SIZE
+        }
+
+        console.log(`📊 [IndexDocs] Total documents fetched: ${allDocuments.length}`)
+
+        if (allDocuments.length === 0) {
+          console.warn('⚠️ [IndexDocs] No documents found in Supabase')
+          setAllDocs([])
+          setFilteredDocs([])
+          setDocs([])
+          setTotalCount(0)
+          return
+        }
+
+        // Group documents by fileName
+        const groupedByFileName: Record<string, any[]> = {}
+        allDocuments.forEach((doc) => {
+          const fileName = doc.metadata?.fileName || 'Unknown'
+          if (!groupedByFileName[fileName]) {
+            groupedByFileName[fileName] = []
+          }
+          groupedByFileName[fileName].push(doc)
+        })
+
+        console.log(`📁 [IndexDocs] Grouped into ${Object.keys(groupedByFileName).length} files:`, Object.keys(groupedByFileName))
+
+        // Convert grouped documents to IndexRow format
+        // Each file becomes a parent row, chunks are children
+        const rows: IndexRow[] = []
+        Object.entries(groupedByFileName).forEach(([fileName, chunks]) => {
+          // Add parent row for the file
+          rows.push({
+            chunk_id: `file_${fileName}`,
+            parent_id: null,
+            title: fileName,
+            filepath: fileName,
+            url: undefined,
+            content: undefined,
+            _contentLoaded: false,
+            _contentLoading: false,
+            _contentError: null,
+            _isFileGroup: true,
+            _chunkCount: chunks.length
+          } as IndexRow & { _isFileGroup: boolean; _chunkCount: number })
+          
+          // Add child rows for each chunk
+          chunks.forEach((chunk: VectorDocument) => {
+            rows.push({
+              chunk_id: chunk.id.toString(),
+              parent_id: fileName,
+              title: `${fileName} - Chunk ${chunk.metadata?.chunkIndex ?? '?'}`,
+              filepath: fileName,
+              url: undefined,
+              content: undefined,
+              _contentLoaded: false,
+              _contentLoading: false,
+              _contentError: null,
+              _isFileGroup: false,
+              metadata: chunk.metadata
+            } as IndexRow & { _isFileGroup: boolean; metadata?: any })
+          })
+        })
+
+        console.log(`✅ [IndexDocs] Created ${rows.length} rows (${Object.keys(groupedByFileName).length} file groups + ${allDocuments.length} chunks)`)
+        setAllDocs(rows)
+        setSkip(0)
+        console.log(`✅ [IndexDocs] Loaded total ${allDocuments.length} chunks from ${Object.keys(groupedByFileName).length} files`)
+      } else {
+        // Use Azure for regular route
+        console.log('🔍 Loading ALL index docs by paging…')
+        const PAGE_SIZE = 100
+        const HARD_CAP = 10000
+        let acc: IndexRow[] = []
+        let pageSkip = 0
+
+        while (pageSkip < HARD_CAP) {
+          const batch = await listIndexDocsRows({ top: PAGE_SIZE, skip: pageSkip })
+          if (!Array.isArray(batch) || batch.length === 0) break
+          
+          const rows: IndexRow[] = batch.map(doc => ({
+            ...doc,
+            content: undefined,
+            _contentLoaded: false,
+            _contentLoading: false,
+            _contentError: null,
+          }))
+          
+          acc = acc.concat(rows)
+          console.log(`📦 got ${rows.length} (acc: ${acc.length}) at skip=${pageSkip}`)
+          if (batch.length < PAGE_SIZE) break
+          pageSkip += PAGE_SIZE
+        }
+
+        setAllDocs(acc)
+        setSkip(0)
+        console.log(`✅ Loaded total ${acc.length} index docs`)
       }
-
-      setAllDocs(acc)
-      setSkip(0) // 첫 페이지로 이동
-      console.log(`✅ Loaded total ${acc.length} index docs`)
     } catch (error) {
       console.error('Failed to load index docs:', error)
       setError(error instanceof RAGApiError ? error.message : currentT.loadError)
@@ -188,12 +311,42 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
     updateRow(row.chunk_id, { _contentLoading: true, _contentError: null })
     
     try {
-      const content = await fetchChunkContentById(row.chunk_id)
-      updateRow(row.chunk_id, {
-        content,
-        _contentLoaded: true,
-        _contentLoading: false,
-      })
+      if (isN8NRoute) {
+        // Use Supabase for n8n route - fetch document by ID
+        const { supabaseN8N } = await import('../../services/supabaseN8N')
+        const { getSessionContext } = await import('../../services/ragManagementN8N')
+        const { groupId } = await getSessionContext()
+        
+        let query = supabaseN8N
+          .from('documents')
+          .select('content')
+          .eq('id', parseInt(row.chunk_id))
+        
+        if (groupId) {
+          query = query.eq('metadata->>groupId', groupId)
+        }
+        
+        const { data, error } = await query.single()
+        
+        if (error) {
+          throw new Error(error.message)
+        }
+        
+        const content = data?.content || ''
+        updateRow(row.chunk_id, {
+          content,
+          _contentLoaded: true,
+          _contentLoading: false,
+        })
+      } else {
+        // Use Azure for regular route
+        const content = await fetchChunkContentById(row.chunk_id)
+        updateRow(row.chunk_id, {
+          content,
+          _contentLoaded: true,
+          _contentLoading: false,
+        })
+      }
     } catch (e: any) {
       updateRow(row.chunk_id, {
         _contentLoading: false,
@@ -251,7 +404,15 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
   // Get sync status for a document
   const getSyncStatus = (parentId: string | null | undefined) => {
     if (!parentId) return 'unknown'
-    return statusByParentId.get(parentId) || 'unknown'
+    
+    if (isN8NRoute) {
+      // For n8n route: check if fileName exists in storage files
+      const fileName = parentId
+      return n8nFiles.includes(fileName) ? 'synced' : 'unknown'
+    } else {
+      // For regular route: use the hook
+      return statusByParentId.get(parentId) || 'unknown'
+    }
   }
 
   // Render sync status badge
@@ -260,7 +421,11 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
     
     const handleSyncClick = () => {
       // Navigate to Knowledge Management page with sync overview tab
-      navigate('/rag-management?tab=sync')
+      if (isN8NRoute) {
+        navigate('/rag-n8n?tab=sync')
+      } else {
+        navigate('/rag-management?tab=sync')
+      }
     }
 
     return (
@@ -274,6 +439,124 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
 
   const handleRefresh = () => {
     loadAllIndexDocs()
+  }
+
+  // Grouped table component for n8n route
+  const GroupedIndexTable = ({ 
+    docs, 
+    onViewContent, 
+    renderSyncStatus, 
+    formatChunkId,
+    currentT 
+  }: { 
+    docs: IndexRow[]
+    onViewContent: (doc: IndexRow) => void
+    renderSyncStatus: (parentId: string | null | undefined) => JSX.Element
+    formatChunkId: (chunkId: string | null | undefined) => string
+    currentT: any
+  }) => {
+    const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set())
+    
+    // Group docs by fileName (parent_id)
+    const groupedDocs: Record<string, IndexRow[]> = {}
+    const fileRows: IndexRow[] = []
+    
+    docs.forEach(doc => {
+      if ((doc as any)._isFileGroup) {
+        fileRows.push(doc)
+      } else {
+        const fileName = doc.parent_id || doc.filepath || 'Unknown'
+        if (!groupedDocs[fileName]) {
+          groupedDocs[fileName] = []
+        }
+        groupedDocs[fileName].push(doc)
+      }
+    })
+    
+    const toggleFile = (fileName: string) => {
+      setExpandedFiles(prev => {
+        const next = new Set(prev)
+        if (next.has(fileName)) {
+          next.delete(fileName)
+        } else {
+          next.add(fileName)
+        }
+        return next
+      })
+    }
+    
+    return (
+      <table>
+        <thead>
+          <tr>
+            <th style={{ width: '30px' }}></th>
+            <th>{currentT.columnTitle}</th>
+            <th>Chunks</th>
+            <th>Sync</th>
+            <th>{currentT.actions}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {fileRows.map((fileRow) => {
+            const fileName = fileRow.filepath || fileRow.title || ''
+            const chunks = groupedDocs[fileName] || []
+            const isExpanded = expandedFiles.has(fileName)
+            const chunkCount = (fileRow as any)._chunkCount || chunks.length
+            
+            return (
+              <>
+                <tr key={fileRow.chunk_id} style={{ backgroundColor: 'var(--bg-secondary)' }}>
+                  <td>
+                    <button
+                      onClick={() => toggleFile(fileName)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--text)',
+                        cursor: 'pointer',
+                        padding: '4px 8px',
+                        fontSize: '14px'
+                      }}
+                    >
+                      {isExpanded ? '▼' : '▶'}
+                    </button>
+                  </td>
+                  <td>
+                    <strong>{fileName}</strong>
+                  </td>
+                  <td>{chunkCount} chunk{chunkCount !== 1 ? 's' : ''}</td>
+                  <td>{renderSyncStatus(fileName)}</td>
+                  <td></td>
+                </tr>
+                {isExpanded && chunks.map((chunk, idx) => (
+                  <tr key={chunk.chunk_id} style={{ backgroundColor: 'var(--bg)' }}>
+                    <td></td>
+                    <td style={{ paddingLeft: '30px' }}>
+                      Chunk {((chunk as any).metadata?.chunkIndex ?? idx + 1)}
+                    </td>
+                    <td className="chunk-id" title={chunk.chunk_id || ''}>
+                      {formatChunkId(chunk.chunk_id)}
+                    </td>
+                    <td>{renderSyncStatus(fileName)}</td>
+                    <td>
+                      <div className="action-buttons">
+                        <button
+                          onClick={() => onViewContent(chunk)}
+                          title={currentT.view}
+                          className="action-btn view-btn"
+                        >
+                          <IconEye />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </>
+            )
+          })}
+        </tbody>
+      </table>
+    )
   }
 
   return (
@@ -389,7 +672,17 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
             <div className="no-docs">
               <p>{currentT.noDocs}</p>
             </div>
+          ) : isN8NRoute ? (
+            // N8N Route: Grouped by fileName with expandable sections
+            <GroupedIndexTable 
+              docs={docs}
+              onViewContent={handleViewContent}
+              renderSyncStatus={renderSyncStatus}
+              formatChunkId={formatChunkId}
+              currentT={currentT}
+            />
           ) : (
+            // Regular Route: Original flat table
             <table>
               <thead>
                 <tr>
@@ -422,7 +715,6 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
                           className="url-link"
                           title="Open in new tab"
                           onClick={async (e) => {
-                            // Handle link opening errors gracefully
                             try {
                               // Let the default behavior handle the link opening
                             } catch (error) {

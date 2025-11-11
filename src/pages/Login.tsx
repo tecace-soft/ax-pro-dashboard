@@ -14,6 +14,11 @@ export default function Login() {
 			navigate('/dashboard', { replace: true })
 			return
 		}
+		if (normalized === 'n8n') {
+			sessionStorage.setItem('axAccess', 'n8n')
+			navigate('/dashboard-n8n', { replace: true })
+			return
+		}
 		setError('Invalid access code')
 	}
 

@@ -1,5 +1,6 @@
 // src/components/DailyMessageActivity.tsx
 import React, { useState, useEffect, useMemo } from 'react';
+import { useLocation } from 'react-router-dom';
 
 interface MessageData { date: string; count: number }
 // Recent Conversations에서 계산된 데이터를 props로 받기
@@ -15,12 +16,16 @@ interface DailyMessageActivityProps {
 const DailyMessageActivity: React.FC<DailyMessageActivityProps> = ({
   startDate, endDate, sessions = [], sessionRequests = {}
 }) => {
+  const location = useLocation()
+  const isN8NRoute = location.pathname === '/dashboard-n8n' || location.pathname === '/rag-n8n'
+
   // 컴포넌트 렌더링 확인
   console.log('🎯 DailyMessageActivity rendered with:', {
     startDate,
     endDate,
     sessionsLength: sessions.length,
-    sessionRequestsKeys: Object.keys(sessionRequests).length
+    sessionRequestsKeys: Object.keys(sessionRequests).length,
+    isN8NRoute
   });
 
   const [messageData, setMessageData] = useState<MessageData[]>([]);
@@ -58,11 +63,21 @@ const DailyMessageActivity: React.FC<DailyMessageActivityProps> = ({
         // 메시지 생성 시간을 기준으로 카운트 (세션 생성 시간이 아님)
         const requestDate = new Date(req.createdAt);
         
-        // 시애틀 타임으로 변환
-        const adjustedDate = new Date(requestDate.getTime() - (8 * 60 * 60 * 1000));
-        const dateKey = adjustedDate.toISOString().split('T')[0];
+        let dateKey: string;
+        if (isN8NRoute) {
+          // N8N route: Use chat's created_at from Supabase
+          // Convert UTC timestamp to local date string (YYYY-MM-DD)
+          const year = requestDate.getFullYear();
+          const month = String(requestDate.getMonth() + 1).padStart(2, '0');
+          const day = String(requestDate.getDate()).padStart(2, '0');
+          dateKey = `${year}-${month}-${day}`;
+        } else {
+          // Standard route: Apply Seattle timezone adjustment
+          const adjustedDate = new Date(requestDate.getTime() - (8 * 60 * 60 * 1000));
+          dateKey = adjustedDate.toISOString().split('T')[0];
+        }
         
-        console.log(`Request: ${req.createdAt} -> Seattle time: ${dateKey} (Session created: ${session?.createdAt})`);
+        console.log(`Request: ${req.createdAt} -> Date key: ${dateKey} (N8N: ${isN8NRoute}, Session created: ${session?.createdAt})`);
 
         // 날짜 범위 체크
         if (dateKey < startDate || dateKey > endDate) {
