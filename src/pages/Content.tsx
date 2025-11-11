@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useLocation } from 'react-router-dom'
 import { IconX } from '../ui/icons'
+import { useLanguage } from '../contexts/LanguageContext'
+import { useTheme } from '../contexts/ThemeContext'
 import { getAuthToken } from '../services/auth'
 import { fetchSessions } from '../services/sessions'
 import { fetchSessionRequests } from '../services/requests'
@@ -82,6 +84,8 @@ interface ContentProps {
 export default function Content({ startDate, endDate, onDateChange }: ContentProps) {
 	const location = useLocation()
 	const isN8NRoute = location.pathname === '/dashboard-n8n' || location.pathname === '/rag-n8n'
+	const { language, setLanguage, t } = useLanguage()
+	const { theme } = useTheme()
 	const [authToken, setAuthToken] = useState<string | null>(null)
 	const [sessions, setSessions] = useState<any[]>([])
 	const [isLoadingSessions, setIsLoadingSessions] = useState(false)
@@ -124,6 +128,8 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 	const [promptRefreshTrigger, setPromptRefreshTrigger] = useState(0)
 	const [adminFeedbackSortBy, setAdminFeedbackSortBy] = useState<'requestId' | 'date'>('date')
 	const [adminFeedbackFilter, setAdminFeedbackFilter] = useState('')
+	const [adminFeedbackFontSize, setAdminFeedbackFontSize] = useState<'small' | 'medium' | 'large'>('medium')
+	const [adminFeedbackDisplayLimit, setAdminFeedbackDisplayLimit] = useState(25)
 	const [deleteAdminFeedbackModal, setDeleteAdminFeedbackModal] = useState<{
 		isOpen: boolean,
 		requestId: string | null,
@@ -1185,6 +1191,80 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 		return total;
 	}, [sessions, sessionRequests]);
 
+	// Table view controls for Recent Conversations - declare before useMemo
+	const [conversationsViewMode, setConversationsViewMode] = useState<'grid' | 'table'>('grid')
+	const [conversationsSortBy, setConversationsSortBy] = useState<'date' | 'session'>('date')
+	const [conversationsSearch, setConversationsSearch] = useState('')
+	const [conversationsFontSize, setConversationsFontSize] = useState<'small' | 'medium' | 'large'>('medium')
+	const [conversationsDisplayLimit, setConversationsDisplayLimit] = useState(50)
+
+	// Flatten conversations for table view
+	const flattenedConversations = useMemo(() => {
+		const conversations: Array<{
+			date: string
+			userId: string
+			sessionId: string
+			requestId: string
+			userMessage: string
+			aiResponse: string
+			userFeedback: 'positive' | 'negative' | null
+			adminFeedback: AdminFeedbackData | null
+			timestamp: number
+		}> = []
+
+		sessions.forEach(session => {
+			const sessionId = session?.sessionId || session?.id
+			const requests = sessionRequests[sessionId] || []
+			
+			requests.forEach((request: any) => {
+				const requestId = request.requestId || request.id
+				const detail = requestDetails[requestId] || {}
+				const feedback = adminFeedback[requestId]
+				
+				// Get user feedback from user feedback service (we'll need to fetch this separately)
+				// For now, we'll use admin feedback as a proxy
+				const userFb = feedback?.feedback_verdict === 'good' ? 'positive' : 
+				              feedback?.feedback_verdict === 'bad' ? 'negative' : null
+				
+				const timestamp = request.createdAt ? new Date(request.createdAt).getTime() : 0
+				
+				conversations.push({
+					date: request.createdAt || '',
+					userId: '', // Will be populated from user feedback if available
+					sessionId: sessionId,
+					requestId: requestId,
+					userMessage: detail.inputText || '',
+					aiResponse: detail.outputText || '',
+					userFeedback: userFb,
+					adminFeedback: feedback || null,
+					timestamp: timestamp
+				})
+			})
+		})
+
+		// Sort by date (newest first) or session
+		conversations.sort((a, b) => {
+			if (conversationsSortBy === 'date') {
+				return b.timestamp - a.timestamp
+			} else {
+				return a.sessionId.localeCompare(b.sessionId)
+			}
+		})
+
+		// Filter by search
+		if (conversationsSearch.trim()) {
+			const searchLower = conversationsSearch.toLowerCase()
+			return conversations.filter(conv => 
+				conv.userMessage.toLowerCase().includes(searchLower) ||
+				conv.aiResponse.toLowerCase().includes(searchLower) ||
+				conv.sessionId.toLowerCase().includes(searchLower) ||
+				conv.requestId.toLowerCase().includes(searchLower)
+			)
+		}
+
+		return conversations
+	}, [sessions, sessionRequests, requestDetails, adminFeedback, conversationsSortBy, conversationsSearch])
+
 	// Filter and sort admin feedback
 	const filteredAndSortedAdminFeedback = useMemo(() => {
 		const negativeFeedback = Object.entries(adminFeedback)
@@ -1305,8 +1385,8 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 						<div className="card section" aria-labelledby="recent-conv-title">
 							<div className="section-header">
 								<div id="recent-conv-title" className="section-title conversations-title">
-									Recent Conversations 
-									<span className="section-counter">({totalMessages} messages)</span>
+									{language === 'ko' ? '최근 대화' : 'Recent Conversations'}
+									<span className="section-counter">({flattenedConversations.length})</span>
 								</div>
 								<div className="date-controls">
 									<label className="date-field">
@@ -1318,309 +1398,413 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 										<input type="date" className="input date-input" value={endDate} onChange={(e)=>onDateChange(startDate, e.target.value)} />
 									</label>
 								</div>
+								<div className="conversations-controls">
+									<div className="view-toggle">
+										<button 
+											className={`view-btn ${conversationsViewMode === 'grid' ? 'active' : ''}`}
+											onClick={() => setConversationsViewMode('grid')}
+											title="Grid View"
+										>
+											<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+												<rect x="3" y="3" width="7" height="7"/>
+												<rect x="14" y="3" width="7" height="7"/>
+												<rect x="3" y="14" width="7" height="7"/>
+												<rect x="14" y="14" width="7" height="7"/>
+											</svg>
+										</button>
+										<button 
+											className={`view-btn ${conversationsViewMode === 'table' ? 'active' : ''}`}
+											onClick={() => setConversationsViewMode('table')}
+											title="Table View"
+										>
+											<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+												<line x1="3" y1="6" x2="21" y2="6"/>
+												<line x1="3" y1="12" x2="21" y2="12"/>
+												<line x1="3" y1="18" x2="21" y2="18"/>
+											</svg>
+										</button>
+									</div>
+									<div className="sort-control">
+										<label>{t('sort')}</label>
+										<select 
+											className="input select-input"
+											value={conversationsSortBy}
+											onChange={(e) => setConversationsSortBy(e.target.value as 'date' | 'session')}
+										>
+											<option value="date">{t('dateTimeNewest')}</option>
+											<option value="session">{t('sessionIdSort')}</option>
+										</select>
+									</div>
+									<div className="search-control">
+										<label>{t('search')}</label>
+										<input
+											type="text"
+											className="input"
+											placeholder={t('conversationSearch')}
+											value={conversationsSearch}
+											onChange={(e) => setConversationsSearch(e.target.value)}
+										/>
+									</div>
+									<div className="font-size-control">
+										<label>{t('fontSize')}</label>
+										<div className="font-size-buttons">
+											<button 
+												className={`font-size-btn ${conversationsFontSize === 'small' ? 'active' : ''}`}
+												onClick={() => setConversationsFontSize('small')}
+											>
+												A
+											</button>
+											<button 
+												className={`font-size-btn ${conversationsFontSize === 'medium' ? 'active' : ''}`}
+												onClick={() => setConversationsFontSize('medium')}
+											>
+												A
+											</button>
+											<button 
+												className={`font-size-btn ${conversationsFontSize === 'large' ? 'active' : ''}`}
+												onClick={() => setConversationsFontSize('large')}
+											>
+												A
+											</button>
+										</div>
+									</div>
+									<div className="export-control">
+										<select 
+											value={conversationsExportFormat} 
+											onChange={(e) => setConversationsExportFormat(e.target.value as any)}
+											className="input select-input"
+										>
+											<option value="csv">CSV</option>
+											<option value="excel">Excel</option>
+											<option value="json">JSON</option>
+										</select>
+									</div>
+									<button 
+										className="btn btn-primary export-btn" 
+										onClick={handleConversationsExport}
+										disabled={isExportingConversations || flattenedConversations.length === 0}
+									>
+										{isExportingConversations ? (language === 'ko' ? '내보내는 중...' : 'Exporting...') : t('export')}
+									</button>
+									<button 
+										className="btn btn-ghost refresh-btn"
+										onClick={() => {
+											if (isN8NRoute) {
+												loadConversationsOptimized()
+											} else if (authToken) {
+												loadConversationsOptimized()
+											}
+										}}
+										title="Refresh"
+									>
+										<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+											<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+											<path d="M21 3v5h-5"/>
+											<path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
+											<path d="M3 21v-5h5"/>
+										</svg>
+									</button>
+								</div>
 							</div>
 							
-							<div className="sessions-content">
+							<div className={`conversations-table-container font-size-${conversationsFontSize}`}>
 								{isLoadingSessions ? (
 									<p className="muted">Loading conversations...</p>
-								) : sessions.length > 0 ? (
-									<div className="sessions-list">
-										{sessions
-											.map((session, index) => {
-												const sessionId = session.sessionId || session.id || `Session ${index + 1}`
-												const requests = sessionRequests[sessionId] || []
-												
-												// Calculate last message date for sorting
-												const getLastMessageTimestamp = () => {
-													if (requests.length === 0) return 0;
+								) : flattenedConversations.length > 0 ? (
+									<>
+										{conversationsViewMode === 'grid' ? (
+											<div className="conversations-grid">
+												{flattenedConversations.slice(0, conversationsDisplayLimit).map((conv) => {
+													const date = conv.date ? new Date(conv.date) : null
+													const userFb = conv.userFeedback
+													const adminFb = conv.adminFeedback
 													
-													const timestamps = requests
-														.map(request => request.createdAt)
-														.filter(timestamp => timestamp)
-														.map(timestamp => new Date(timestamp).getTime())
-														.sort((a, b) => b - a);
-													
-													return timestamps.length > 0 ? timestamps[0] : 0;
-												};
-												
-												return {
-													...session,
-													sessionId,
-													requests,
-													lastMessageTimestamp: getLastMessageTimestamp()
-												};
-											})
-											.sort((a, b) => b.lastMessageTimestamp - a.lastMessageTimestamp) // Sort by most recent last message first
-											.map((sessionData, index) => {
-											const sessionId = sessionData.sessionId
-											const isExpanded = expandedSessions.has(sessionId)
-											const requests = sessionData.requests
-											
-											// Convert timestamp back to Date object for display
-											const lastMessageDate = sessionData.lastMessageTimestamp > 0 ? new Date(sessionData.lastMessageTimestamp) : null;
-											
-											return (
-												<div key={sessionId} className="session-container">
-													<div className="session-row" onClick={() => toggleSessionExpansion(sessionId)}>
-														<div className="session-left">
-															<div className="session-datetime">
-																{sessionData.createdAt ? (
-																	<>
-																		<span className="session-date">
-																			{new Date(sessionData.createdAt).toLocaleDateString()}
-																		</span>
-																		<span className="session-time">
-																			{new Date(sessionData.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-																		</span>
-																	</>
-																) : (
-																	<span className="session-date">No date</span>
-																)}
+													return (
+														<div key={conv.requestId} className="conversation-card">
+															<div className="conversation-card-header">
+																<div className="conversation-card-info">
+																	<span><strong>{t('chatId')}:</strong> {conv.requestId || ''}</span>
+																	<span><strong>Session:</strong> {formatSessionId(conv.sessionId)}</span>
+																	{date && <span>{date.toLocaleString()}</span>}
+																</div>
 															</div>
-															<div className="session-messages">
-																{requests.length === 1 ? '1 message' : `${requests.length} messages`}
+															<div className="conversation-card-body">
+																<div className="conversation-message">
+																	<strong>{t('userMessage')}:</strong> {conv.userMessage || ''}
+																</div>
+																<div className="conversation-response">
+																	<strong>{t('aiResponse')}:</strong> {conv.aiResponse || ''}
+																</div>
+																<div className="conversation-user-feedback">
+																	{userFb === 'negative' ? (
+																		<>
+																			<svg fill="#ef4444" viewBox="0 0 24 24" width="20" height="20">
+																				<path d="M20 3H6.693A2.01 2.01 0 0 0 4.82 4.298l-2.757 7.351A1 1 0 0 0 2 12v2c0 1.103.897 2 2 2h5.612L8.49 19.367a2.004 2.004 0 0 0 .274 1.802c.376.52.982.831 1.624.831H12c.297 0 .578-.132.769-.360l4.7-5.64H20c1.103 0 2-.897 2-2V5c0-1.103-.897-2-2-2zm-8.469 17h-1.145l1.562-4.684A1 1 0 0 0 11 14H4v-1.819L6.693 5H16v9.638L11.531 20zM18 14V5h2l.001 9H18z"></path>
+																			</svg>
+																			<button className="btn btn-sm">Details</button>
+																		</>
+																	) : (
+																		<span className="no-feedback">No user feedback</span>
+																	)}
+																</div>
 															</div>
-															<div className="session-last-message">
-																{lastMessageDate ? (
-																	<>
-																		<span className="last-message-label">Last Message Date: </span>
-																		<span className="last-message-date">
-																			{lastMessageDate.toLocaleDateString()}
-																		</span>
-																		<span className="last-message-time">
-																			{lastMessageDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-																		</span>
-																	</>
-																) : (
-																	<span className="last-message-label">Last Message Date: No data</span>
-																)}
+															<div className="conversation-card-footer">
+																<span className="admin-label">{t('admin')}:</span>
+																<div className="admin-actions">
+																	<button 
+																		className={`thumbs-btn thumbs-up ${adminFb?.feedback_verdict === 'good' ? 'submitted' : ''}`}
+																		title="Good"
+																		onClick={(e) => {
+																			e.preventDefault()
+																			e.stopPropagation()
+																			handleFeedbackClick('positive', conv.requestId)
+																		}}
+																	>
+																		<svg fill="currentColor" viewBox="0 0 24 24" width="18" height="18">
+																			<path d="M20 8h-5.612l1.123-3.367c.202-.608.1-1.282-.275-1.802S14.253 2 13.612 2H12c-.297 0-.578.132-.769.36L6.531 8H4c-1.103 0-2 .897-2 2v9c0 1.103.897 2 2 2h13.307a2.01 2.01 0 0 0 1.873-1.298l2.757-7.351A1 1 0 0 0 22 12v-2c0-1.103-.897-2-2-2zM4 10h2v9H4v-9zm16 1.819L17.307 19H8V9.362L12.468 4h1.146l-1.562 4.683A.998.998 0 0 0 13 10h7v1.819z"></path>
+																		</svg>
+																	</button>
+																	<button 
+																		className={`thumbs-btn thumbs-down ${adminFb?.feedback_verdict === 'bad' ? 'submitted' : ''}`}
+																		title="Bad"
+																		onClick={(e) => {
+																			e.preventDefault()
+																			e.stopPropagation()
+																			handleFeedbackClick('negative', conv.requestId)
+																		}}
+																	>
+																		<svg fill="currentColor" viewBox="0 0 24 24" width="18" height="18">
+																			<path d="M20 3H6.693A2.01 2.01 0 0 0 4.82 4.298l-2.757 7.351A1 1 0 0 0 2 12v2c0 1.103.897 2 2 2h5.612L8.49 19.367a2.004 2.004 0 0 0 .274 1.802c.376.52.982.831 1.624.831H12c.297 0 .578-.132.769-.360l4.7-5.64H20c1.103 0 2-.897 2-2V5c0-1.103-.897-2-2-2zm-8.469 17h-1.145l1.562-4.684A1 1 0 0 0 11 14H4v-1.819L6.693 5H16v9.638L11.531 20zM18 14V5h2l.001 9H18z"></path>
+																		</svg>
+																	</button>
+																	{adminFb && (
+																		<button 
+																			className="btn btn-sm edit-btn"
+																			title="Edit"
+																			onClick={(e) => {
+																				e.preventDefault()
+																				e.stopPropagation()
+																				setExpandedFeedbackForms(prev => new Set(prev).add(conv.requestId))
+																				setFeedbackFormData(prev => ({
+																					...prev,
+																					[conv.requestId]: { 
+																						text: adminFb.feedback_text || '', 
+																						preferredResponse: adminFb.corrected_response || '' 
+																					}
+																				}))
+																			}}
+																		>
+																			Edit
+																		</button>
+																	)}
+																</div>
 															</div>
 														</div>
-														<div className="session-right">
-															<div className="session-label">Session:</div>
-															<div className="session-id" title={sessionId.length > 8 ? sessionId : undefined}>
-																{formatSessionId(sessionId)}
-															</div>
-														</div>
-													</div>
-													
-													{isExpanded && (
-														<div className="requests-container">
-															{requests.length > 0 ? (
-																requests.map((request: any, reqIndex: number) => {
-																	const requestId = request.requestId || request.id
-																	const detail = requestDetails[requestId]
-																	const isLoadingDetail = loadingState.details && !detail
-																	
-																	return (
-																		<div key={requestId || reqIndex} className="request-item">
-																			<div className="request-header">
-																				<div className="request-datetime">
-																					{request.createdAt ? (
-																						<>
-																							<div className="request-date">
-																								{new Date(request.createdAt).toLocaleDateString()}
-																							</div>
-																							<div className="request-time">
-																								{new Date(request.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-																							</div>
-																						</>
-																					) : (
-																						<div className="request-date">No date available</div>
-																					)}
-																				</div>
-																				<div className="request-actions" onClick={(e) => e.stopPropagation()}>
-																					<button 
-																						className={`thumbs-btn thumbs-up ${adminFeedback[requestId]?.feedback_verdict === 'good' ? 'submitted' : ''}`}
-																						title="Thumbs Up"
-																						onClick={(e) => {
-																							e.preventDefault()
-																							e.stopPropagation()
-																							handleFeedbackClick('positive', requestId)
-																						}}
-																						disabled={isLoadingDetail}
-																					>
-																						<svg fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-																							<path d="M20 8h-5.612l1.123-3.367c.202-.608.1-1.282-.275-1.802S14.253 2 13.612 2H12c-.297 0-.578.132-.769.36L6.531 8H4c-1.103 0-2 .897-2 2v9c0 1.103.897 2 2 2h13.307a2.01 2.01 0 0 0 1.873-1.298l2.757-7.351A1 1 0 0 0 22 12v-2c0-1.103-.897-2-2-2zM4 10h2v9H4v-9zm16 1.819L17.307 19H8V9.362L12.468 4h1.146l-1.562 4.683A.998.998 0 0 0 13 10h7v1.819z"></path>
-																						</svg>
-																					</button>
-																					<button 
-																						className={`thumbs-btn thumbs-down ${adminFeedback[requestId]?.feedback_verdict === 'bad' ? 'submitted' : ''} ${submittingFeedbackRequests.has(requestId) ? 'loading' : ''}`}
-																						title="Thumbs Down"
-																						onClick={(e) => {
-																							e.preventDefault()
-																							e.stopPropagation()
-																							handleFeedbackClick('negative', requestId)
-																						}}
-																						disabled={submittingFeedbackRequests.has(requestId) || isLoadingDetail}
-																					>
-																						<svg fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-																							<path d="M20 3H6.693A2.01 2.01 0 0 0 4.82 4.298l-2.757 7.351A1 1 0 0 0 2 12v2c0 1.103.897 2 2 2h5.612L8.49 19.367a2.004 2.004 0 0 0 .274 1.802c.376.52.982.831 1.624.831H12c.297 0 .578-.132.769-.360l4.7-5.64H20c1.103 0 2-.897 2-2V5c0-1.103-.897-2-2-2zm-8.469 17h-1.145l1.562-4.684A1 1 0 0 0 11 14H4v-1.819L6.693 5H16v9.638L11.531 20zM18 14V5h2l.001 9H18z"></path>
-																						</svg>
-																					</button>
-																				</div>
-																			</div>
-																			
-																			{/* Inline feedback form for negative feedback - positioned after header */}
-																			{expandedFeedbackForms.has(requestId) && (
-																				<div className={`inline-feedback-form ${closingFeedbackForms.has(requestId) ? 'closing' : ''}`}>
-																					<div className="feedback-form-fields">
-																						<div className="feedback-field">
-																							<label htmlFor={`feedback-text-${requestId}`}>Supervisor Feedback:</label>
-																							<textarea
-																								id={`feedback-text-${requestId}`}
-																								className="feedback-input"
-																								value={feedbackFormData[requestId]?.text || ''}
-																								onChange={(e) => setFeedbackFormData(prev => ({
-																									...prev,
-																									[requestId]: {
-																										...prev[requestId],
-																										text: e.target.value
-																									}
-																								}))}
-																								placeholder="Explain what was wrong with this response..."
-																								rows={3}
-																							/>
-																						</div>
-																						<div className="feedback-field">
-																							<label htmlFor={`preferred-response-${requestId}`}>Corrected Response:</label>
-																							<textarea
-																								id={`preferred-response-${requestId}`}
-																								className="feedback-input"
-																								value={feedbackFormData[requestId]?.preferredResponse || ''}
-																								onChange={(e) => setFeedbackFormData(prev => ({
-																									...prev,
-																									[requestId]: {
-																										...prev[requestId],
-																										preferredResponse: e.target.value
-																									}
-																								}))}
-																								placeholder="Enter the corrected response..."
-																								rows={4}
-																							/>
-																						</div>
-																					</div>
-																					<div className="feedback-form-actions">
-																						{adminFeedback[requestId]?.feedback_verdict === 'bad' ? (
-																							<button 
-																								className="btn btn-ghost delete-feedback-btn"
-																								onClick={() => setConfirmationModal({
-																									isOpen: true,
-																									type: 'deleteNegative',
-																									requestId: requestId,
-																									onConfirm: () => deleteFeedback(requestId)
-																								})}
-																								disabled={submittingFeedbackRequests.has(requestId)}
-																							>
-																								Delete
-																							</button>
-																						) : (
-																							<button 
-																								className="btn btn-ghost cancel-feedback-btn"
-																								onClick={() => closeFeedbackForm(requestId)}
-																								disabled={submittingFeedbackRequests.has(requestId)}
-																							>
-																								Cancel
-																							</button>
-																						)}
-																																				<button 
-															className="btn submit-inline-feedback-btn"
-															onClick={() => submitInlineFeedback(requestId)}
-															disabled={(!feedbackFormData[requestId]?.text?.trim() && !feedbackFormData[requestId]?.preferredResponse?.trim()) || submittingFeedbackRequests.has(requestId)}
-														>
-															{submittingFeedbackRequests.has(requestId) ? 
-																(adminFeedback[requestId]?.feedback_verdict === 'bad' ? 'Updating...' : 'Submitting...') : 
-																(adminFeedback[requestId]?.feedback_verdict === 'bad' ? 'Update' : 'Submit')
-															}
-														</button>
-																					</div>
-																				</div>
-																			)}
-																			
-																			{/* 메시지 내용 - 로딩 중이면 로딩 표시 */}
-																			{isLoadingDetail ? (
-																				<div className="request-content loading">
-																					<div className="loading-message">
-																						<div className="loading-spinner-small"></div>
-																						<div className="loading-text">Loading message details...</div>
-																					</div>
-																				</div>
-																			) : detail ? (
-																				<div className="request-content">
-																					{detail.inputText && (
-																						<div className="chat-row">
-																							<span className="chat-label user">User Message:</span>
-																							<span className="chat-text">{detail.inputText}</span>
-																						</div>
-																					)}
-																					{detail.outputText && (
-																						<div className="chat-row">
-																							<span className="chat-label ai">AI Response:</span>
-																							<span className="chat-text">{detail.outputText}</span>
-																						</div>
-																					)}
-																				</div>
-																			) : (
-																				<div className="request-content">
-																					<div className="no-detail">No message details available</div>
-																				</div>
-																			)}
-																		</div>
-																	)
-																})
-															) : (
-																<div className="muted">No requests found for this session.</div>
-															)}
-														</div>
-													)}
-												</div>
-											)
-										})}
-									</div>
+													)
+												})}
+											</div>
+										) : (
+											<table className="conversations-table">
+												<thead>
+													<tr>
+														<th>{t('date')}</th>
+														<th>{t('userId')}</th>
+														<th>{t('sessionId')}</th>
+														<th>{t('userMessage')}</th>
+														<th>{t('aiResponse')}</th>
+														<th>{t('userFb')}</th>
+														<th>{t('admin')}</th>
+													</tr>
+												</thead>
+												<tbody>
+													{flattenedConversations.slice(0, conversationsDisplayLimit).map((conv) => {
+														const date = conv.date ? new Date(conv.date) : null
+														const userFb = conv.userFeedback
+														const adminFb = conv.adminFeedback
+														
+														return (
+															<tr key={conv.requestId}>
+																<td>
+																	{date ? date.toLocaleString() : ''}
+																</td>
+																<td>{conv.userId || ''}</td>
+																<td title={conv.sessionId}>
+																	{formatSessionId(conv.sessionId)}
+																</td>
+																<td className="message-cell" title={conv.userMessage || ''}>
+																	<div className="message-text-truncated">{conv.userMessage || ''}</div>
+																</td>
+																<td className="message-cell" title={conv.aiResponse || ''}>
+																	<div className="message-text-truncated">{conv.aiResponse || ''}</div>
+																</td>
+																<td>
+																	{userFb === 'negative' && (
+																		<svg fill="#ef4444" viewBox="0 0 24 24" width="20" height="20">
+																			<path d="M20 3H6.693A2.01 2.01 0 0 0 4.82 4.298l-2.757 7.351A1 1 0 0 0 2 12v2c0 1.103.897 2 2 2h5.612L8.49 19.367a2.004 2.004 0 0 0 .274 1.802c.376.52.982.831 1.624.831H12c.297 0 .578-.132.769-.360l4.7-5.64H20c1.103 0 2-.897 2-2V5c0-1.103-.897-2-2-2zm-8.469 17h-1.145l1.562-4.684A1 1 0 0 0 11 14H4v-1.819L6.693 5H16v9.638L11.531 20zM18 14V5h2l.001 9H18z"></path>
+																		</svg>
+																	)}
+																</td>
+																<td>
+																	<div className="admin-actions">
+																		<button 
+																			className={`thumbs-btn thumbs-up ${adminFb?.feedback_verdict === 'good' ? 'submitted' : ''}`}
+																			title="Thumbs Up"
+																			onClick={(e) => {
+																				e.preventDefault()
+																				e.stopPropagation()
+																				handleFeedbackClick('positive', conv.requestId)
+																			}}
+																		>
+																			<svg fill="currentColor" viewBox="0 0 24 24" width="18" height="18">
+																				<path d="M20 8h-5.612l1.123-3.367c.202-.608.1-1.282-.275-1.802S14.253 2 13.612 2H12c-.297 0-.578.132-.769.36L6.531 8H4c-1.103 0-2 .897-2 2v9c0 1.103.897 2 2 2h13.307a2.01 2.01 0 0 0 1.873-1.298l2.757-7.351A1 1 0 0 0 22 12v-2c0-1.103-.897-2-2-2zM4 10h2v9H4v-9zm16 1.819L17.307 19H8V9.362L12.468 4h1.146l-1.562 4.683A.998.998 0 0 0 13 10h7v1.819z"></path>
+																			</svg>
+																		</button>
+																		<button 
+																			className={`thumbs-btn thumbs-down ${adminFb?.feedback_verdict === 'bad' ? 'submitted' : ''}`}
+																			title="Thumbs Down"
+																			onClick={(e) => {
+																				e.preventDefault()
+																				e.stopPropagation()
+																				handleFeedbackClick('negative', conv.requestId)
+																			}}
+																		>
+																			<svg fill="currentColor" viewBox="0 0 24 24" width="18" height="18">
+																				<path d="M20 3H6.693A2.01 2.01 0 0 0 4.82 4.298l-2.757 7.351A1 1 0 0 0 2 12v2c0 1.103.897 2 2 2h5.612L8.49 19.367a2.004 2.004 0 0 0 .274 1.802c.376.52.982.831 1.624.831H12c.297 0 .578-.132.769-.360l4.7-5.64H20c1.103 0 2-.897 2-2V5c0-1.103-.897-2-2-2zm-8.469 17h-1.145l1.562-4.684A1 1 0 0 0 11 14H4v-1.819L6.693 5H16v9.638L11.531 20zM18 14V5h2l.001 9H18z"></path>
+																			</svg>
+																		</button>
+																		{adminFb && (
+																			<button 
+																				className="btn btn-sm edit-btn"
+																				title="Edit"
+																				onClick={(e) => {
+																					e.preventDefault()
+																					e.stopPropagation()
+																					setExpandedFeedbackForms(prev => new Set(prev).add(conv.requestId))
+																					setFeedbackFormData(prev => ({
+																						...prev,
+																						[conv.requestId]: { 
+																							text: adminFb.feedback_text || '', 
+																							preferredResponse: adminFb.corrected_response || '' 
+																						}
+																					}))
+																				}}
+																			>
+																				Edit
+																			</button>
+																		)}
+																	</div>
+																</td>
+															</tr>
+														)
+													})}
+												</tbody>
+											</table>
+										)}
+										{flattenedConversations.length > conversationsDisplayLimit && (
+											<div className="load-more-container">
+												<button 
+													className="btn btn-primary load-more-btn"
+													onClick={() => setConversationsDisplayLimit(prev => prev + 50)}
+												>
+													{t('loadMore')} ({flattenedConversations.length - conversationsDisplayLimit}{t('remaining')})
+												</button>
+											</div>
+										)}
+									</>
 								) : (
 									<p className="muted">No conversations found for the selected date range.</p>
 								)}
 							</div>
 							
-							<div className="recent-conversations-actions">
-								{/* 로딩 상태 표시 - 항상 왼쪽에 고정 */}
-								{loadingState.details && (
-									<div className="loading-indicator">
-										<div className="loading-progress">
-											<div className="progress-bar">
-												<div 
-													className="progress-fill" 
-													style={{ width: `${loadingState.progress}%` }}
-												/>
+							{/* Inline feedback form modal - appears when Edit is clicked or thumbs down is clicked */}
+							{expandedFeedbackForms.size > 0 && Array.from(expandedFeedbackForms).map(requestId => {
+								const formData = feedbackFormData[requestId] || { text: '', preferredResponse: '' }
+								const existingFeedback = adminFeedback[requestId]
+								
+								return (
+									<div key={requestId} className={`inline-feedback-form-modal ${closingFeedbackForms.has(requestId) ? 'closing' : ''}`}>
+										<div className="modal-backdrop" onClick={() => closeFeedbackForm(requestId)}></div>
+										<div className="inline-feedback-form card" onClick={(e) => e.stopPropagation()}>
+											<div className="feedback-form-header">
+												<h3>Admin Feedback</h3>
+												<button className="icon-btn" onClick={() => closeFeedbackForm(requestId)}>
+													<IconX />
+												</button>
 											</div>
-											<div className="progress-text">{Math.round(loadingState.progress)}%</div>
-										</div>
-										<div className="loading-status">
-											Loading message details... ({loadingState.loadedDetails}/{loadingState.totalDetails})
+											<div className="feedback-form-fields">
+												<div className="feedback-field">
+													<label htmlFor={`feedback-text-${requestId}`}>Supervisor Feedback:</label>
+													<textarea
+														id={`feedback-text-${requestId}`}
+														className="feedback-input"
+														value={formData.text}
+														onChange={(e) => setFeedbackFormData(prev => ({
+															...prev,
+															[requestId]: {
+																...prev[requestId],
+																text: e.target.value
+															}
+														}))}
+														placeholder="Explain what was wrong with this response..."
+														rows={3}
+													/>
+												</div>
+												<div className="feedback-field">
+													<label htmlFor={`preferred-response-${requestId}`}>Corrected Response:</label>
+													<textarea
+														id={`preferred-response-${requestId}`}
+														className="feedback-input"
+														value={formData.preferredResponse}
+														onChange={(e) => setFeedbackFormData(prev => ({
+															...prev,
+															[requestId]: {
+																...prev[requestId],
+																preferredResponse: e.target.value
+															}
+														}))}
+														placeholder="Enter the corrected response..."
+														rows={4}
+													/>
+												</div>
+											</div>
+											<div className="feedback-form-actions">
+												{existingFeedback?.feedback_verdict === 'bad' ? (
+													<button 
+														className="btn btn-ghost delete-feedback-btn"
+														onClick={() => setConfirmationModal({
+															isOpen: true,
+															type: 'deleteNegative',
+															requestId: requestId,
+															onConfirm: () => deleteFeedback(requestId)
+														})}
+														disabled={submittingFeedbackRequests.has(requestId)}
+													>
+														Delete
+													</button>
+												) : (
+													<button 
+														className="btn btn-ghost cancel-feedback-btn"
+														onClick={() => closeFeedbackForm(requestId)}
+														disabled={submittingFeedbackRequests.has(requestId)}
+													>
+														Cancel
+													</button>
+												)}
+												<button 
+													className="btn submit-inline-feedback-btn"
+													onClick={() => submitInlineFeedback(requestId)}
+													disabled={(!formData.text?.trim() && !formData.preferredResponse?.trim()) || submittingFeedbackRequests.has(requestId)}
+												>
+													{submittingFeedbackRequests.has(requestId) ? 
+														(existingFeedback?.feedback_verdict === 'bad' ? 'Updating...' : 'Submitting...') : 
+														(existingFeedback?.feedback_verdict === 'bad' ? 'Update' : 'Submit')
+													}
+												</button>
+											</div>
 										</div>
 									</div>
-								)}
-								
-								{/* Export 버튼 - 항상 오른쪽에 고정 */}
-								<div className="recent-conversations-export">
-									<select 
-										value={conversationsExportFormat} 
-										onChange={(e) => setConversationsExportFormat(e.target.value as any)}
-										className="input select-input export-format-select"
-									>
-										<option value="csv">CSV</option>
-										<option value="excel">Excel</option>
-										<option value="json">JSON</option>
-									</select>
-									<button 
-										className="btn btn-primary export-btn" 
-										onClick={handleConversationsExport}
-										disabled={isExportingConversations || totalMessages === 0}
-									>
-										{isExportingConversations ? 'Exporting...' : 'Export'}
-									</button>
-								</div>
-							</div>
+								)
+							})}
 						</div>
 					</div>
 
@@ -1629,36 +1813,68 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 						<div className="card section" aria-labelledby="admin-feedback-title">
 							<div className="section-header">
 								<div id="admin-feedback-title" className="section-title">
-									Admin Feedback
-									<span className="section-counter">({filteredAndSortedAdminFeedback.length} feedback entries)</span>
+									{language === 'ko' ? '관리자 피드백' : 'Administrator Feedback'} ({filteredAndSortedAdminFeedback.length} {t('feedbackItems')})
 								</div>
 								<div className="admin-feedback-header-controls">
+									<div className="font-size-control">
+										<label>{t('fontSize')}</label>
+										<div className="font-size-buttons">
+											<button 
+												className={`font-size-btn ${adminFeedbackFontSize === 'small' ? 'active' : ''}`}
+												onClick={() => setAdminFeedbackFontSize('small')}
+											>
+												A
+											</button>
+											<button 
+												className={`font-size-btn ${adminFeedbackFontSize === 'medium' ? 'active' : ''}`}
+												onClick={() => setAdminFeedbackFontSize('medium')}
+											>
+												A
+											</button>
+											<button 
+												className={`font-size-btn ${adminFeedbackFontSize === 'large' ? 'active' : ''}`}
+												onClick={() => setAdminFeedbackFontSize('large')}
+											>
+												A
+											</button>
+										</div>
+									</div>
 									<div className="admin-feedback-sort">
-										<label htmlFor="admin-feedback-sort-select">Sort by:</label>
+										<label>{t('sort')}</label>
 										<select 
-											id="admin-feedback-sort-select"
 											className="input select-input"
 											value={adminFeedbackSortBy}
 											onChange={(e) => setAdminFeedbackSortBy(e.target.value as 'requestId' | 'date')}
 										>
-											<option value="date">Date/Time</option>
+											<option value="date">{t('dateTimeNewest')}</option>
 											<option value="requestId">Request ID</option>
 										</select>
 									</div>
 									<div className="admin-feedback-filter">
-										<label htmlFor="admin-feedback-filter-input">Search:</label>
+										<label>{t('search')}</label>
 										<input
-											id="admin-feedback-filter-input"
 											type="text"
 											className="input"
-											placeholder="Search feedback..."
+											placeholder={t('searchFeedback')}
 											value={adminFeedbackFilter}
 											onChange={(e) => setAdminFeedbackFilter(e.target.value)}
 										/>
 									</div>
+									<button 
+										className="btn btn-primary export-btn" 
+										onClick={handleAdminFeedbackExport}
+										disabled={isExportingAdminFeedback || filteredAndSortedAdminFeedback.length === 0}
+									>
+										{t('export')} CSV
+									</button>
+								</div>
+								<div className="admin-feedback-summary">
+									<span>{t('total')} ({filteredAndSortedAdminFeedback.length})</span>
+									<span>{t('good')} ({Object.values(adminFeedback).filter(f => f.feedback_verdict === 'good').length})</span>
+									<span>{t('bad')} ({filteredAndSortedAdminFeedback.length})</span>
 								</div>
 							</div>
-							<div className="admin-feedback-content">
+							<div className={`admin-feedback-table-container font-size-${adminFeedbackFontSize}`}>
 								{filteredAndSortedAdminFeedback.length === 0 ? (
 									<p className="muted">
 										{Object.keys(adminFeedback).filter(requestId => adminFeedback[requestId].feedback_verdict === 'bad').length === 0 
@@ -1667,92 +1883,94 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 										}
 									</p>
 								) : (
-									<div className="admin-feedback-list">
-										{filteredAndSortedAdminFeedback.map(([requestId, feedback]) => {
-											const requestDetail = requestDetails[requestId]
-											return (
-												<div key={requestId} className="admin-feedback-item">
-													<div className="admin-feedback-content-wrapper">
-														<div className="admin-feedback-header">
-															<div className="admin-feedback-meta">
-																<div className="admin-feedback-request-id">Request ID: {formatSessionId(requestId)}</div>
-																<div className="admin-feedback-date">
-																	{feedback.created_at ? new Date(feedback.created_at).toLocaleString() : 'Unknown date'}
-																</div>
-															</div>
-														</div>
-														
-														<div className="admin-feedback-body">
-															{feedback.feedback_text && (
-																<div className="admin-feedback-text">
-																	<span className="admin-feedback-label">Supervisor Feedback:</span>
-																	<span className="admin-feedback-text-content">{feedback.feedback_text}</span>
-																</div>
-															)}
-															
-															{feedback.corrected_response && (
-																<div className="admin-feedback-corrected">
-																	<span className="admin-feedback-label">Corrected Response:</span>
-																	<span className="admin-feedback-text-content">{feedback.corrected_response}</span>
-																</div>
-															)}
-															
-															{requestDetail && (feedback.feedback_text || feedback.corrected_response) && (
-																<div className="admin-feedback-conversation">
-																	{requestDetail.inputText && (
-																		<div className="chat-row">
-																			<span className="chat-label user">User Message:</span>
-																			<span className="chat-text">{requestDetail.inputText}</span>
-																		</div>
-																	)}
-																	{requestDetail.outputText && (
-																		<div className="chat-row">
-																			<span className="chat-label ai">AI Response:</span>
-																			<span className="chat-text">{requestDetail.outputText}</span>
-																		</div>
-																	)}
-																</div>
-															)}
-														</div>
-													</div>
-													<div className="admin-feedback-controls">
-														<button 
-															className="admin-feedback-delete-btn"
-															title="Delete feedback"
-															onClick={(e) => {
-																e.preventDefault()
-																e.stopPropagation()
-																setDeleteAdminFeedbackModal({
-																	isOpen: true,
-																	requestId: requestId,
-																	feedbackText: feedback.feedback_text || ''
-																})
-															}}
-														>
-															<svg fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-																<path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"></path>
-															</svg>
-														</button>
-														
-														<div className="admin-feedback-toggle">
-															<button
-																className={`toggle-btn ${feedback.prompt_apply !== false ? 'active' : ''}`}
-																onClick={(e) => {
-																	e.preventDefault()
-																	e.stopPropagation()
-																	handleTogglePromptApply(requestId, feedback.prompt_apply !== false)
-																}}
-																title={feedback.prompt_apply !== false ? 'Remove from prompt updates' : 'Include in prompt updates'}
-															>
-																<div className="toggle-slider"></div>
-															</button>
-															<label className="toggle-label">Apply to Prompt:</label>
-														</div>
-													</div>
-												</div>
-											)
-										})}
-									</div>
+									<>
+										<table className="admin-feedback-table">
+											<thead>
+												<tr>
+													<th>{t('date')}</th>
+													<th>{t('role')}</th>
+													<th>{t('rating')}</th>
+													<th>{t('feedback')}</th>
+													<th>{t('modified')}</th>
+													<th>{t('applied')}</th>
+													<th>{t('delete')}</th>
+												</tr>
+											</thead>
+											<tbody>
+												{filteredAndSortedAdminFeedback.slice(0, adminFeedbackDisplayLimit).map(([requestId, feedback]) => {
+													const date = feedback.created_at ? new Date(feedback.created_at) : null
+													
+													return (
+														<tr key={requestId}>
+															<td>
+																{date ? date.toLocaleString() : 'Unknown date'}
+															</td>
+															<td>Admin</td>
+															<td>
+																{feedback.feedback_verdict === 'good' ? (
+																	<svg fill="#22c55e" viewBox="0 0 24 24" width="20" height="20">
+																		<path d="M20 8h-5.612l1.123-3.367c.202-.608.1-1.282-.275-1.802S14.253 2 13.612 2H12c-.297 0-.578.132-.769.36L6.531 8H4c-1.103 0-2 .897-2 2v9c0 1.103.897 2 2 2h13.307a2.01 2.01 0 0 0 1.873-1.298l2.757-7.351A1 1 0 0 0 22 12v-2c0-1.103-.897-2-2-2zM4 10h2v9H4v-9zm16 1.819L17.307 19H8V9.362L12.468 4h1.146l-1.562 4.683A.998.998 0 0 0 13 10h7v1.819z"></path>
+																	</svg>
+																) : (
+																	<svg fill="#ef4444" viewBox="0 0 24 24" width="20" height="20">
+																		<path d="M20 3H6.693A2.01 2.01 0 0 0 4.82 4.298l-2.757 7.351A1 1 0 0 0 2 12v2c0 1.103.897 2 2 2h5.612L8.49 19.367a2.004 2.004 0 0 0 .274 1.802c.376.52.982.831 1.624.831H12c.297 0 .578-.132.769-.360l4.7-5.64H20c1.103 0 2-.897 2-2V5c0-1.103-.897-2-2-2zm-8.469 17h-1.145l1.562-4.684A1 1 0 0 0 11 14H4v-1.819L6.693 5H16v9.638L11.531 20zM18 14V5h2l.001 9H18z"></path>
+																	</svg>
+																)}
+															</td>
+															<td className="feedback-cell" title={feedback.feedback_text || ''}>
+																<div className="message-text-truncated">{feedback.feedback_text || ''}</div>
+															</td>
+															<td className="feedback-cell" title={feedback.corrected_response || ''}>
+																<div className="message-text-truncated">{feedback.corrected_response || ''}</div>
+															</td>
+															<td>
+																<button
+																	className={`toggle-btn ${feedback.prompt_apply !== false ? 'active' : ''}`}
+																	onClick={(e) => {
+																		e.preventDefault()
+																		e.stopPropagation()
+																		handleTogglePromptApply(requestId, feedback.prompt_apply !== false)
+																	}}
+																	title={feedback.prompt_apply !== false ? 'Remove from prompt updates' : 'Include in prompt updates'}
+																>
+																	<div className="toggle-slider"></div>
+																</button>
+															</td>
+															<td>
+																<button 
+																	className="admin-feedback-delete-btn"
+																	title="Delete feedback"
+																	onClick={(e) => {
+																		e.preventDefault()
+																		e.stopPropagation()
+																		setDeleteAdminFeedbackModal({
+																			isOpen: true,
+																			requestId: requestId,
+																			feedbackText: feedback.feedback_text || ''
+																		})
+																	}}
+																>
+																	<svg fill="currentColor" viewBox="0 0 24 24" width="18" height="18">
+																		<path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"></path>
+																	</svg>
+																</button>
+															</td>
+														</tr>
+													)
+												})}
+											</tbody>
+										</table>
+										{filteredAndSortedAdminFeedback.length > adminFeedbackDisplayLimit && (
+											<div className="load-more-container">
+												<button 
+													className="btn btn-primary load-more-btn"
+													onClick={() => setAdminFeedbackDisplayLimit(prev => prev + 25)}
+												>
+													{t('loadMore')} ({filteredAndSortedAdminFeedback.length - adminFeedbackDisplayLimit}{t('remaining')})
+												</button>
+											</div>
+										)}
+									</>
 								)}
 							</div>
 							<div className="admin-feedback-actions">

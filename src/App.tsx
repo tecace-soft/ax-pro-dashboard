@@ -6,6 +6,8 @@ import RAGManagement from './pages/RAGManagement'
 import RAGManagementN8N from './pages/RAGManagementN8N'
 import ScrollToTop from './components/ScrollToTop'
 import { ProfileProvider } from './contexts/ProfileContext';
+import { LanguageProvider } from './contexts/LanguageContext';
+import { ThemeProvider } from './contexts/ThemeContext';
 
 function useIsAuthenticated(): boolean {
 	const access = sessionStorage.getItem('axAccess')
@@ -23,18 +25,22 @@ function Protected() {
 
 export default function App() {
 	return (
-		<ProfileProvider>
-			<Routes>
-				<Route path="/" element={<Login />} />
-				<Route element={<Protected />}>
-					<Route path="/dashboard" element={<Dashboard />} />
-					<Route path="/dashboard-n8n" element={<DashboardN8N />} />
-					<Route path="/rag-management" element={<RAGManagement />} />
-					<Route path="/rag-n8n" element={<RAGManagementN8N />} />
-				</Route>
-				<Route path="*" element={<Navigate to="/" replace />} />
-			</Routes>
-			<ScrollToTop />
-		</ProfileProvider>
+		<ThemeProvider>
+			<LanguageProvider>
+				<ProfileProvider>
+					<Routes>
+						<Route path="/" element={<Login />} />
+						<Route element={<Protected />}>
+							<Route path="/dashboard" element={<Dashboard />} />
+							<Route path="/dashboard-n8n" element={<DashboardN8N />} />
+							<Route path="/rag-management" element={<RAGManagement />} />
+							<Route path="/rag-n8n" element={<RAGManagementN8N />} />
+						</Route>
+						<Route path="*" element={<Navigate to="/" replace />} />
+					</Routes>
+					<ScrollToTop />
+				</ProfileProvider>
+			</LanguageProvider>
+		</ThemeProvider>
 	)
 } 

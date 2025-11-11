@@ -5704,3 +5704,628 @@ input:checked + .toggle-slider::before {
   }
 }
 
+/* ===== Table Styles for Recent Conversations, Admin Feedback, User Feedback ===== */
+
+/* Conversations Controls */
+.conversations-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.view-toggle {
+  display: flex;
+  gap: 4px;
+  background: rgba(9, 14, 34, 0.9);
+  padding: 4px;
+  border-radius: 8px;
+  border: 1px solid rgba(59, 230, 255, 0.12);
+}
+
+[data-theme="light"] .view-toggle {
+  background: rgba(248, 250, 252, 0.9);
+  border: 1px solid rgba(59, 230, 255, 0.2);
+}
+
+.view-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: var(--text-muted);
+  padding: 0;
+}
+
+.view-btn:hover {
+  background: rgba(124, 140, 255, 0.08);
+  color: var(--text);
+}
+
+.view-btn.active {
+  background: var(--primary);
+  color: #041220;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.view-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.sort-control,
+.search-control,
+.font-size-control,
+.export-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.language-control {
+  display: flex;
+  gap: 4px;
+  background: rgba(9, 14, 34, 0.9);
+  padding: 4px;
+  border-radius: 8px;
+  border: 1px solid rgba(59, 230, 255, 0.12);
+}
+
+[data-theme="light"] .language-control {
+  background: rgba(248, 250, 252, 0.9);
+  border: 1px solid rgba(59, 230, 255, 0.2);
+}
+
+.lang-btn {
+  padding: 8px 16px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.lang-btn:hover {
+  color: var(--text);
+  background: rgba(124, 140, 255, 0.08);
+}
+
+.lang-btn.active {
+  background: var(--primary);
+  color: #041220;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.sort-control label,
+.search-control label,
+.font-size-control label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.font-size-control {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.font-size-control label {
+  margin-right: 4px;
+}
+
+.font-size-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: rgba(59, 230, 255, 0.1);
+  border: 1px solid rgba(59, 230, 255, 0.2);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.font-size-btn:hover {
+  background: rgba(59, 230, 255, 0.2);
+  border-color: rgba(59, 230, 255, 0.4);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.font-size-btn.active {
+  background: rgba(59, 230, 255, 0.3);
+  border-color: rgba(59, 230, 255, 0.5);
+  color: #3be6ff;
+}
+
+.font-size-buttons {
+  display: flex;
+  gap: 4px;
+}
+
+.font-size-buttons .font-size-btn:first-child {
+  font-size: 12px;
+}
+
+.font-size-buttons .font-size-btn:nth-child(2) {
+  font-size: 14px;
+}
+
+.font-size-buttons .font-size-btn:nth-child(3) {
+  font-size: 16px;
+}
+
+/* Table Container */
+.conversations-table-container,
+.admin-feedback-table-container,
+.user-feedback-table-container {
+  width: 100%;
+  overflow-x: auto;
+  margin-top: 16px;
+}
+
+.conversations-table-container.font-size-small,
+.admin-feedback-table-container.font-size-small,
+.user-feedback-table-container.font-size-small {
+  font-size: 12px;
+}
+
+.conversations-table-container.font-size-medium,
+.admin-feedback-table-container.font-size-medium,
+.user-feedback-table-container.font-size-medium {
+  font-size: 14px;
+}
+
+.conversations-table-container.font-size-large,
+.admin-feedback-table-container.font-size-large,
+.user-feedback-table-container.font-size-large {
+  font-size: 16px;
+}
+
+/* Table Styles */
+.conversations-table,
+.admin-feedback-table,
+.user-feedback-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: transparent;
+}
+
+.conversations-table thead,
+.admin-feedback-table thead,
+.user-feedback-table thead {
+  background: rgba(18, 27, 61, 0.8);
+  border-bottom: 2px solid rgba(59, 230, 255, 0.2);
+}
+
+[data-theme="light"] .conversations-table thead,
+[data-theme="light"] .admin-feedback-table thead,
+[data-theme="light"] .user-feedback-table thead {
+  background: rgba(248, 250, 252, 0.9);
+  border-bottom: 2px solid rgba(59, 230, 255, 0.3);
+}
+
+.conversations-table th,
+.admin-feedback-table th,
+.user-feedback-table th {
+  padding: 12px 8px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--text);
+  border-bottom: 1px solid rgba(59, 230, 255, 0.1);
+  white-space: nowrap;
+}
+
+[data-theme="light"] .conversations-table th,
+[data-theme="light"] .admin-feedback-table th,
+[data-theme="light"] .user-feedback-table th {
+  color: var(--text-primary);
+  border-bottom: 1px solid rgba(59, 230, 255, 0.2);
+}
+
+.conversations-table tbody tr,
+.admin-feedback-table tbody tr,
+.user-feedback-table tbody tr {
+  border-bottom: 1px solid rgba(59, 230, 255, 0.05);
+  transition: background-color 0.2s ease;
+}
+
+[data-theme="light"] .conversations-table tbody tr,
+[data-theme="light"] .admin-feedback-table tbody tr,
+[data-theme="light"] .user-feedback-table tbody tr {
+  border-bottom: 1px solid rgba(59, 230, 255, 0.1);
+}
+
+.conversations-table tbody tr:hover,
+.admin-feedback-table tbody tr:hover,
+.user-feedback-table tbody tr:hover {
+  background: rgba(59, 230, 255, 0.05);
+}
+
+[data-theme="light"] .conversations-table tbody tr:hover,
+[data-theme="light"] .admin-feedback-table tbody tr:hover,
+[data-theme="light"] .user-feedback-table tbody tr:hover {
+  background: rgba(59, 230, 255, 0.08);
+}
+
+.conversations-table tbody tr:nth-child(even),
+.admin-feedback-table tbody tr:nth-child(even),
+.user-feedback-table tbody tr:nth-child(even) {
+  background: rgba(18, 27, 61, 0.3);
+}
+
+[data-theme="light"] .conversations-table tbody tr:nth-child(even),
+[data-theme="light"] .admin-feedback-table tbody tr:nth-child(even),
+[data-theme="light"] .user-feedback-table tbody tr:nth-child(even) {
+  background: rgba(241, 245, 249, 0.5);
+}
+
+.conversations-table tbody tr:nth-child(even):hover,
+.admin-feedback-table tbody tr:nth-child(even):hover,
+.user-feedback-table tbody tr:nth-child(even):hover {
+  background: rgba(59, 230, 255, 0.08);
+}
+
+[data-theme="light"] .conversations-table tbody tr:nth-child(even):hover,
+[data-theme="light"] .admin-feedback-table tbody tr:nth-child(even):hover,
+[data-theme="light"] .user-feedback-table tbody tr:nth-child(even):hover {
+  background: rgba(59, 230, 255, 0.12);
+}
+
+.conversations-table td,
+.admin-feedback-table td,
+.user-feedback-table td {
+  padding: 10px 8px;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  vertical-align: top;
+}
+
+[data-theme="light"] .conversations-table td,
+[data-theme="light"] .admin-feedback-table td,
+[data-theme="light"] .user-feedback-table td {
+  color: var(--text-secondary);
+}
+
+.conversations-table .message-cell,
+.admin-feedback-table .feedback-cell,
+.user-feedback-table .message-cell {
+  max-width: 250px;
+  position: relative;
+}
+
+.message-text-truncated {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.4;
+  word-break: break-word;
+  display: block;
+  cursor: help;
+}
+
+.message-text-truncated:hover {
+  white-space: normal;
+  word-wrap: break-word;
+  overflow: visible;
+  position: absolute;
+  z-index: 10;
+  background: var(--bg-card);
+  border: 1px solid rgba(59, 230, 255, 0.3);
+  border-radius: 6px;
+  padding: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  max-width: 400px;
+  min-width: 200px;
+  color: var(--text);
+}
+
+[data-theme="light"] .message-text-truncated:hover {
+  background: var(--bg-card);
+  border: 1px solid rgba(59, 230, 255, 0.4);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  color: var(--text-primary);
+}
+
+/* Admin Actions in Table */
+.admin-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-actions .thumbs-btn {
+  background: transparent;
+  border: 1px solid rgba(59, 230, 255, 0.2);
+  border-radius: 4px;
+  padding: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.admin-actions .thumbs-btn:hover {
+  background: rgba(59, 230, 255, 0.1);
+  border-color: rgba(59, 230, 255, 0.4);
+}
+
+.admin-actions .thumbs-btn.submitted {
+  border-color: currentColor;
+}
+
+.admin-actions .thumbs-up.submitted {
+  color: #22c55e;
+}
+
+.admin-actions .thumbs-down.submitted {
+  color: #ef4444;
+}
+
+.admin-actions .edit-btn {
+  padding: 4px 8px;
+  font-size: 0.75rem;
+  height: auto;
+}
+
+/* Load More Button */
+.load-more-container {
+  display: flex;
+  justify-content: center;
+  margin-top: 16px;
+  padding: 16px 0;
+}
+
+.load-more-btn {
+  min-width: 200px;
+}
+
+/* Admin Feedback Summary */
+.admin-feedback-summary {
+  display: flex;
+  gap: 16px;
+  margin-top: 12px;
+  padding: 12px;
+  background: rgba(18, 27, 61, 0.4);
+  border-radius: 6px;
+  border: 1px solid rgba(59, 230, 255, 0.1);
+}
+
+.admin-feedback-summary span {
+  font-size: 0.875rem;
+  color: var(--text);
+  font-weight: 500;
+}
+
+/* Inline Feedback Form Modal */
+.inline-feedback-form-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.inline-feedback-form-modal .modal-backdrop {
+  position: absolute;
+  inset: 0;
+}
+
+.inline-feedback-form {
+  position: relative;
+  z-index: 1001;
+  max-width: 600px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.feedback-form-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(59, 230, 255, 0.1);
+}
+
+.feedback-form-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* Section Header with Controls - only for conversations section */
+.conversations-title + .date-controls ~ .conversations-controls {
+  margin-top: 12px;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.section-header .conversations-controls {
+  width: 100%;
+  margin-top: 0;
+}
+
+.date-controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+/* Conversations Grid/Card View */
+.conversations-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.conversation-card {
+  background: rgba(18, 27, 61, 0.4);
+  border: 1px solid rgba(59, 230, 255, 0.1);
+  border-radius: 8px;
+  padding: 16px;
+  transition: all 0.2s ease;
+}
+
+[data-theme="light"] .conversation-card {
+  background: rgba(248, 250, 252, 0.6);
+  border: 1px solid rgba(59, 230, 255, 0.2);
+}
+
+.conversation-card:hover {
+  border-color: rgba(59, 230, 255, 0.3);
+  background: rgba(18, 27, 61, 0.5);
+}
+
+[data-theme="light"] .conversation-card:hover {
+  background: rgba(248, 250, 252, 0.8);
+  border-color: rgba(59, 230, 255, 0.3);
+}
+
+.conversation-card-header {
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(59, 230, 255, 0.1);
+}
+
+.conversation-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.conversation-card-info span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.conversation-card-info strong {
+  color: var(--text);
+  font-weight: 600;
+  min-width: 80px;
+}
+
+.conversation-card-body {
+  margin-bottom: 12px;
+}
+
+.conversation-message,
+.conversation-response {
+  margin-bottom: 12px;
+  padding: 8px;
+  background: rgba(9, 14, 34, 0.3);
+  border-radius: 4px;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+[data-theme="light"] .conversation-message,
+[data-theme="light"] .conversation-response {
+  background: rgba(241, 245, 249, 0.5);
+}
+
+.conversation-message strong,
+.conversation-response strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.conversation-user-feedback {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 0.875rem;
+}
+
+.conversation-user-feedback .no-feedback {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.conversation-card-footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(59, 230, 255, 0.1);
+}
+
+.conversation-card-footer .admin-label {
+  font-weight: 600;
+  color: var(--text);
+  font-size: 0.875rem;
+}
+
+.conversation-card-footer .admin-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* Responsive Grid - cards always stack vertically */
+
+/* Responsive Table */
+@media (max-width: 768px) {
+  .conversations-controls {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .conversations-table,
+  .admin-feedback-table,
+  .user-feedback-table {
+    font-size: 12px;
+  }
+  
+  .conversations-table th,
+  .conversations-table td,
+  .admin-feedback-table th,
+  .admin-feedback-table td,
+  .user-feedback-table th,
+  .user-feedback-table td {
+    padding: 8px 4px;
+  }
+  
+  .conversations-table .message-cell,
+  .admin-feedback-table .feedback-cell,
+  .user-feedback-table .message-cell {
+    max-width: 200px;
+  }
+}
+
