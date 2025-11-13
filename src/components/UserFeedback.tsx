@@ -217,9 +217,33 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 		}
 	}
 
-	const handleDeleteUserFeedback = async (feedbackId: string | number) => {
+	const [deleteUserFeedbackModal, setDeleteUserFeedbackModal] = useState<{
+		isOpen: boolean
+		feedbackId: string | number | null
+	}>({
+		isOpen: false,
+		feedbackId: null
+	})
+
+	const handleDeleteUserFeedbackClick = (feedbackId: string | number) => {
+		setDeleteUserFeedbackModal({
+			isOpen: true,
+			feedbackId: feedbackId
+		})
+	}
+
+	const handleDeleteUserFeedback = async () => {
+		if (!deleteUserFeedbackModal.feedbackId) return
+		
 		// TODO: Implement delete functionality
-		console.log('Delete user feedback:', feedbackId)
+		console.log('Delete user feedback:', deleteUserFeedbackModal.feedbackId)
+		
+		// Close modal after deletion
+		setDeleteUserFeedbackModal({ isOpen: false, feedbackId: null })
+	}
+
+	const handleCancelDeleteUserFeedback = () => {
+		setDeleteUserFeedbackModal({ isOpen: false, feedbackId: null })
 	}
 
 	return (
@@ -427,7 +451,7 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 														onClick={(e) => {
 															e.preventDefault()
 															e.stopPropagation()
-															handleDeleteUserFeedback(feedbackId)
+															handleDeleteUserFeedbackClick(feedbackId)
 														}}
 														title={t('delete')}
 													>
@@ -601,7 +625,7 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 														onClick={(e) => {
 															e.preventDefault()
 															e.stopPropagation()
-															handleDeleteUserFeedback(feedbackId)
+															handleDeleteUserFeedbackClick(feedbackId)
 														}}
 														title={t('delete')}
 													>
@@ -629,6 +653,32 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 					</>
 				)}
 			</div>
+
+			{deleteUserFeedbackModal.isOpen && (
+				<div className="modal-backdrop" role="dialog" aria-modal="true">
+					<div className="confirmation-modal card">
+						<div className="confirmation-content">
+							<p>
+								{language === 'ko' 
+									? '이 사용자 피드백을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.' 
+									: 'Are you sure you want to delete this user feedback? This action cannot be undone.'}
+							</p>
+						</div>
+						<button 
+							className="btn btn-ghost confirmation-no-btn" 
+							onClick={handleCancelDeleteUserFeedback}
+						>
+							{language === 'ko' ? '취소' : 'Cancel'}
+						</button>
+						<button 
+							className="btn btn-primary confirmation-yes-btn" 
+							onClick={handleDeleteUserFeedback}
+						>
+							{t('delete')}
+						</button>
+					</div>
+				</div>
+			)}
 		</div>
 	)
 }

@@ -62,7 +62,14 @@ const translations: Record<Language, Record<string, string>> = {
     'bad': 'Bad',
     'items': 'items',
     'feedbackItems': 'feedback items',
-    'lastRefreshed': 'Last refreshed:'
+    'lastRefreshed': 'Last refreshed:',
+    'systemPromptControl': 'System Prompt Control',
+    'history': 'History',
+    'expand': 'Expand',
+    'saveChanges': 'Save Changes',
+    'promptHistory': 'Prompt History',
+    'current': 'Current',
+    'load': 'Load'
   },
   ko: {
     'recentConversations': '최근 대화',

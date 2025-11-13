@@ -160,7 +160,7 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 	const [adminFeedbackFilter, setAdminFeedbackFilter] = useState('')
 	const [adminFeedbackTypeFilter, setAdminFeedbackTypeFilter] = useState<'all' | 'good' | 'bad'>('all')
 	const [adminFeedbackFontSize, setAdminFeedbackFontSize] = useState<'small' | 'medium' | 'large'>('medium')
-	const [adminFeedbackDisplayLimit, setAdminFeedbackDisplayLimit] = useState(25)
+	const [adminFeedbackDisplayLimit, setAdminFeedbackDisplayLimit] = useState(10)
 	const [editingAdminFeedback, setEditingAdminFeedback] = useState<Set<string>>(new Set())
 	const [adminFeedbackEditData, setAdminFeedbackEditData] = useState<Record<string, { text: string, correctedResponse: string }>>({})
 	const [submittingAdminFeedbackEdits, setSubmittingAdminFeedbackEdits] = useState<Set<string>>(new Set())
@@ -168,6 +168,8 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 	const [adminFeedbackLastRefreshed, setAdminFeedbackLastRefreshed] = useState<Date | null>(null)
 	const [isRefreshingConversations, setIsRefreshingConversations] = useState(false)
 	const [isRefreshingAdminFeedback, setIsRefreshingAdminFeedback] = useState(false)
+	const [isUpdatingPrompt, setIsUpdatingPrompt] = useState(false)
+	const [showUpdatePromptModal, setShowUpdatePromptModal] = useState(false)
 	const [deleteAdminFeedbackModal, setDeleteAdminFeedbackModal] = useState<{
 		isOpen: boolean,
 		requestId: string | null,
@@ -182,6 +184,33 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 	// Function to trigger prompt refresh
 	const triggerPromptRefresh = () => {
 		setPromptRefreshTrigger(prev => prev + 1)
+	}
+
+	// Handle Update Prompt button click
+	const handleUpdatePrompt = () => {
+		setShowUpdatePromptModal(true)
+	}
+
+	const handleConfirmUpdatePrompt = async () => {
+		setIsUpdatingPrompt(true)
+		setShowUpdatePromptModal(false)
+		
+		try {
+			await updatePromptWithFeedback()
+			triggerPromptRefresh()
+			
+			// Show success message
+			alert(language === 'ko' ? '프롬프트가 성공적으로 업데이트되었습니다.' : 'Prompt updated successfully.')
+		} catch (error) {
+			console.error('Failed to update prompt:', error)
+			alert(language === 'ko' ? '프롬프트 업데이트 실패' : 'Failed to update prompt')
+		} finally {
+			setIsUpdatingPrompt(false)
+		}
+	}
+
+	const handleCancelUpdatePrompt = () => {
+		setShowUpdatePromptModal(false)
 	}
 
 	const handleDeleteAdminFeedback = async (requestId: string) => {
@@ -2095,6 +2124,15 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 										</svg>
 										<span className="refresh-btn-text">{language === 'ko' ? '새로고침' : 'Refresh'}</span>
 									</button>
+									{!isN8NRoute && (
+										<button 
+											className="btn btn-primary update-prompt-btn" 
+											onClick={handleUpdatePrompt}
+											disabled={isUpdatingPrompt}
+										>
+											{isUpdatingPrompt ? (language === 'ko' ? '업데이트 중...' : 'Updating...') : (language === 'ko' ? '프롬프트 업데이트' : 'Update Prompt')}
+										</button>
+									)}
 								</div>
 								{adminFeedbackLastRefreshed && (
 									<div className="last-refreshed">
@@ -2544,7 +2582,7 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 											<div className="load-more-container">
 												<button 
 													className="btn btn-primary load-more-btn"
-													onClick={() => setAdminFeedbackDisplayLimit(prev => prev + 25)}
+													onClick={() => setAdminFeedbackDisplayLimit(prev => prev + 20)}
 												>
 													{t('loadMore')} ({filteredAndSortedAdminFeedback.length - adminFeedbackDisplayLimit} {t('remaining')})
 												</button>
@@ -2763,6 +2801,33 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 							onClick={() => deleteAdminFeedbackModal.requestId && handleDeleteAdminFeedback(deleteAdminFeedbackModal.requestId)}
 						>
 							Delete
+						</button>
+					</div>
+				</div>
+			)}
+
+			{showUpdatePromptModal && (
+				<div className="modal-backdrop" role="dialog" aria-modal="true">
+					<div className="confirmation-modal card">
+						<div className="confirmation-content">
+							<p>
+								{language === 'ko' 
+									? '프롬프트를 업데이트하시겠습니까? 이 작업은 모든 적용된 피드백을 프롬프트에 반영합니다.' 
+									: 'Are you sure you want to update the prompt? This will apply all feedback marked for prompt update.'}
+							</p>
+						</div>
+						<button 
+							className="btn btn-ghost confirmation-no-btn" 
+							onClick={handleCancelUpdatePrompt}
+						>
+							{language === 'ko' ? '취소' : 'Cancel'}
+						</button>
+						<button 
+							className="btn btn-primary confirmation-yes-btn" 
+							onClick={handleConfirmUpdatePrompt}
+							disabled={isUpdatingPrompt}
+						>
+							{language === 'ko' ? '업데이트' : 'Update'}
 						</button>
 					</div>
 				</div>
