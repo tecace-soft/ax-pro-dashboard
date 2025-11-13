@@ -8,10 +8,62 @@
 }
 
 .user-feedback-header {
-  margin-bottom: 20px;
+  margin-bottom: 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.user-feedback-filters {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(59, 230, 255, 0.1);
+}
+
+.feedback-filter-btn {
+  background: rgba(18, 27, 61, 0.6);
+  border: 1px solid rgba(59, 230, 255, 0.2);
+  border-radius: 6px;
+  padding: 8px 16px;
+  color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.feedback-filter-btn:hover {
+  background: rgba(59, 230, 255, 0.1);
+  border-color: rgba(59, 230, 255, 0.4);
+}
+
+.feedback-filter-btn.active {
+  background: rgba(59, 230, 255, 0.2);
+  border-color: rgba(59, 230, 255, 0.5);
+  color: var(--accent);
+}
+
+[data-theme="light"] .feedback-filter-btn {
+  background: rgba(241, 245, 249, 0.8);
+  border-color: rgba(59, 230, 255, 0.3);
+  color: var(--text-primary);
+}
+
+[data-theme="light"] .feedback-filter-btn:hover {
+  background: rgba(59, 230, 255, 0.15);
+  border-color: rgba(59, 230, 255, 0.5);
+}
+
+[data-theme="light"] .feedback-filter-btn.active {
+  background: rgba(59, 230, 255, 0.25);
+  border-color: rgba(59, 230, 255, 0.6);
+  color: var(--accent);
 }
 
 .user-feedback-title {

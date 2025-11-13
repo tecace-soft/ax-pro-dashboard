@@ -40,10 +40,12 @@ const translations: Record<Language, Record<string, string>> = {
     'aiResponse': 'AI Response',
     'userFb': 'User FB',
     'admin': 'Admin',
+    'adminFeedback': 'Admin Feedback',
     'role': 'Role',
     'rating': 'Rating',
     'feedback': 'Feedback',
     'modified': 'Modified',
+    'corrected': 'Corrected',
     'applied': 'Applied',
     'delete': 'Delete',
     'chatId': 'Chat ID',
@@ -59,7 +61,8 @@ const translations: Record<Language, Record<string, string>> = {
     'good': 'Good',
     'bad': 'Bad',
     'items': 'items',
-    'feedbackItems': 'feedback items'
+    'feedbackItems': 'feedback items',
+    'lastRefreshed': 'Last refreshed:'
   },
   ko: {
     'recentConversations': '최근 대화',
@@ -78,10 +81,12 @@ const translations: Record<Language, Record<string, string>> = {
     'aiResponse': 'AI 응답',
     'userFb': '사용자 피드백',
     'admin': '관리자',
+    'adminFeedback': '관리자 피드백',
     'role': '역할',
     'rating': '평점',
     'feedback': '피드백',
     'modified': '수정됨',
+    'corrected': '수정된 답변',
     'applied': '적용됨',
     'delete': '삭제',
     'chatId': '채팅 ID',
@@ -97,7 +102,8 @@ const translations: Record<Language, Record<string, string>> = {
     'good': '좋음',
     'bad': '나쁨',
     'items': '개',
-    'feedbackItems': '피드백 항목'
+    'feedbackItems': '피드백 항목',
+    'lastRefreshed': '최근 새로고침:'
   }
 }
 

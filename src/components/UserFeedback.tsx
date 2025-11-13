@@ -1,16 +1,19 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useLocation } from 'react-router-dom'
 import { fetchUserFeedback } from '../services/userFeedback'
 import { UserFeedbackData } from '../services/supabase'
 import { fetchUserFeedbackN8N, UserFeedbackDataN8N } from '../services/userFeedbackN8N'
+import { useLanguage } from '../contexts/LanguageContext'
 
 export default function UserFeedback() {
   const location = useLocation()
   const isN8NRoute = location.pathname === '/dashboard-n8n'
+  const { language, t } = useLanguage()
   
   const [userFeedbacks, setUserFeedbacks] = useState<(UserFeedbackData | UserFeedbackDataN8N)[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [feedbackFilter, setFeedbackFilter] = useState<'all' | 'positive' | 'negative'>('all')
 
   useEffect(() => {
     loadUserFeedback()
@@ -70,16 +73,62 @@ export default function UserFeedback() {
     }
   }
 
+  const isPositiveFeedback = (reaction: string): boolean => {
+    const normalizedReaction = reaction.toLowerCase()
+    return normalizedReaction.includes('thumbs_up') || normalizedReaction.includes('like') || normalizedReaction === 'positive'
+  }
+
+  const filteredFeedbacks = useMemo(() => {
+    if (feedbackFilter === 'all') {
+      return userFeedbacks
+    } else if (feedbackFilter === 'positive') {
+      return userFeedbacks.filter(fb => isPositiveFeedback(fb.reaction || ''))
+    } else {
+      return userFeedbacks.filter(fb => !isPositiveFeedback(fb.reaction || ''))
+    }
+  }, [userFeedbacks, feedbackFilter])
+
+  const positiveCount = useMemo(() => {
+    return userFeedbacks.filter(fb => isPositiveFeedback(fb.reaction || '')).length
+  }, [userFeedbacks])
+
+  const negativeCount = useMemo(() => {
+    return userFeedbacks.filter(fb => !isPositiveFeedback(fb.reaction || '')).length
+  }, [userFeedbacks])
+
   return (
     <div className="user-feedback-container">
       <div className="user-feedback-header">
-        <div className="user-feedback-title">User Feedback</div>
+        <div className="user-feedback-title">
+          {t('userFeedback')} ({userFeedbacks.length})
+        </div>
         <button 
           className="btn btn-ghost refresh-btn" 
           onClick={loadUserFeedback}
           disabled={isLoading}
         >
-          {isLoading ? 'Loading...' : 'Refresh'}
+          {isLoading ? (language === 'ko' ? '로딩 중...' : 'Loading...') : (language === 'ko' ? '새로고침' : 'Refresh')}
+        </button>
+      </div>
+      
+      <div className="user-feedback-filters">
+        <button
+          className={`feedback-filter-btn ${feedbackFilter === 'all' ? 'active' : ''}`}
+          onClick={() => setFeedbackFilter('all')}
+        >
+          {t('total')} ({userFeedbacks.length})
+        </button>
+        <button
+          className={`feedback-filter-btn ${feedbackFilter === 'positive' ? 'active' : ''}`}
+          onClick={() => setFeedbackFilter('positive')}
+        >
+          {t('good')} ({positiveCount})
+        </button>
+        <button
+          className={`feedback-filter-btn ${feedbackFilter === 'negative' ? 'active' : ''}`}
+          onClick={() => setFeedbackFilter('negative')}
+        >
+          {t('bad')} ({negativeCount})
         </button>
       </div>
       
@@ -92,15 +141,15 @@ export default function UserFeedback() {
         
         {isLoading ? (
           <div className="loading-message">
-            <p className="muted">Loading user feedback...</p>
+            <p className="muted">{language === 'ko' ? '사용자 피드백 로딩 중...' : 'Loading user feedback...'}</p>
           </div>
-        ) : userFeedbacks.length === 0 ? (
+        ) : filteredFeedbacks.length === 0 ? (
           <div className="empty-message">
-            <p className="muted">No user feedback found.</p>
+            <p className="muted">{language === 'ko' ? '피드백이 없습니다.' : 'No user feedback found.'}</p>
           </div>
         ) : (
           <div className="feedback-list">
-            {userFeedbacks.map((feedback) => {
+            {filteredFeedbacks.map((feedback) => {
               // Handle both UserFeedbackData and UserFeedbackDataN8N formats
               const feedbackId = feedback.id || `feedback-${Math.random()}`
               const userName = feedback.user_name || 'Unknown User'

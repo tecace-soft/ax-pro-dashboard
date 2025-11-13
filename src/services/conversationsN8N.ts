@@ -113,6 +113,7 @@ export async function fetchAllConversationsN8N(
       chat_message: string
       response: string
       sessionId: string
+      user_id?: string | null
     }>> = {}
 
     sessionsWithChats.forEach(session => {
@@ -123,7 +124,8 @@ export async function fetchAllConversationsN8N(
         createdAt: chat.created_at,
         chat_message: chat.chat_message || '',
         response: chat.response || '',
-        sessionId: chat.session_id
+        sessionId: chat.session_id,
+        user_id: chat.user_id || null
       }))
     })
 
@@ -193,7 +195,8 @@ export async function fetchSessionRequestsN8N(
       createdAt: chat.created_at,
       chat_message: chat.chat_message || '',
       response: chat.response || '',
-      sessionId: chat.session_id
+      sessionId: chat.session_id,
+      user_id: chat.user_id || null
     }))
 
     return {

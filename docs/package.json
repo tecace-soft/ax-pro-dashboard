@@ -1,0 +1,26 @@
+{
+  "name": "knowledge-management-docs",
+  "version": "1.0.0",
+  "description": "Documentation conversion tools for Knowledge Management system",
+  "main": "convert_docs.js",
+  "type": "module",
+  "scripts": {
+    "convert": "node convert_docs.js",
+    "install-tools": "npm install -g markdown-pdf markdown-to-docx",
+    "convert-all": "npm run install-tools && npm run convert"
+  },
+  "keywords": [
+    "documentation",
+    "markdown",
+    "pdf",
+    "docx",
+    "knowledge-management"
+  ],
+  "author": "TecAce Development Team",
+  "license": "MIT",
+  "devDependencies": {
+    "markdown-pdf": "^10.0.0",
+    "markdown-to-docx": "^1.0.0"
+  }
+}
+
