@@ -2558,7 +2558,21 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 
 					{/* User Feedback Section */}
 					<div className="content-section">
-						<UserFeedback />
+						<UserFeedback 
+							onChatIdClick={(chatId) => {
+								setConversationsSearch(chatId)
+								setAdminFeedbackFilter(chatId)
+								scrollToConversation(chatId)
+							}}
+							onUserIdClick={(userId) => {
+								setConversationsSearch(userId)
+								setAdminFeedbackFilter(userId)
+							}}
+							onSessionIdClick={(sessionId) => {
+								setConversationsSearch(sessionId)
+								setAdminFeedbackFilter(sessionId)
+							}}
+						/>
 					</div>
 
 					{/* Prompt Control Section */}

@@ -5982,6 +5982,11 @@ input:checked + .toggle-slider::before {
   width: 100%;
 }
 
+.user-feedback-table {
+  table-layout: fixed;
+  width: 100%;
+}
+
 .conversations-table thead,
 .admin-feedback-table thead,
 .user-feedback-table thead {
@@ -6036,8 +6041,26 @@ input:checked + .toggle-slider::before {
   text-decoration: underline;
 }
 
+.user-id-link {
+  background: transparent;
+  border: none;
+  color: var(--primary);
+  cursor: pointer;
+  text-decoration: none;
+  font-size: inherit;
+  padding: 0;
+  transition: color 0.2s ease;
+  display: inline-block;
+}
+
+.user-id-link:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
 .chat-id-display,
-.session-id-display {
+.session-id-display,
+.user-id-display {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -6353,6 +6376,108 @@ input:checked + .toggle-slider::before {
 .admin-feedback-table td:nth-child(10) {
   width: 5%;
   text-align: center;
+}
+
+/* User Feedback table - Column widths */
+.user-feedback-table th:nth-child(1),
+.user-feedback-table td:nth-child(1) {
+  width: 10%;
+  padding: 10px 8px;
+}
+
+/* User ID column - only when hasAnyUserId */
+.user-feedback-table.has-user-id th:nth-child(2),
+.user-feedback-table.has-user-id td:nth-child(2) {
+  width: 8%;
+  padding: 10px 4px;
+  max-width: 80px;
+}
+
+.user-feedback-table.has-user-id th:nth-child(3),
+.user-feedback-table.has-user-id td:nth-child(3) {
+  width: 6%;
+  padding: 10px 4px;
+  max-width: 60px;
+}
+
+.user-feedback-table.has-user-id th:nth-child(4),
+.user-feedback-table.has-user-id td:nth-child(4) {
+  width: 5%;
+  padding: 10px 4px;
+  text-align: center;
+}
+
+.user-feedback-table.has-user-id th:nth-child(5),
+.user-feedback-table.has-user-id td:nth-child(5) {
+  width: 15%;
+}
+
+.user-feedback-table.has-user-id th:nth-child(6),
+.user-feedback-table.has-user-id td:nth-child(6) {
+  width: 20%;
+}
+
+.user-feedback-table.has-user-id th:nth-child(7),
+.user-feedback-table.has-user-id td:nth-child(7) {
+  width: 30%;
+}
+
+.user-feedback-table.has-user-id th:nth-child(8),
+.user-feedback-table.has-user-id td:nth-child(8) {
+  width: 6%;
+  text-align: center;
+}
+
+/* When no User ID column */
+.user-feedback-table.no-user-id th:nth-child(2),
+.user-feedback-table.no-user-id td:nth-child(2) {
+  width: 6%;
+  padding: 10px 4px;
+  max-width: 60px;
+}
+
+.user-feedback-table.no-user-id th:nth-child(3),
+.user-feedback-table.no-user-id td:nth-child(3) {
+  width: 5%;
+  padding: 10px 4px;
+  text-align: center;
+}
+
+.user-feedback-table.no-user-id th:nth-child(4),
+.user-feedback-table.no-user-id td:nth-child(4) {
+  width: 15%;
+}
+
+.user-feedback-table.no-user-id th:nth-child(5),
+.user-feedback-table.no-user-id td:nth-child(5) {
+  width: 20%;
+}
+
+.user-feedback-table.no-user-id th:nth-child(6),
+.user-feedback-table.no-user-id td:nth-child(6) {
+  width: 30%;
+}
+
+.user-feedback-table.no-user-id th:nth-child(7),
+.user-feedback-table.no-user-id td:nth-child(7) {
+  width: 6%;
+  text-align: center;
+}
+
+/* Ensure message cells show one line only for User Feedback */
+.user-feedback-table .message-cell {
+  max-width: 100%;
+  overflow: hidden;
+  position: relative;
+}
+
+.user-feedback-table .message-cell .message-text-truncated {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+  word-break: break-word;
 }
 
 /* Admin Feedback Delete Button */
