@@ -93,7 +93,7 @@
 }
 
 .user-feedback-delete-btn {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 32px;
@@ -518,15 +518,15 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   background: rgba(239, 68, 68, 0.1);
   color: #ef4444;
   border: none;
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s ease;
-  flex-shrink: 0;
+  padding: 0;
 }
 
 .admin-feedback-delete-btn:hover {
@@ -535,8 +535,8 @@
 }
 
 .admin-feedback-delete-btn svg {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
 }
 
 .feedback-preview {

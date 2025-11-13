@@ -5977,6 +5977,10 @@ input:checked + .toggle-slider::before {
   background: transparent;
 }
 
+.conversations-table {
+  table-layout: fixed;
+}
+
 .admin-feedback-table {
   table-layout: fixed;
   width: 100%;
@@ -6194,30 +6198,34 @@ input:checked + .toggle-slider::before {
   max-width: 150px;
 }
 
-/* User Message and AI Response columns - fixed max width, equal size (when User ID is shown) */
+/* User Message and AI Response columns - equal size, flexible but constrained (when User ID is shown) */
 .conversations-table.has-user-id th:nth-child(6),
 .conversations-table.has-user-id td:nth-child(6) {
-  max-width: 400px;
-  width: 400px;
+  width: 30%;
+  min-width: 400px;
+  max-width: 600px;
 }
 
 .conversations-table.has-user-id th:nth-child(7),
 .conversations-table.has-user-id td:nth-child(7) {
-  max-width: 400px;
-  width: 400px;
+  width: 30%;
+  min-width: 400px;
+  max-width: 600px;
 }
 
-/* User Message and AI Response columns - fixed max width, equal size (when User ID is hidden) */
+/* User Message and AI Response columns - equal size, flexible but constrained (when User ID is hidden) */
 .conversations-table.no-user-id th:nth-child(4),
 .conversations-table.no-user-id td:nth-child(4) {
-  max-width: 400px;
-  width: 400px;
+  width: 30%;
+  min-width: 400px;
+  max-width: 600px;
 }
 
 .conversations-table.no-user-id th:nth-child(5),
 .conversations-table.no-user-id td:nth-child(5) {
-  max-width: 400px;
-  width: 400px;
+  width: 30%;
+  min-width: 400px;
+  max-width: 600px;
 }
 
 [data-theme="light"] .conversations-table th,
@@ -6365,17 +6373,20 @@ input:checked + .toggle-slider::before {
   width: 15%;
 }
 
-/* Admin Feedback table - Applied and Delete columns - percentage width */
+/* Admin Feedback table - Applied column - percentage width */
 .admin-feedback-table th:nth-child(9),
 .admin-feedback-table td:nth-child(9) {
   width: 6%;
   text-align: center;
 }
 
+/* Admin Feedback table - Delete column - center aligned */
 .admin-feedback-table th:nth-child(10),
 .admin-feedback-table td:nth-child(10) {
   width: 5%;
-  text-align: center;
+  text-align: center !important;
+  padding: 10px 4px !important;
+  vertical-align: middle !important;
 }
 
 /* User Feedback table - Column widths */
@@ -6482,21 +6493,30 @@ input:checked + .toggle-slider::before {
 
 /* Admin Feedback Delete Button */
 .admin-feedback-delete-btn {
+  display: inline-block;
+  width: 32px;
+  height: 32px;
   background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  border-radius: 4px;
-  padding: 6px 8px;
-  cursor: pointer;
   color: #ef4444;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
   transition: all 0.2s ease;
+  padding: 0;
+  margin: 0 auto;
+  vertical-align: middle;
+}
+
+.admin-feedback-delete-btn svg {
+  display: block;
+  margin: 0 auto;
+  width: 18px;
+  height: 18px;
 }
 
 .admin-feedback-delete-btn:hover {
   background: rgba(239, 68, 68, 0.2);
-  border-color: rgba(239, 68, 68, 0.5);
+  color: #dc2626;
 }
 
 .admin-feedback-delete-btn svg {
