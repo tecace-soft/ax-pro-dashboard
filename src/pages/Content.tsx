@@ -296,7 +296,7 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 					}))
 				}
 			} else {
-				savedFeedback = await saveManualAdminFeedback(
+				const savedFeedbackLegacy: AdminFeedbackData = await saveManualAdminFeedback(
 					manualFeedbackData.verdict,
 					manualFeedbackData.feedbackText,
 					manualFeedbackData.userMessage,
@@ -305,13 +305,13 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 				)
 				setAdminFeedback(prev => ({
 					...prev,
-					[savedFeedback.request_id]: savedFeedback
+					[savedFeedbackLegacy.request_id]: savedFeedbackLegacy
 				}))
 				// Store user message and AI response in requestDetails for display
 				if (manualFeedbackData.userMessage || manualFeedbackData.aiResponse) {
 					setRequestDetails(prev => ({
 						...prev,
-						[savedFeedback.request_id]: {
+						[savedFeedbackLegacy.request_id]: {
 							inputText: manualFeedbackData.userMessage,
 							outputText: manualFeedbackData.aiResponse
 						}
