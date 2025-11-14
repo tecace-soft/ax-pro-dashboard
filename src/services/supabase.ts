@@ -32,6 +32,7 @@ export interface AdminFeedbackData {
 export interface UserFeedbackData {
   id?: number
   request_id: string
+  chat_id?: string
   timestamp: string
   user_name: string
   user_id: string

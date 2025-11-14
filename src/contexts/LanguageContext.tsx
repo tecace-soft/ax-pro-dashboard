@@ -40,7 +40,6 @@ const translations: Record<Language, Record<string, string>> = {
     'aiResponse': 'AI Response',
     'userFb': 'User FB',
     'admin': 'Admin',
-    'adminFeedback': 'Admin Feedback',
     'role': 'Role',
     'rating': 'Rating',
     'feedback': 'Feedback',
@@ -88,7 +87,6 @@ const translations: Record<Language, Record<string, string>> = {
     'aiResponse': 'AI 응답',
     'userFb': '사용자 피드백',
     'admin': '관리자',
-    'adminFeedback': '관리자 피드백',
     'role': '역할',
     'rating': '평점',
     'feedback': '피드백',
@@ -110,7 +108,14 @@ const translations: Record<Language, Record<string, string>> = {
     'bad': '나쁨',
     'items': '개',
     'feedbackItems': '피드백 항목',
-    'lastRefreshed': '최근 새로고침:'
+    'lastRefreshed': '최근 새로고침:',
+    'systemPromptControl': '시스템 프롬프트 제어',
+    'history': '이력',
+    'expand': '확장',
+    'saveChanges': '변경사항 저장',
+    'promptHistory': '프롬프트 이력',
+    'current': '현재',
+    'load': '불러오기'
   }
 }
 
