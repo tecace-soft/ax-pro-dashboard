@@ -3,6 +3,8 @@ import { useLocation } from 'react-router-dom'
 import { fetchUserFeedback } from '../services/userFeedback'
 import { UserFeedbackData } from '../services/supabase'
 import { fetchUserFeedbackN8N, UserFeedbackDataN8N } from '../services/userFeedbackN8N'
+import { getChatData } from '../services/chatData'
+import { fetchRequestDetailN8N } from '../services/conversationsN8N'
 import { useLanguage } from '../contexts/LanguageContext'
 import * as XLSX from 'xlsx'
 
@@ -62,6 +64,7 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 	const [userFeedbacks, setUserFeedbacks] = useState<UserFeedback[]>([])
 	const [isLoading, setIsLoading] = useState(false)
 	const [error, setError] = useState<string | null>(null)
+	const [chatDataMap, setChatDataMap] = useState<Record<string, { inputText: string, outputText: string }>>({})
 	const [feedbackFilter, setFeedbackFilter] = useState<'all' | 'positive' | 'negative'>('all')
 	const [userFeedbackViewMode, setUserFeedbackViewMode] = useState<'grid' | 'table'>('table')
 	const [userFeedbackSortBy, setUserFeedbackSortBy] = useState<'date' | 'userId' | 'chatId'>('date')
@@ -85,9 +88,71 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 			if (isN8NRoute) {
 				const data = await fetchUserFeedbackN8N()
 				setUserFeedbacks(data)
+				
+				// For N8N route: Load chat data for entries missing chat_message/chat_response
+				const chatDataMap: Record<string, { inputText: string, outputText: string }> = {}
+				const chatIdsToFetch = data
+					.filter(fb => !fb.chat_message || !fb.chat_response)
+					.map(fb => {
+						// Try to get chat_id from raw_data.reply_to_id first, then chat_id, then request_id
+						const replyToId = fb.raw_data?.reply_to_id
+						return replyToId || fb.chat_id || fb.request_id || ''
+					})
+					.filter(id => id)
+				
+				// Load chat data in batches
+				for (let i = 0; i < chatIdsToFetch.length; i += 10) {
+					const batch = chatIdsToFetch.slice(i, i + 10)
+					await Promise.all(batch.map(async (chatId) => {
+						try {
+							const detail = await fetchRequestDetailN8N(chatId)
+							if (detail && detail.request) {
+								chatDataMap[chatId] = {
+									inputText: detail.request.inputText || '',
+									outputText: detail.request.outputText || ''
+								}
+							}
+						} catch (error) {
+							console.warn(`Could not fetch chat detail for ${chatId}:`, error)
+						}
+					}))
+				}
+				
+				if (Object.keys(chatDataMap).length > 0) {
+					setChatDataMap(prev => ({ ...prev, ...chatDataMap }))
+				}
 			} else {
 				const data = await fetchUserFeedback()
 				setUserFeedbacks(data)
+				
+				// For tecace route: Load chat_data for entries missing chat_message/chat_response
+				const chatDataMap: Record<string, { inputText: string, outputText: string }> = {}
+				const requestIdsToFetch = data
+					.filter(fb => !fb.chat_message || !fb.chat_response)
+					.map(fb => fb.request_id || fb.chat_id || '')
+					.filter(id => id)
+				
+				// Load chat data in batches
+				for (let i = 0; i < requestIdsToFetch.length; i += 10) {
+					const batch = requestIdsToFetch.slice(i, i + 10)
+					await Promise.all(batch.map(async (requestId) => {
+						try {
+							const chatData = await getChatData(requestId)
+							if (chatData) {
+								chatDataMap[requestId] = {
+									inputText: chatData.input_text || '',
+									outputText: chatData.output_text || ''
+								}
+							}
+						} catch (error) {
+							console.warn(`Could not fetch chat data for ${requestId}:`, error)
+						}
+					}))
+				}
+				
+				if (Object.keys(chatDataMap).length > 0) {
+					setChatDataMap(prev => ({ ...prev, ...chatDataMap }))
+				}
 			}
 			setUserFeedbackLastRefreshed(new Date())
 		} catch (error) {
@@ -104,9 +169,18 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 		setIsRefreshingUserFeedback(false)
 	}
 
-	const isPositiveFeedback = (reaction: string): boolean => {
-		const normalizedReaction = reaction.toLowerCase()
+	const isPositiveFeedback = (reaction: string | null | undefined): boolean => {
+		if (!reaction) return false
+		const normalizedReaction = reaction.toLowerCase().trim()
 		return normalizedReaction.includes('thumbs_up') || normalizedReaction.includes('like') || normalizedReaction === 'positive'
+	}
+	
+	const hasReaction = (reaction: string | null | undefined): boolean => {
+		if (!reaction) return false
+		const normalizedReaction = reaction.toLowerCase().trim()
+		return normalizedReaction.includes('thumbs_up') || normalizedReaction.includes('thumbs_down') || 
+		       normalizedReaction.includes('like') || normalizedReaction.includes('dislike') || 
+		       normalizedReaction === 'positive' || normalizedReaction === 'negative'
 	}
 
 	const filteredAndSortedUserFeedback = useMemo(() => {
@@ -427,22 +501,28 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 									const chatId = feedback.chat_id || feedback.request_id || ''
 									const reaction = feedback.reaction || ''
 									const feedbackText = feedback.feedback_text || ''
-									const chatMessage = feedback.chat_message || ''
-									const chatResponse = feedback.chat_response || ''
+									// For both routes: Use chat_data/chat table if chat_message/chat_response is missing
+									const replyToId = feedback.raw_data?.reply_to_id
+									const requestId = replyToId || feedback.chat_id || feedback.request_id || ''
+									const chatData = chatDataMap[requestId]
+									const chatMessage = feedback.chat_message || chatData?.inputText || ''
+									const chatResponse = feedback.chat_response || chatData?.outputText || ''
 									
 									return (
 										<div key={feedbackId} className="user-feedback-card">
 											<div className="user-feedback-card-header">
 												<div className="user-feedback-card-rating">
-													{isPositiveFeedback(reaction) ? (
-														<svg fill="#22c55e" viewBox="0 0 24 24" width="24" height="24">
-															<path d="M20 8h-5.612l1.123-3.367c.202-.608.1-1.282-.275-1.802S14.253 2 13.612 2H12c-.297 0-.578.132-.769.36L6.531 8H4c-1.103 0-2 .897-2 2v9c0 1.103.897 2 2 2h13.307a2.01 2.01 0 0 0 1.873-1.298l2.757-7.351A1 1 0 0 0 22 12v-2c0-1.103-.897-2-2-2zM4 10h2v9H4v-9zm16 1.819L17.307 19H8V9.362L12.468 4h1.146l-1.562 4.683A.998.998 0 0 0 13 10h7v1.819z"></path>
-														</svg>
-													) : (
-														<svg fill="#ef4444" viewBox="0 0 24 24" width="24" height="24">
-															<path d="M20 3H6.693A2.01 2.01 0 0 0 4.82 4.298l-2.757 7.351A1 1 0 0 0 2 12v2c0 1.103.897 2 2 2h5.612L8.49 19.367a2.004 2.004 0 0 0 .274 1.802c.376.52.982.831 1.624.831H12c.297 0 .578-.132.769-.360l4.7-5.64H20c1.103 0 2-.897 2-2V5c0-1.103-.897-2-2-2zm-8.469 17h-1.145l1.562-4.684A1 1 0 0 0 11 14H4v-1.819L6.693 5H16v9.638L11.531 20zM18 14V5h2l.001 9H18z"></path>
-														</svg>
-													)}
+													{hasReaction(reaction) ? (
+														isPositiveFeedback(reaction) ? (
+															<svg fill="#22c55e" viewBox="0 0 24 24" width="24" height="24">
+																<path d="M20 8h-5.612l1.123-3.367c.202-.608.1-1.282-.275-1.802S14.253 2 13.612 2H12c-.297 0-.578.132-.769.36L6.531 8H4c-1.103 0-2 .897-2 2v9c0 1.103.897 2 2 2h13.307a2.01 2.01 0 0 0 1.873-1.298l2.757-7.351A1 1 0 0 0 22 12v-2c0-1.103-.897-2-2-2zM4 10h2v9H4v-9zm16 1.819L17.307 19H8V9.362L12.468 4h1.146l-1.562 4.683A.998.998 0 0 0 13 10h7v1.819z"></path>
+															</svg>
+														) : (
+															<svg fill="#ef4444" viewBox="0 0 24 24" width="24" height="24">
+																<path d="M20 3H6.693A2.01 2.01 0 0 0 4.82 4.298l-2.757 7.351A1 1 0 0 0 2 12v2c0 1.103.897 2 2 2h5.612L8.49 19.367a2.004 2.004 0 0 0 .274 1.802c.376.52.982.831 1.624.831H12c.297 0 .578-.132.769-.360l4.7-5.64H20c1.103 0 2-.897 2-2V5c0-1.103-.897-2-2-2zm-8.469 17h-1.145l1.562-4.684A1 1 0 0 0 11 14H4v-1.819L6.693 5H16v9.638L11.531 20zM18 14V5h2l.001 9H18z"></path>
+															</svg>
+														)
+													) : null}
 													<span>{feedback.user_name || 'Unknown User'}</span>
 												</div>
 												<div className="user-feedback-card-actions">
@@ -569,8 +649,12 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 										const chatId = feedback.chat_id || feedback.request_id || ''
 										const reaction = feedback.reaction || ''
 										const feedbackText = feedback.feedback_text || ''
-										const chatMessage = feedback.chat_message || ''
-										const chatResponse = feedback.chat_response || ''
+										// For both routes: Use chat_data/chat table if chat_message/chat_response is missing
+										const replyToId = feedback.raw_data?.reply_to_id
+										const requestId = replyToId || feedback.chat_id || feedback.request_id || ''
+										const chatData = chatDataMap[requestId]
+										const chatMessage = feedback.chat_message || chatData?.inputText || ''
+										const chatResponse = feedback.chat_response || chatData?.outputText || ''
 										
 										return (
 											<tr key={feedbackId}>
@@ -622,14 +706,18 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 													)}
 												</td>
 												<td>
-													{isPositiveFeedback(reaction) ? (
-														<svg fill="#22c55e" viewBox="0 0 24 24" width="20" height="20">
-															<path d="M20 8h-5.612l1.123-3.367c.202-.608.1-1.282-.275-1.802S14.253 2 13.612 2H12c-.297 0-.578.132-.769.36L6.531 8H4c-1.103 0-2 .897-2 2v9c0 1.103.897 2 2 2h13.307a2.01 2.01 0 0 0 1.873-1.298l2.757-7.351A1 1 0 0 0 22 12v-2c0-1.103-.897-2-2-2zM4 10h2v9H4v-9zm16 1.819L17.307 19H8V9.362L12.468 4h1.146l-1.562 4.683A.998.998 0 0 0 13 10h7v1.819z"></path>
-														</svg>
+													{hasReaction(reaction) ? (
+														isPositiveFeedback(reaction) ? (
+															<svg fill="#22c55e" viewBox="0 0 24 24" width="20" height="20">
+																<path d="M20 8h-5.612l1.123-3.367c.202-.608.1-1.282-.275-1.802S14.253 2 13.612 2H12c-.297 0-.578.132-.769.36L6.531 8H4c-1.103 0-2 .897-2 2v9c0 1.103.897 2 2 2h13.307a2.01 2.01 0 0 0 1.873-1.298l2.757-7.351A1 1 0 0 0 22 12v-2c0-1.103-.897-2-2-2zM4 10h2v9H4v-9zm16 1.819L17.307 19H8V9.362L12.468 4h1.146l-1.562 4.683A.998.998 0 0 0 13 10h7v1.819z"></path>
+															</svg>
+														) : (
+															<svg fill="#ef4444" viewBox="0 0 24 24" width="20" height="20">
+																<path d="M20 3H6.693A2.01 2.01 0 0 0 4.82 4.298l-2.757 7.351A1 1 0 0 0 2 12v2c0 1.103.897 2 2 2h5.612L8.49 19.367a2.004 2.004 0 0 0 .274 1.802c.376.52.982.831 1.624.831H12c.297 0 .578-.132.769-.360l4.7-5.64H20c1.103 0 2-.897 2-2V5c0-1.103-.897-2-2-2zm-8.469 17h-1.145l1.562-4.684A1 1 0 0 0 11 14H4v-1.819L6.693 5H16v9.638L11.531 20zM18 14V5h2l.001 9H18z"></path>
+															</svg>
+														)
 													) : (
-														<svg fill="#ef4444" viewBox="0 0 24 24" width="20" height="20">
-															<path d="M20 3H6.693A2.01 2.01 0 0 0 4.82 4.298l-2.757 7.351A1 1 0 0 0 2 12v2c0 1.103.897 2 2 2h5.612L8.49 19.367a2.004 2.004 0 0 0 .274 1.802c.376.52.982.831 1.624.831H12c.297 0 .578-.132.769-.360l4.7-5.64H20c1.103 0 2-.897 2-2V5c0-1.103-.897-2-2-2zm-8.469 17h-1.145l1.562-4.684A1 1 0 0 0 11 14H4v-1.819L6.693 5H16v9.638L11.531 20zM18 14V5h2l.001 9H18z"></path>
-														</svg>
+														<span>-</span>
 													)}
 												</td>
 												<td className="message-cell">

@@ -7015,6 +7015,64 @@ input:checked + .toggle-slider::before {
 /* Responsive Grid - cards always stack vertically */
 
 /* Responsive Table */
+@media (max-width: 1200px) {
+  /* User Feedback table - reduce column widths on medium screens */
+  .user-feedback-table.has-user-id th:nth-child(2),
+  .user-feedback-table.has-user-id td:nth-child(2),
+  .user-feedback-table.no-user-id th:nth-child(2),
+  .user-feedback-table.no-user-id td:nth-child(2) {
+    width: 6%;
+    max-width: 60px;
+    padding: 10px 2px;
+  }
+  
+  .user-feedback-table.has-user-id th:nth-child(3),
+  .user-feedback-table.has-user-id td:nth-child(3),
+  .user-feedback-table.no-user-id th:nth-child(2),
+  .user-feedback-table.no-user-id td:nth-child(2) {
+    width: 5%;
+    max-width: 50px;
+    padding: 10px 2px;
+  }
+  
+  .user-feedback-table.has-user-id th:nth-child(4),
+  .user-feedback-table.has-user-id td:nth-child(4),
+  .user-feedback-table.no-user-id th:nth-child(3),
+  .user-feedback-table.no-user-id td:nth-child(3) {
+    width: 4%;
+    max-width: 50px;
+    padding: 10px 2px;
+  }
+  
+  .user-feedback-table.has-user-id th:nth-child(5),
+  .user-feedback-table.has-user-id td:nth-child(5),
+  .user-feedback-table.no-user-id th:nth-child(4),
+  .user-feedback-table.no-user-id td:nth-child(4) {
+    width: 12%;
+    min-width: 100px;
+  }
+  
+  .user-feedback-table.has-user-id th:nth-child(6),
+  .user-feedback-table.has-user-id td:nth-child(6),
+  .user-feedback-table.no-user-id th:nth-child(5),
+  .user-feedback-table.no-user-id td:nth-child(5) {
+    width: 15%;
+    min-width: 120px;
+  }
+  
+  .user-feedback-table.has-user-id th:nth-child(7),
+  .user-feedback-table.has-user-id td:nth-child(7),
+  .user-feedback-table.no-user-id th:nth-child(6),
+  .user-feedback-table.no-user-id td:nth-child(6) {
+    width: 20%;
+    min-width: 150px;
+  }
+  
+  .user-feedback-table .date-cell {
+    max-width: 120px;
+  }
+}
+
 @media (max-width: 768px) {
   .conversations-controls {
     flex-direction: column;
@@ -7040,6 +7098,149 @@ input:checked + .toggle-slider::before {
   .admin-feedback-table .feedback-cell,
   .user-feedback-table .message-cell {
     max-width: 200px;
+  }
+  
+  /* User Feedback table - further reduce on small screens */
+  .user-feedback-table.has-user-id th:nth-child(2),
+  .user-feedback-table.has-user-id td:nth-child(2),
+  .user-feedback-table.no-user-id th:nth-child(2),
+  .user-feedback-table.no-user-id td:nth-child(2) {
+    width: 5%;
+    max-width: 45px;
+    padding: 8px 1px;
+    font-size: 10px;
+  }
+  
+  .user-feedback-table.has-user-id th:nth-child(3),
+  .user-feedback-table.has-user-id td:nth-child(3),
+  .user-feedback-table.no-user-id th:nth-child(2),
+  .user-feedback-table.no-user-id td:nth-child(2) {
+    width: 4%;
+    max-width: 40px;
+    padding: 8px 1px;
+    font-size: 10px;
+  }
+  
+  .user-feedback-table.has-user-id th:nth-child(4),
+  .user-feedback-table.has-user-id td:nth-child(4),
+  .user-feedback-table.no-user-id th:nth-child(3),
+  .user-feedback-table.no-user-id td:nth-child(3) {
+    width: 3%;
+    max-width: 40px;
+    padding: 8px 1px;
+  }
+  
+  .user-feedback-table.has-user-id th:nth-child(5),
+  .user-feedback-table.has-user-id td:nth-child(5),
+  .user-feedback-table.no-user-id th:nth-child(4),
+  .user-feedback-table.no-user-id td:nth-child(4) {
+    width: 10%;
+    min-width: 80px;
+  }
+  
+  .user-feedback-table.has-user-id th:nth-child(6),
+  .user-feedback-table.has-user-id td:nth-child(6),
+  .user-feedback-table.no-user-id th:nth-child(5),
+  .user-feedback-table.no-user-id td:nth-child(5) {
+    width: 12%;
+    min-width: 100px;
+  }
+  
+  .user-feedback-table.has-user-id th:nth-child(7),
+  .user-feedback-table.has-user-id td:nth-child(7),
+  .user-feedback-table.no-user-id th:nth-child(6),
+  .user-feedback-table.no-user-id td:nth-child(6) {
+    width: 15%;
+    min-width: 120px;
+  }
+  
+  .user-feedback-table .date-cell {
+    max-width: 90px;
+    font-size: 11px;
+  }
+  
+  /* Ensure Rating column icons don't get cut off */
+  .user-feedback-table td:nth-child(4) svg,
+  .user-feedback-table.no-user-id td:nth-child(3) svg {
+    width: 16px !important;
+    height: 16px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  /* User Feedback table - very narrow screens */
+  .user-feedback-table.has-user-id th:nth-child(1),
+  .user-feedback-table.has-user-id td:nth-child(1),
+  .user-feedback-table.no-user-id th:nth-child(1),
+  .user-feedback-table.no-user-id td:nth-child(1) {
+    width: 8%;
+    max-width: 70px;
+    padding: 6px 2px;
+    font-size: 10px;
+  }
+  
+  .user-feedback-table.has-user-id th:nth-child(2),
+  .user-feedback-table.has-user-id td:nth-child(2),
+  .user-feedback-table.no-user-id th:nth-child(2),
+  .user-feedback-table.no-user-id td:nth-child(2) {
+    width: 4%;
+    max-width: 35px;
+    padding: 6px 1px;
+    font-size: 9px;
+  }
+  
+  .user-feedback-table.has-user-id th:nth-child(3),
+  .user-feedback-table.has-user-id td:nth-child(3),
+  .user-feedback-table.no-user-id th:nth-child(2),
+  .user-feedback-table.no-user-id td:nth-child(2) {
+    width: 3%;
+    max-width: 30px;
+    padding: 6px 1px;
+    font-size: 9px;
+  }
+  
+  .user-feedback-table.has-user-id th:nth-child(4),
+  .user-feedback-table.has-user-id td:nth-child(4),
+  .user-feedback-table.no-user-id th:nth-child(3),
+  .user-feedback-table.no-user-id td:nth-child(3) {
+    width: 3%;
+    max-width: 35px;
+    padding: 6px 1px;
+  }
+  
+  .user-feedback-table.has-user-id th:nth-child(5),
+  .user-feedback-table.has-user-id td:nth-child(5),
+  .user-feedback-table.no-user-id th:nth-child(4),
+  .user-feedback-table.no-user-id td:nth-child(4) {
+    width: 8%;
+    min-width: 60px;
+  }
+  
+  .user-feedback-table.has-user-id th:nth-child(6),
+  .user-feedback-table.has-user-id td:nth-child(6),
+  .user-feedback-table.no-user-id th:nth-child(5),
+  .user-feedback-table.no-user-id td:nth-child(5) {
+    width: 10%;
+    min-width: 80px;
+  }
+  
+  .user-feedback-table.has-user-id th:nth-child(7),
+  .user-feedback-table.has-user-id td:nth-child(7),
+  .user-feedback-table.no-user-id th:nth-child(6),
+  .user-feedback-table.no-user-id td:nth-child(6) {
+    width: 12%;
+    min-width: 100px;
+  }
+  
+  .user-feedback-table .date-cell {
+    max-width: 70px;
+    font-size: 9px;
+  }
+  
+  .user-feedback-table td:nth-child(4) svg,
+  .user-feedback-table.no-user-id td:nth-child(3) svg {
+    width: 14px !important;
+    height: 14px !important;
   }
 }
 
