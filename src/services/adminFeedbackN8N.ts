@@ -180,3 +180,185 @@ export async function getAllAdminFeedbackN8N(): Promise<Record<string, AdminFeed
   }
 }
 
+// Generate a unique chat_id for manual entries
+function generateManualChatId(): string {
+  const timestamp = Date.now()
+  const random = Math.random().toString(36).substring(2, 9)
+  return `manual-${timestamp}-${random}`
+}
+
+// Create a manual session entry for manual admin feedback
+async function createManualSessionN8N(sessionId: string): Promise<void> {
+  try {
+    const { error } = await supabaseN8N
+      .from('session')
+      .insert({
+        session_id: sessionId,
+        created_at: new Date().toISOString()
+      })
+
+    if (error) {
+      // If session already exists, that's okay
+      if (error.code !== '23505') { // 23505 is unique violation
+        throw error
+      }
+    }
+  } catch (error) {
+    console.error('Error creating manual session:', error)
+    throw error
+  }
+}
+
+// Create a manual chat entry for manual admin feedback
+async function createManualChatEntryN8N(
+  chatId: string,
+  userMessage: string,
+  aiResponse: string
+): Promise<void> {
+  try {
+    // Generate a session_id for manual entries
+    const sessionId = `manual-session-${Date.now()}`
+    
+    // First, create the session entry (required for foreign key constraint)
+    await createManualSessionN8N(sessionId)
+    
+    // Then create the chat entry
+    const { error } = await supabaseN8N
+      .from('chat')
+      .insert({
+        chat_id: chatId,
+        session_id: sessionId,
+        chat_message: userMessage || '',
+        response: aiResponse || '',
+        user_id: null // Manual entries don't have a user_id
+      })
+
+    if (error) throw error
+  } catch (error) {
+    console.error('Error creating manual chat entry:', error)
+    throw error
+  }
+}
+
+// Save manual admin feedback (creates a new entry with generated chat_id)
+export async function saveManualAdminFeedbackN8N(
+  verdict: 'good' | 'bad',
+  text: string,
+  userMessage?: string,
+  aiResponse?: string,
+  correctedResponse?: string
+): Promise<AdminFeedbackDataN8N> {
+  try {
+    const chatId = generateManualChatId()
+    
+    // First, create a chat entry if we have user message or AI response
+    // This is required because of the foreign key constraint
+    if (userMessage || aiResponse) {
+      await createManualChatEntryN8N(chatId, userMessage || '', aiResponse || '')
+    } else {
+      // If no user message or AI response, we still need a chat entry
+      // Create a minimal one
+      await createManualChatEntryN8N(chatId, '', '')
+    }
+    
+    // Now create the admin feedback entry
+    const { data, error } = await supabaseN8N
+      .from('admin_feedback')
+      .insert({
+        chat_id: chatId,
+        feedback_verdict: verdict,
+        feedback_text: text,
+        corrected_response: correctedResponse || null,
+        apply: true
+      })
+      .select()
+      .single()
+
+    if (error) throw error
+
+    return data
+  } catch (error) {
+    console.error('Error saving manual n8n admin feedback:', error)
+    throw error
+  }
+}
+
+// Bulk save admin feedback (for import)
+export async function bulkSaveAdminFeedbackN8N(
+  feedbacks: Array<{
+    chatId?: string
+    verdict: 'good' | 'bad'
+    text: string
+    userMessage?: string
+    aiResponse?: string
+    correctedResponse?: string
+  }>
+): Promise<AdminFeedbackDataN8N[]> {
+  try {
+    // First, create all session entries
+    const sessionIds = feedbacks.map(() => `manual-session-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`)
+    
+    // Create unique session IDs
+    const uniqueSessionIds = Array.from(new Set(sessionIds))
+    
+    // Insert all session entries
+    const sessionEntries = uniqueSessionIds.map(sessionId => ({
+      session_id: sessionId,
+      created_at: new Date().toISOString()
+    }))
+
+    try {
+      const { error: sessionError } = await supabaseN8N
+        .from('session')
+        .insert(sessionEntries)
+
+      if (sessionError && sessionError.code !== '23505') { // Ignore unique violations
+        throw sessionError
+      }
+    } catch (sessionError: any) {
+      console.warn('Some sessions may already exist:', sessionError)
+    }
+
+    // Then, create all chat entries
+    const chatEntries = feedbacks.map((feedback, index) => {
+      const chatId = feedback.chatId || generateManualChatId()
+      const sessionId = sessionIds[index]
+      return {
+        chat_id: chatId,
+        session_id: sessionId,
+        chat_message: feedback.userMessage || '',
+        response: feedback.aiResponse || '',
+        user_id: null
+      }
+    })
+
+    // Insert all chat entries
+    const { error: chatError } = await supabaseN8N
+      .from('chat')
+      .insert(chatEntries)
+
+    if (chatError) throw chatError
+
+    // Now create admin feedback entries
+    const insertData = feedbacks.map((feedback, index) => ({
+      chat_id: feedback.chatId || chatEntries[index].chat_id,
+      feedback_verdict: feedback.verdict,
+      feedback_text: feedback.text,
+      corrected_response: feedback.correctedResponse || null,
+      apply: true
+    }))
+
+    const { data, error } = await supabaseN8N
+      .from('admin_feedback')
+      .insert(insertData)
+      .select()
+
+    if (error) throw error
+
+    return data || []
+  } catch (error) {
+    console.error('Error bulk saving n8n admin feedback:', error)
+    throw error
+  }
+}
+

@@ -24,15 +24,22 @@ interface ThemeProviderProps {
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   const [theme, setThemeState] = useState<Theme>(() => {
+    // Always default to dark theme first
+    // Set it immediately to prevent flash of wrong theme
+    if (typeof window !== 'undefined') {
+      document.documentElement.setAttribute('data-theme', 'dark')
+    }
+    
     // localStorage에서 저장된 테마 불러오기
-    const savedTheme = localStorage.getItem('theme')
+    const savedTheme = typeof window !== 'undefined' ? localStorage.getItem('theme') : null
     if (savedTheme === 'light' || savedTheme === 'dark') {
+      // Update immediately if saved theme exists
+      if (typeof window !== 'undefined') {
+        document.documentElement.setAttribute('data-theme', savedTheme)
+      }
       return savedTheme
     }
-    // 시스템 테마 감지
-    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
-      return 'light'
-    }
+    // Always default to dark theme (don't use system preference)
     return 'dark'
   })
 
@@ -47,7 +54,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   }
 
   useEffect(() => {
-    // HTML 요소에 테마 속성 설정
+    // HTML 요소에 테마 속성 설정 (초기 설정)
     document.documentElement.setAttribute('data-theme', theme)
     
     // CSS 변수 업데이트

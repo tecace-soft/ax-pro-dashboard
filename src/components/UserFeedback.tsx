@@ -12,6 +12,7 @@ interface UserFeedbackProps {
 	onChatIdClick?: (chatId: string) => void
 	onUserIdClick?: (userId: string) => void
 	onSessionIdClick?: (sessionId: string) => void
+	onMessageClick?: (chatId: string, userMessage: string, aiResponse: string, comments: string, reaction: string) => void
 }
 
 function formatUserId(userId: string): string {
@@ -53,7 +54,7 @@ function formatDateNarrow(date: Date): string {
 	return `${month}/${day}/${year}...`
 }
 
-export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionIdClick }: UserFeedbackProps = {}) {
+export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionIdClick, onMessageClick }: UserFeedbackProps = {}) {
 	const location = useLocation()
 	const isN8NRoute = location.pathname === '/dashboard-n8n'
 	const { language, t } = useLanguage()
@@ -499,19 +500,46 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 												{feedbackText && (
 													<div className="user-feedback-card-field">
 														<strong>{t('comments')}:</strong>
-														<div>{feedbackText}</div>
+														<div 
+															style={{ cursor: 'pointer' }}
+															onClick={() => {
+																if (onMessageClick) {
+																	onMessageClick(chatId, chatMessage, chatResponse, feedbackText, reaction)
+																}
+															}}
+														>
+															{feedbackText}
+														</div>
 													</div>
 												)}
 												{chatMessage && (
 													<div className="user-feedback-card-field">
 														<strong>{t('userMessage')}:</strong>
-														<div>{chatMessage}</div>
+														<div 
+															style={{ cursor: 'pointer' }}
+															onClick={() => {
+																if (onMessageClick) {
+																	onMessageClick(chatId, chatMessage, chatResponse, feedbackText, reaction)
+																}
+															}}
+														>
+															{chatMessage}
+														</div>
 													</div>
 												)}
 												{chatResponse && (
 													<div className="user-feedback-card-field">
 														<strong>{t('aiResponse')}:</strong>
-														<div>{chatResponse}</div>
+														<div 
+															style={{ cursor: 'pointer' }}
+															onClick={() => {
+																if (onMessageClick) {
+																	onMessageClick(chatId, chatMessage, chatResponse, feedbackText, reaction)
+																}
+															}}
+														>
+															{chatResponse}
+														</div>
 													</div>
 												)}
 											</div>
@@ -526,7 +554,7 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 										<th>{t('date')}</th>
 										{hasAnyUserId && <th>{t('userId')}</th>}
 										<th>{t('chatId')}</th>
-										<th>{t('reaction')}</th>
+										<th>{t('rating')}</th>
 										<th>{t('comments')}</th>
 										<th>{t('userMessage')}</th>
 										<th>{t('aiResponse')}</th>
@@ -605,17 +633,44 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 													)}
 												</td>
 												<td className="message-cell">
-													<div className="message-text-truncated" title={feedbackText}>
+													<div 
+														className="message-text-truncated" 
+														title={feedbackText}
+														style={{ cursor: 'pointer' }}
+														onClick={() => {
+															if (onMessageClick) {
+																onMessageClick(chatId, chatMessage, chatResponse, feedbackText, reaction)
+															}
+														}}
+													>
 														{feedbackText || '-'}
 													</div>
 												</td>
 												<td className="message-cell">
-													<div className="message-text-truncated" title={chatMessage}>
+													<div 
+														className="message-text-truncated" 
+														title={chatMessage}
+														style={{ cursor: 'pointer' }}
+														onClick={() => {
+															if (onMessageClick) {
+																onMessageClick(chatId, chatMessage, chatResponse, feedbackText, reaction)
+															}
+														}}
+													>
 														{chatMessage || '-'}
 													</div>
 												</td>
 												<td className="message-cell">
-													<div className="message-text-truncated" title={chatResponse}>
+													<div 
+														className="message-text-truncated" 
+														title={chatResponse}
+														style={{ cursor: 'pointer' }}
+														onClick={() => {
+															if (onMessageClick) {
+																onMessageClick(chatId, chatMessage, chatResponse, feedbackText, reaction)
+															}
+														}}
+													>
 														{chatResponse || '-'}
 													</div>
 												</td>

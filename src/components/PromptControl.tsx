@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
 import { fetchSystemPrompt, updateSystemPrompt } from '../services/prompt'
-import { fetchSystemPromptN8N, fetchAllPromptsN8N, deletePromptN8N } from '../services/promptN8N'
+import { fetchSystemPromptN8N, fetchAllPromptsN8N, deletePromptN8N, saveSystemPromptN8N } from '../services/promptN8N'
 import { PromptData } from '../services/supabaseN8N'
 import { useLanguage } from '../contexts/LanguageContext'
 
@@ -21,8 +21,7 @@ export default function PromptControl() {
 	const [isLoadingHistory, setIsLoadingHistory] = useState(false)
 	const textareaRef = useRef<HTMLTextAreaElement>(null)
 	const [isResizing, setIsResizing] = useState(false)
-	const [showConfirmation, setShowConfirmation] = useState(false)
-	const [isUpdating, setIsUpdating] = useState(false)
+	const [isSaving, setIsSaving] = useState(false)
 	const [responseModal, setResponseModal] = useState<{
 		isOpen: boolean
 		message: string
@@ -149,70 +148,75 @@ export default function PromptControl() {
 		setDeletePromptModal({ isOpen: false, promptId: null })
 	}
 
-	const handleUpdate = () => {
-		setShowConfirmation(true)
-	}
-
-	const handleConfirmUpdate = async () => {
-		setIsUpdating(true)
-		setShowConfirmation(false)
-		
+	// Handle Save (save to database/API and apply for legacy route)
+	const handleSave = async () => {
+		setIsSaving(true)
 		try {
-			// Only for legacy/tecace route
-			console.log('💾 Saving system prompt...')
-			await updateSystemPrompt(promptText)
-			console.log('✅ System prompt saved successfully')
-			
-			console.log('🔄 Force reloading chatbot...')
-			const response = await fetch('/prompt-api/force-prompt-reload', {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-				},
-			})
-			
-			if (!response.ok) {
+			if (isN8NRoute) {
+				// Save to Supabase for N8N route (only save, no apply needed)
+				await saveSystemPromptN8N(promptText)
+				// Refresh to get the new prompt ID
+				const allPrompts = await fetchAllPromptsN8N()
+				if (allPrompts.length > 0) {
+					setCurrentPromptId(allPrompts[0].id || null)
+				}
 				setResponseModal({
 					isOpen: true,
-					message: `HTTP Error: ${response.status} ${response.statusText}`,
-					isSuccess: false
+					message: language === 'ko' ? '프롬프트가 저장되었습니다.' : 'Prompt saved successfully.',
+					isSuccess: true
 				})
-				return
-			}
-			
-			const responseText = await response.text()
-			let data
-			try {
-				data = JSON.parse(responseText)
-			} catch (parseError) {
+			} else {
+				// For legacy route: save to API and then apply (force reload)
+				console.log('💾 Saving system prompt...')
+				await updateSystemPrompt(promptText)
+				console.log('✅ System prompt saved successfully')
+				
+				console.log('🔄 Force reloading chatbot...')
+				const response = await fetch('/prompt-api/force-prompt-reload', {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+					},
+				})
+				
+				if (!response.ok) {
+					setResponseModal({
+						isOpen: true,
+						message: `HTTP Error: ${response.status} ${response.statusText}`,
+						isSuccess: false
+					})
+					return
+				}
+				
+				const responseText = await response.text()
+				let data
+				try {
+					data = JSON.parse(responseText)
+				} catch (parseError) {
+					setResponseModal({
+						isOpen: true,
+						message: language === 'ko' ? '서버 응답 파싱 실패' : 'Failed to parse server response',
+						isSuccess: false
+					})
+					return
+				}
+				
 				setResponseModal({
 					isOpen: true,
-					message: 'Failed to parse server response',
-					isSuccess: false
+					message: data.message || (language === 'ko' ? '프롬프트가 저장되고 적용되었습니다.' : 'Prompt saved and applied successfully.'),
+					isSuccess: data.status === 'Complete prompt reload successful'
 				})
-				return
 			}
-			
-			setResponseModal({
-				isOpen: true,
-				message: data.message || 'No message received',
-				isSuccess: data.status === 'Complete prompt reload successful'
-			})
-			
 		} catch (error) {
 			console.error('❌ Save operation failed:', error)
 			setResponseModal({
 				isOpen: true,
-				message: error instanceof Error ? error.message : 'An unexpected error occurred',
+				message: error instanceof Error ? error.message : (language === 'ko' ? '저장 실패' : 'Save failed'),
 				isSuccess: false
 			})
 		} finally {
-			setIsUpdating(false)
+			setIsSaving(false)
 		}
-	}
-
-	const handleCancelUpdate = () => {
-		setShowConfirmation(false)
 	}
 
 	const handleCloseResponseModal = () => {
@@ -316,9 +320,9 @@ export default function PromptControl() {
 					>
 						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
 							{isExpanded ? (
-								<path d="M8 3v3m8-3v3M3 8h18M3 16h18M8 21v-3m8 3v-3M4 4h16v16H4z"/>
+								<path d="M18 15l-6-6-6 6"/>
 							) : (
-								<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v13"/>
+								<path d="M6 9l6 6 6-6"/>
 							)}
 						</svg>
 						<span style={{ marginLeft: '6px' }}>{t('expand')}</span>
@@ -358,10 +362,10 @@ export default function PromptControl() {
 					<textarea
 						ref={textareaRef}
 						className={`prompt-textarea font-size-${promptFontSize} ${isExpanded ? 'expanded' : ''}`}
-						placeholder={isLoading ? (language === 'ko' ? '시스템 프롬프트 로딩 중...' : "Loading system prompt...") : (isN8NRoute ? (language === 'ko' ? '프롬프트를 확인하세요 (읽기 전용)' : "View prompt (read-only)") : (language === 'ko' ? '프롬프트 지시사항을 입력하세요...' : "Enter your prompt instructions here..."))}
+						placeholder={isLoading ? (language === 'ko' ? '시스템 프롬프트 로딩 중...' : "Loading system prompt...") : (language === 'ko' ? '프롬프트 지시사항을 입력하세요...' : "Enter your prompt instructions here...")}
 						value={promptText}
 						onChange={(e) => setPromptText(e.target.value)}
-						readOnly={isN8NRoute}
+						readOnly={false}
 						rows={isExpanded ? 20 : 8}
 						disabled={isLoading}
 						style={{ fontSize: promptFontSize === 'small' ? '12px' : promptFontSize === 'medium' ? '14px' : '16px' }}
@@ -434,41 +438,16 @@ export default function PromptControl() {
 				</div>
 			)}
 
-			{!isN8NRoute && (
-				<div className="prompt-actions">
-					<button 
-						className="btn btn-primary update-btn" 
-						onClick={handleUpdate}
-						disabled={isLoading || isUpdating}
-					>
-						{isLoading ? (language === 'ko' ? '로딩 중...' : 'Loading...') : isUpdating ? (language === 'ko' ? '저장 중...' : 'Saving...') : t('saveChanges')}
-					</button>
-				</div>
-			)}
+			<div className="prompt-actions">
+				<button 
+					className="btn btn-primary" 
+					onClick={handleSave}
+					disabled={isLoading || isSaving}
+				>
+					{isLoading ? (language === 'ko' ? '로딩 중...' : 'Loading...') : isSaving ? (language === 'ko' ? '저장 중...' : 'Saving...') : t('saveChanges')}
+				</button>
+			</div>
 
-			{showConfirmation && (
-				<div className="modal-backdrop" role="dialog" aria-modal="true">
-					<div className="confirmation-modal card">
-						<div className="confirmation-content">
-							<p>
-								{language === 'ko' ? '이것은 HR AX Pro의 시스템 프롬프트를 업데이트합니다. 계속하시겠습니까?' : 'This will update the system prompt for HR AX Pro. Are you sure you would like to proceed?'}
-							</p>
-						</div>
-						<button 
-							className="btn btn-ghost confirmation-no-btn" 
-							onClick={handleCancelUpdate}
-						>
-							{language === 'ko' ? '아니오' : 'No'}
-						</button>
-						<button 
-							className="btn btn-primary confirmation-yes-btn" 
-							onClick={handleConfirmUpdate}
-						>
-							{language === 'ko' ? '예' : 'Yes'}
-						</button>
-					</div>
-				</div>
-			)}
 
 			{responseModal.isOpen && (
 				<div className="modal-backdrop" role="dialog" aria-modal="true">
