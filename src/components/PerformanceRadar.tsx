@@ -44,7 +44,6 @@ export default function PerformanceRadar({
     promptInjection: true
   })
 
-  const [isModuleControlExpanded, setIsModuleControlExpanded] = useState(true)
 
   const allDataPoints = [
     { key: 'relevance', label: '관련성', value: relevance, description: '콘텐츠 매칭', icon: '⚡', color: '#ff6b6b' },
@@ -250,21 +249,15 @@ export default function PerformanceRadar({
           })}
         </div>
 
-        <div className="module-control-integrated">
-          <div 
-            className="module-control-header"
-            onClick={() => setIsModuleControlExpanded(!isModuleControlExpanded)}
-          >
-            <div className="header-content">
-              <span className="control-title">모듈 제어</span>
-              <span className="control-badge">{activeCount}/{allDataPoints.length}</span>
-            </div>
-            <span className={`expand-icon ${isModuleControlExpanded ? 'expanded' : ''}`}>
-              {isModuleControlExpanded ? '▲' : '▼'}
-            </span>
+      <div className="module-control-integrated">
+        <div className="module-control-header">
+          <div className="header-content">
+            <span className="control-title">모듈 제어</span>
+            <span className="control-badge">{activeCount}/{allDataPoints.length}</span>
           </div>
+        </div>
 
-          <div className={`module-control-content ${isModuleControlExpanded ? 'expanded' : 'collapsed'}`}>
+        <div className="module-control-content">
             <div className="control-list">
               {allDataPoints.map((point) => (
                 <div key={point.key} className="control-item" data-key={point.key}>

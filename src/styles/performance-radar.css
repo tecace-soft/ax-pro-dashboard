@@ -64,7 +64,7 @@
 .radar-and-control-wrapper {
   display: flex;
   gap: 24px;
-  align-items: flex-start;
+  align-items: stretch;
   width: 100%;
   margin-bottom: 24px;
 }
@@ -74,16 +74,19 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   background: rgba(18, 27, 61, 0.4);
   border: 1px solid rgba(59, 230, 255, 0.15);
   border-radius: 16px;
-  padding: 32px;
+  padding: 20px;
   overflow: visible;
   box-shadow: 
     0 8px 32px rgba(0, 0, 0, 0.2),
     inset 0 1px 0 rgba(255, 255, 255, 0.05);
   flex: 1;
   min-width: 600px;
+  margin-top: 0;
+  height: 480px;
 }
 
 .radar-chart-large {
@@ -93,7 +96,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 0;
+  margin: 0 auto;
+  flex-shrink: 0;
 }
 
 /* 중앙 점수 스타일 - 반응형 */
@@ -266,6 +270,11 @@
     0 8px 32px rgba(0, 0, 0, 0.2),
     inset 0 1px 0 rgba(255, 255, 255, 0.05);
   flex-shrink: 0;
+  margin: 0 !important;
+  padding-top: 0;
+  height: 480px;
+  display: flex;
+  flex-direction: column;
 }
 
 @media (max-width: 1200px) {
@@ -283,11 +292,10 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: clamp(12px, 2.5vw, 16px) clamp(16px, 3vw, 24px);
-  cursor: pointer;
+  padding: clamp(10px, 2vw, 12px) clamp(12px, 2.5vw, 16px);
   background: rgba(18, 27, 61, 0.9);
-  transition: all 0.2s ease;
   border-bottom: 1px solid rgba(59, 230, 255, 0.1);
+  flex-shrink: 0;
 }
 
 .module-control-header:hover {
@@ -342,36 +350,33 @@
 }
 
 .module-control-content {
-  padding: clamp(16px, 3vw, 24px);
-  background: rgba(18, 27, 61, 0.6);
-  overflow: hidden;
-  transition: max-height 0.3s ease, padding 0.3s ease;
-}
-
-.module-control-content.expanded {
-  max-height: 1000px;
-  padding: clamp(16px, 3vw, 24px);
-}
-
-.module-control-content.collapsed {
-  max-height: 0;
-  padding: 0 clamp(16px, 3vw, 24px);
-  overflow: hidden;
+  padding: 0 clamp(8px, 1.5vw, 12px) !important;
+  background: rgba(18, 27, 61, 0.6) !important;
+  overflow-y: auto;
+  flex: 1 1 auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  height: auto !important;
+  max-height: none !important;
 }
 
 .control-list {
   display: flex;
   flex-direction: column;
-  gap: clamp(12px, 2.5vw, 16px);
+  gap: clamp(6px, 1.2vw, 8px);
+  width: 100%;
 }
 
 .control-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: clamp(12px, 2.5vw, 16px);
+  padding: clamp(8px, 1.5vw, 10px) clamp(10px, 2vw, 12px);
   background: rgba(255, 255, 255, 0.05);
-  border-radius: 12px;
+  border-radius: 8px;
   border: 1px solid rgba(59, 230, 255, 0.1);
   transition: all 0.2s ease;
   backdrop-filter: blur(10px);
@@ -387,13 +392,13 @@
 .control-info {
   display: flex;
   align-items: center;
-  gap: clamp(10px, 2vw, 12px);
+  gap: clamp(8px, 1.5vw, 10px);
   flex: 1;
 }
 
 .control-icon {
-  font-size: clamp(14px, 3vw, 18px);
-  width: clamp(18px, 4vw, 24px);
+  font-size: clamp(12px, 2.5vw, 16px);
+  width: clamp(16px, 3.5vw, 20px);
   text-align: center;
   filter: drop-shadow(0 0 10px rgba(59, 230, 255, 0.3));
 }
@@ -405,16 +410,18 @@
 }
 
 .control-label {
-  font-size: clamp(12px, 2.5vw, 14px);
+  font-size: clamp(11px, 2.2vw, 13px);
   font-weight: 600;
   color: #ffffff;
   letter-spacing: 0.3px;
+  line-height: 1.2;
 }
 
 .control-description {
-  font-size: clamp(10px, 2vw, 11px);
+  font-size: clamp(9px, 1.8vw, 10px);
   color: rgba(255, 255, 255, 0.6);
   font-weight: 400;
+  line-height: 1.2;
 }
 
 /* 간단한 ON/OFF 버튼 */
@@ -710,16 +717,6 @@
   z-index: 12;
 }
 
-/* Module Control과의 간격 조정 - 겹침 방지 */
-.module-control-integrated {
-  width: 100%;
-  background: rgba(18, 27, 61, 0.8);
-  border-top: 1px solid rgba(59, 230, 255, 0.2);
-  border-radius: 0 0 12px 12px;
-  overflow: hidden;
-  transition: all 0.3s ease;
-  margin-top: 25px; /* 겹침 방지를 위한 간격 증가 */
-}
 
 /* SVG 정확도 향상 - 점과 라인 꼭지점 정렬 */
 .radar-svg-large {
@@ -791,7 +788,7 @@
   
   /* 모바일에서 Module Control 간격 조정 */
   .module-control-integrated {
-    margin-top: 20px;
+    margin-top: 0;
   }
 }
 
@@ -810,7 +807,7 @@
   }
   
   .module-control-integrated {
-    margin-top: 18px;
+    margin-top: 0;
   }
 }
 
