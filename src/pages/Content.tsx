@@ -918,13 +918,15 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 										}
 									} else {
 										// Fallback to API if chat_data doesn't exist
-										try {
-											const detail = await fetchRequestDetail(authToken, requestId)
-											if (detail && detail.request) {
-												requestDetailsMap[requestId] = detail.request
+										if (authToken) {
+											try {
+												const detail = await fetchRequestDetail(authToken, requestId)
+												if (detail && detail.request) {
+													requestDetailsMap[requestId] = detail.request
+												}
+											} catch (error) {
+												console.warn(`Could not fetch detail for ${requestId}:`, error)
 											}
-										} catch (error) {
-											console.warn(`Could not fetch detail for ${requestId}:`, error)
 										}
 									}
 								} catch (error) {
