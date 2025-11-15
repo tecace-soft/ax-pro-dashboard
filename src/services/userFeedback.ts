@@ -1,12 +1,25 @@
 import { supabase, UserFeedbackData } from './supabase'
 
 // Fetch all user feedback data, ordered by most recent first
-export async function fetchUserFeedback(): Promise<UserFeedbackData[]> {
+export async function fetchUserFeedback(startDate?: string, endDate?: string): Promise<UserFeedbackData[]> {
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from('user_feedback')
       .select('*')
-      .order('created_at', { ascending: false })
+    
+    // Apply date filter if provided
+    if (startDate && endDate) {
+      // Format dates for Supabase (ISO format)
+      // Use local timezone to ensure we include the entire day
+      const start = new Date(startDate + 'T00:00:00')
+      const end = new Date(endDate + 'T23:59:59.999')
+      
+      query = query
+        .gte('created_at', start.toISOString())
+        .lte('created_at', end.toISOString())
+    }
+    
+    const { data, error } = await query.order('created_at', { ascending: false })
 
     if (error) {
       throw error
@@ -22,11 +35,15 @@ export async function fetchUserFeedback(): Promise<UserFeedbackData[]> {
 // Fetch user feedback for a specific date range
 export async function fetchUserFeedbackByDateRange(startDate: string, endDate: string): Promise<UserFeedbackData[]> {
   try {
+    // Format dates to include entire day in local timezone
+    const start = new Date(startDate + 'T00:00:00')
+    const end = new Date(endDate + 'T23:59:59.999')
+    
     const { data, error } = await supabase
       .from('user_feedback')
       .select('*')
-      .gte('created_at', startDate)
-      .lte('created_at', endDate)
+      .gte('created_at', start.toISOString())
+      .lte('created_at', end.toISOString())
       .order('created_at', { ascending: false })
 
     if (error) {

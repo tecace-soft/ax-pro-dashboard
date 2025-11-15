@@ -450,6 +450,9 @@ to{ opacity: 0;
   background: var(--bg);
   color: var(--text);
   overflow: hidden;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   /* Prevent page-level scrollbar */: ; }
 /* Header Styles */ .dashboard-header{ display: flex;
   justify-content: space-between;
@@ -515,8 +518,12 @@ to{ opacity: 0;
   border-color: rgba(59,230,255,0.4);
   color: #ffffff; }
 .dashboard-content{ display: flex;
+  width: 100%;
+  max-width: 100vw;
+  box-sizing: border-box;
   height: calc(100vh - 72px);
   overflow: hidden;
+  overflow-x: hidden;
   /* Prevent content overflow */: ; }
 .dashboard-sidebar{ width: 280px;
   background: linear-gradient(180deg, rgba(18,27,61,0.4), rgba(13,20,44,0.4));
@@ -705,8 +712,12 @@ to{ opacity: 0;
 .nav-item.active{ background: rgba(59,230,255,0.2);
   color: #3be6ff; }
 .dashboard-main{ flex: 1;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
   padding: 24px;
   overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column; }
 .metrics-cards{ display: grid;
@@ -741,6 +752,9 @@ to{ opacity: 0;
 .dashboard-grid{ display: grid;
   grid-template-columns: 1fr;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   /* ì˜¤ë¥¸ìª½ íŒ¨ë„Œ ì œê±°ë¡œ 1frë¡œ ë³€ê²½ */
   /* gap: 1rem; */
   /* margin-bottom: 32px;  */
@@ -1048,6 +1062,9 @@ input:checked + .toggle-slider::before {
 .grid-left{ display: flex;
   flex-direction: column;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   }
 /* .grid-right{ display: flex;
   flex-direction: column;
@@ -3065,18 +3082,24 @@ input:checked + .toggle-slider::before {
 .dashboard-main{
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   padding-left: var(--panel-gutter) !important;
   padding-right: var(--panel-gutter) !important;
+  box-sizing: border-box !important;
+  overflow-x: hidden;
 }
 
 /* 두 섹션 래퍼를 같은 폭/마진/패딩으로 통일 */
 #performance-radar,
 #daily-message-activity{
   width: 100%;
-  max-width: var(--panel-max);
+  max-width: 100%;
   margin: var(--panel-gap) auto;       /* 상하 동일, 좌우 자동 중앙 */
   padding: var(--panel-pad);
+  box-sizing: border-box;
 }
 
 /* 카드 톤(배경/테두리/라운드)도 통일 – 기존 모양 유지하되 한 번만 정의 */
@@ -3163,13 +3186,15 @@ input:checked + .toggle-slider::before {
 #performance-radar > .panel-title,
 #performance-radar > .panel-subtitle{ display:none !important; }
 
-/* === 2) 패널 가로폭을 가용 영역의 80~90%로 확장 === */
-/* 기본은 90%로, 너무 넓어지는 초대형 화면에서는 상한선 유지 */
+/* === 2) 패널 가로폭 제한 === */
+/* 기본은 컨테이너 폭에 맞추되, 최대 너비 제한 */
 #performance-radar,
 #daily-message-activity{
-  width: min(90%, 1800px);     /* 가용 영역의 90%를 채우되 1800px 상한 */
+  width: 100%;
+  max-width: 100%;
   margin-left: auto;
   margin-right: auto;
+  box-sizing: border-box;
 }
 
 /* 태블릿~데스크톱에서 살짝 여유를 주고 싶으면 88% */
@@ -3198,13 +3223,15 @@ input:checked + .toggle-slider::before {
 /* 두 상단 박스 폭/여백/패딩 통일 */
 #performance-radar,
 #daily-message-activity{
-  width: clamp(320px, var(--panel-fill), var(--panel-max));
+  width: 100%;
+  max-width: 100%;
   margin: var(--panel-v-gap) auto;          /* 좌우는 벽과 일정 간격, 가운데 정렬 */
   padding: var(--panel-pad);
   background: linear-gradient(180deg, rgba(18,27,61,0.40), rgba(13,20,44,0.40));
   border: 1px solid rgba(59,230,255,0.10);
   border-radius: 12px;
   box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+  box-sizing: border-box;
 }
 
 /* 모바일~태블릿에서는 좌우 고정 여백만 남기고 거의 풀폭 */
@@ -3261,7 +3288,8 @@ input:checked + .toggle-slider::before {
 /* 2) 두 상단 섹션 자체가 가용폭을 채우게 (섹션이 카드 그 자체) */
 #performance-radar.performance-section,
 #daily-message-activity.daily-message-section{
-  width: min(90%, 1800px) !important;     /* 가용폭의 90%, 상한 1800px */
+  width: 100% !important;
+  max-width: 100% !important;
   margin: clamp(20px, 3vh, 40px) auto !important;
   padding: clamp(16px, 1.8vw, 24px) !important;
   background: linear-gradient(180deg, rgba(18,27,61,0.40), rgba(13,20,44,0.40)) !important;
@@ -3269,6 +3297,7 @@ input:checked + .toggle-slider::before {
   border-radius: 12px !important;
   box-shadow: 0 10px 30px rgba(0,0,0,0.25) !important;
   align-self: stretch !important;         /* 혹시 부모가 center여도 확장 */
+  box-sizing: border-box !important;
 }
 
 /* 모바일은 거터만 두고 사실상 풀폭 */
@@ -3323,17 +3352,13 @@ input:checked + .toggle-slider::before {
   display: flex;
   flex: 1;
   justify-content: center;                /* 좌우 중앙 정렬 */
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;                     /* 가로 스크롤 방지 */
 }
 
-/* 안쪽 메인 래퍼 */
-.dashboard-main {
-  width: 90%;                             /* 뷰포트 기준 90% 채움 */
-  max-width: 1800px;                      /* 초대형 화면에서는 제한 */
-  margin: 0 auto;                         /* 좌우 자동 중앙 */
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;                   /* 자식이 가득 차도록 */
-}
+/* 안쪽 메인 래퍼 - 중복 제거, 위의 규칙 사용 */
 
 /* ===== Performance Radar: header/inner-frame lineup + extra breathing ===== */
 
@@ -4710,6 +4735,10 @@ input:checked + .toggle-slider::before {
   grid-template-columns: 40px 1fr; /* 좌측 Y축 라벨 40px */
   height: 260px;
   margin-top: 8px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 /* === Y축 · 그리드 정렬 보정 (drop-in replace) === */
@@ -4745,6 +4774,11 @@ input:checked + .toggle-slider::before {
   position: relative;
   height: 100%;
   padding: 8px 0 34px ;      /* ← 위/아래가 Y축과 동일해야 함 */
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 /* 좌측 Y축 컨테이너도 같은 내부 영역을 쓰게(라벨 숨김이어도 영역만 맞추기) */
 .dma-yaxis-abs{

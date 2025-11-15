@@ -1,5 +1,5 @@
 // src/components/DailyMessageActivity.tsx
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 
 interface MessageData { date: string; count: number }
@@ -31,6 +31,7 @@ const DailyMessageActivity: React.FC<DailyMessageActivityProps> = ({
   const [messageData, setMessageData] = useState<MessageData[]>([]);
   const [totalMessages, setTotalMessages] = useState(0);
   const [lastUpdate, setLastUpdate] = useState<string>('');
+  const barsScrollRef = useRef<HTMLDivElement>(null);
 
   // 로컬 날짜 키 생성 함수 수정
   const localDateKey = (d: Date) => {
@@ -110,6 +111,18 @@ const DailyMessageActivity: React.FC<DailyMessageActivityProps> = ({
     setTotalMessages(totalCount);
   }, [startDate, endDate, sessions, sessionRequests]);
 
+  // Scroll to latest (rightmost) part when data changes
+  useEffect(() => {
+    if (barsScrollRef.current && messageData.length > 0) {
+      // Small delay to ensure DOM is updated
+      setTimeout(() => {
+        if (barsScrollRef.current) {
+          barsScrollRef.current.scrollLeft = barsScrollRef.current.scrollWidth;
+        }
+      }, 100);
+    }
+  }, [messageData]);
+
   // Y축 범위 계산 수정 - 더 여유로운 높이 제공
   const rawMax = Math.max(...messageData.map(d => d.count), 0);
   const niceStep = (max: number) => {
@@ -174,7 +187,7 @@ const DailyMessageActivity: React.FC<DailyMessageActivityProps> = ({
         </div>
 
         {/* 플롯 */}
-        <div className="dma-plot">
+        <div className="dma-plot" ref={barsScrollRef}>
           {/* 수평 그리드 라인 (라벨과 같은 퍼센트) */}
           <div className="dma-grid-abs">
             {ticks.map(t => (
@@ -183,68 +196,34 @@ const DailyMessageActivity: React.FC<DailyMessageActivityProps> = ({
           </div>
 
           {/* Bars */}
-{(() => {
-  const n = messageData.length;
-  const MAX_NO_SCROLL = 10;             // 10개까지는 스크롤 없이
-  const needsScroll = n > MAX_NO_SCROLL;
+          <div className="dma-bars">
+              {messageData.map(d => {
+                const barHeight = yMax > 0 ? (d.count / yMax) * 100 : 0;
+                
+                // 날짜를 정확하게 파싱하여 라벨 생성
+                const date = new Date(d.date + 'T00:00:00'); // 시간을 명시적으로 설정
+                const month = date.getMonth() + 1;
+                const day = date.getDate();
+                const weekday = date.toLocaleDateString('en-US', { weekday: 'short' });
+                const dayLabel = `${month}/${day} ${weekday}`;
 
-  const BAR_W = needsScroll ? 40 : undefined;  // 막대 최소너비
-  const GAP   = needsScroll ? 14 : 16;         // 간격
+                console.log(`Date: ${d.date} -> Label: ${dayLabel}`);
 
-  const innerWidth = needsScroll
-    ? (n * (BAR_W as number)) + ((n - 1) * GAP) + 16
-    : undefined;
-
-  return (
-    <div
-      className="dma-bars-scroll"
-      style={{
-        height: '100%',
-        overflowX: needsScroll ? 'auto' : 'hidden',
-        overflowY: 'hidden',
-      }}
-    >
-      <div
-        className="dma-bars"
-        style={{
-          height: '100%',
-          display: 'flex',
-          alignItems: 'flex-end',
-          justifyContent: needsScroll ? 'flex-start' : 'space-around',
-          gap: `${GAP}px`,
-          width: needsScroll ? `${innerWidth}px` : '100%',
-        }}
-      >
-        {messageData.map(d => {
-          const barHeight = yMax > 0 ? (d.count / yMax) * 100 : 0;
-          
-          // 날짜를 정확하게 파싱하여 라벨 생성
-          const date = new Date(d.date + 'T00:00:00'); // 시간을 명시적으로 설정
-          const month = date.getMonth() + 1;
-          const day = date.getDate();
-          const weekday = date.toLocaleDateString('en-US', { weekday: 'short' });
-          const dayLabel = `${month}/${day} ${weekday}`;
-
-          console.log(`Date: ${d.date} -> Label: ${dayLabel}`);
-
-          return (
-            <div className="dma-barwrap" key={d.date} title={`${dayLabel}: ${d.count}`}>
-              {/* 막대 전용 영역 */}
-              <div className="dma-barstack">
-                <div className="dma-bar" style={{ height: `${barHeight}%` }}>
-                  {d.count > 0 && <div className="dma-valuebubble">{d.count}</div>}
-                  <div className="dma-barfill" />
-                </div>
-              </div>
-              {/* X라벨 */}
-              <div className="dma-xlabel">{dayLabel}</div>
+                return (
+                  <div className="dma-barwrap" key={d.date} title={`${dayLabel}: ${d.count}`}>
+                    {/* 막대 전용 영역 */}
+                    <div className="dma-barstack">
+                      <div className="dma-bar" style={{ height: `${barHeight}%` }}>
+                        {d.count > 0 && <div className="dma-valuebubble">{d.count}</div>}
+                        <div className="dma-barfill" />
+                      </div>
+                    </div>
+                    {/* X라벨 */}
+                    <div className="dma-xlabel">{dayLabel}</div>
+                  </div>
+                );
+              })}
             </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-})()}
         </div>
       </div>
 

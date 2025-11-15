@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
 import { fetchUserFeedback } from '../services/userFeedback'
 import { UserFeedbackData } from '../services/supabase'
@@ -15,6 +15,9 @@ interface UserFeedbackProps {
 	onUserIdClick?: (userId: string) => void
 	onSessionIdClick?: (sessionId: string) => void
 	onMessageClick?: (chatId: string, userMessage: string, aiResponse: string, comments: string, reaction: string) => void
+	startDate?: string
+	endDate?: string
+	onDateChange?: (startDate: string, endDate: string) => void
 }
 
 function formatUserId(userId: string): string {
@@ -56,7 +59,7 @@ function formatDateNarrow(date: Date): string {
 	return `${month}/${day}/${year}...`
 }
 
-export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionIdClick, onMessageClick }: UserFeedbackProps = {}) {
+export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionIdClick, onMessageClick, startDate, endDate, onDateChange }: UserFeedbackProps = {}) {
 	const location = useLocation()
 	const isN8NRoute = location.pathname === '/dashboard-n8n'
 	const { language, t } = useLanguage()
@@ -65,6 +68,7 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 	const [isLoading, setIsLoading] = useState(false)
 	const [error, setError] = useState<string | null>(null)
 	const [chatDataMap, setChatDataMap] = useState<Record<string, { inputText: string, outputText: string }>>({})
+	const chatDataMapRef = useRef<Record<string, { inputText: string, outputText: string }>>({})
 	const [feedbackFilter, setFeedbackFilter] = useState<'all' | 'positive' | 'negative'>('all')
 	const [userFeedbackViewMode, setUserFeedbackViewMode] = useState<'grid' | 'table'>('table')
 	const [userFeedbackSortBy, setUserFeedbackSortBy] = useState<'date' | 'userId' | 'chatId'>('date')
@@ -73,12 +77,13 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 	const [userFeedbackDisplayLimit, setUserFeedbackDisplayLimit] = useState(10)
 	const [userFeedbackLastRefreshed, setUserFeedbackLastRefreshed] = useState<Date | null>(null)
 	const [isRefreshingUserFeedback, setIsRefreshingUserFeedback] = useState(false)
+	const [userFeedbackAutoRefresh, setUserFeedbackAutoRefresh] = useState<number | null>(30) // 30 seconds default, null = off
 	const [userFeedbackExportFormat, setUserFeedbackExportFormat] = useState<'csv' | 'excel' | 'json'>('csv')
 	const [isExportingUserFeedback, setIsExportingUserFeedback] = useState(false)
 
 	useEffect(() => {
 		loadUserFeedback()
-	}, [isN8NRoute])
+	}, [isN8NRoute, startDate, endDate])
 
 	const loadUserFeedback = async (bypassCache = false) => {
 		setIsLoading(true)
@@ -86,7 +91,7 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 		
 		try {
 			if (isN8NRoute) {
-				const data = await fetchUserFeedbackN8N()
+				const data = await fetchUserFeedbackN8N(startDate, endDate)
 				setUserFeedbacks(data)
 				
 				// For N8N route: Load chat data for entries missing chat_message/chat_response
@@ -107,9 +112,34 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 						try {
 							const detail = await fetchRequestDetailN8N(chatId)
 							if (detail && detail.request) {
+								// fetchRequestDetailN8N returns inputText and outputText
+								const inputText = detail.request.inputText || ''
+								const outputText = detail.request.outputText || ''
+								
+								// Store with the chatId used for fetching
 								chatDataMap[chatId] = {
-									inputText: detail.request.inputText || '',
-									outputText: detail.request.outputText || ''
+									inputText,
+									outputText
+								}
+								
+								// Also store with all possible keys from the feedback entry to ensure lookup works
+								const feedback = data.find(fb => {
+									const replyToId = fb.raw_data?.reply_to_id
+									return replyToId === chatId || fb.chat_id === chatId || fb.request_id === chatId
+								})
+								if (feedback) {
+									// Store with reply_to_id if it exists
+									if (feedback.raw_data?.reply_to_id && feedback.raw_data.reply_to_id !== chatId) {
+										chatDataMap[feedback.raw_data.reply_to_id] = { inputText, outputText }
+									}
+									// Store with chat_id if it exists and is different
+									if (feedback.chat_id && feedback.chat_id !== chatId) {
+										chatDataMap[feedback.chat_id] = { inputText, outputText }
+									}
+									// Store with request_id if it exists and is different
+									if (feedback.request_id && feedback.request_id !== chatId) {
+										chatDataMap[feedback.request_id] = { inputText, outputText }
+									}
 								}
 							}
 						} catch (error) {
@@ -122,7 +152,7 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 					setChatDataMap(prev => ({ ...prev, ...chatDataMap }))
 				}
 			} else {
-				const data = await fetchUserFeedback()
+				const data = await fetchUserFeedback(startDate, endDate)
 				setUserFeedbacks(data)
 				
 				// For tecace route: Load chat_data for entries missing chat_message/chat_response
@@ -163,11 +193,122 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 		}
 	}
 
-	const refreshUserFeedback = async () => {
+	const refreshUserFeedback = useCallback(async () => {
 		setIsRefreshingUserFeedback(true)
 		await loadUserFeedback(true)
 		setIsRefreshingUserFeedback(false)
-	}
+	}, [startDate, endDate, isN8NRoute])
+
+	// Load missing chat data for user feedback entries on-demand (similar to Admin Feedback)
+	useEffect(() => {
+		if (userFeedbacks.length === 0) return
+		
+		let cancelled = false
+		
+		async function loadMissingChatData() {
+			// Find feedback entries that are missing chat_message/chat_response
+			const missingEntries = userFeedbacks.filter(fb => {
+				const hasMessage = fb.chat_message && fb.chat_message.trim() !== '' && fb.chat_message !== '-'
+				const hasResponse = fb.chat_response && fb.chat_response.trim() !== '' && fb.chat_response !== '-'
+				if (hasMessage && hasResponse) return false
+				
+				// Check if we already have it in chatDataMap (use ref to avoid dependency issues)
+				const replyToId = fb.raw_data?.reply_to_id
+				const requestId = replyToId || fb.chat_id || fb.request_id || ''
+				const chatData = chatDataMapRef.current[requestId]
+				return !chatData || !chatData.inputText || !chatData.outputText
+			})
+			
+			if (missingEntries.length === 0) return
+			
+			const newChatDataMap: Record<string, { inputText: string, outputText: string }> = {}
+			
+			// Load in batches
+			for (let i = 0; i < missingEntries.length; i += 10) {
+				if (cancelled) break
+				const batch = missingEntries.slice(i, i + 10)
+				
+				await Promise.all(batch.map(async (feedback) => {
+					try {
+						const replyToId = feedback.raw_data?.reply_to_id
+						const chatId = replyToId || feedback.chat_id || feedback.request_id || ''
+						if (!chatId) return
+						
+						if (isN8NRoute) {
+							const detail = await fetchRequestDetailN8N(chatId)
+							if (detail && detail.request) {
+								const inputText = detail.request.inputText || ''
+								const outputText = detail.request.outputText || ''
+								
+								// Store with all possible keys
+								newChatDataMap[chatId] = { inputText, outputText }
+								if (replyToId && replyToId !== chatId) {
+									newChatDataMap[replyToId] = { inputText, outputText }
+								}
+								if (feedback.chat_id && feedback.chat_id !== chatId) {
+									newChatDataMap[feedback.chat_id] = { inputText, outputText }
+								}
+								if (feedback.request_id && feedback.request_id !== chatId) {
+									newChatDataMap[feedback.request_id] = { inputText, outputText }
+								}
+							}
+						} else {
+							const chatData = await getChatData(chatId)
+							if (chatData) {
+								const inputText = chatData.input_text || ''
+								const outputText = chatData.output_text || ''
+								
+								// Store with all possible keys
+								newChatDataMap[chatId] = { inputText, outputText }
+								if (feedback.chat_id && feedback.chat_id !== chatId) {
+									newChatDataMap[feedback.chat_id] = { inputText, outputText }
+								}
+								if (feedback.request_id && feedback.request_id !== chatId) {
+									newChatDataMap[feedback.request_id] = { inputText, outputText }
+								}
+							}
+						}
+					} catch (error) {
+						console.warn(`Could not fetch chat data for user feedback:`, error)
+					}
+				}))
+			}
+			
+			if (!cancelled && Object.keys(newChatDataMap).length > 0) {
+				setChatDataMap(prev => ({ ...prev, ...newChatDataMap }))
+			}
+		}
+		
+		// Small delay to let initial load complete
+		const timeoutId = setTimeout(() => {
+			loadMissingChatData()
+		}, 500)
+		
+		return () => {
+			cancelled = true
+			clearTimeout(timeoutId)
+		}
+	}, [userFeedbacks, isN8NRoute])
+
+	// Keep chatDataMapRef in sync with chatDataMap
+	useEffect(() => {
+		chatDataMapRef.current = chatDataMap
+	}, [chatDataMap])
+
+	// Auto-refresh User Feedback based on selected interval
+	useEffect(() => {
+		if (userFeedbackAutoRefresh === null) return // Auto-refresh disabled
+		
+		const intervalId = setInterval(() => {
+			if (!isLoading && !isRefreshingUserFeedback) {
+				refreshUserFeedback()
+			}
+		}, userFeedbackAutoRefresh * 1000) // Convert seconds to milliseconds
+
+		return () => {
+			clearInterval(intervalId)
+		}
+	}, [refreshUserFeedback, isLoading, isRefreshingUserFeedback, userFeedbackAutoRefresh])
 
 	const isPositiveFeedback = (reaction: string | null | undefined): boolean => {
 		if (!reaction) return false
@@ -327,6 +468,18 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 				<div id="user-feedback-title" className="section-title">
 					{t('userFeedback')} ({filteredAndSortedUserFeedback.length} {t('feedbackItems')})
 				</div>
+				{startDate && endDate && onDateChange && (
+					<div className="date-controls">
+						<label className="date-field">
+							<span>Start Date</span>
+							<input type="date" className="input date-input" value={startDate} onChange={(e)=>onDateChange(e.target.value, endDate || '')} />
+						</label>
+						<label className="date-field">
+							<span>End Date</span>
+							<input type="date" className="input date-input" value={endDate} onChange={(e)=>onDateChange(startDate || '', e.target.value)} />
+						</label>
+					</div>
+				)}
 				<div className="conversations-controls">
 					<div className="sort-control">
 						<label>{t('sort')}</label>
@@ -429,7 +582,29 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 							{isExportingUserFeedback ? (language === 'ko' ? '내보내는 중...' : 'Exporting...') : t('export')}
 						</button>
 					</div>
-					<div className="refresh-control">
+					<div className="refresh-control" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+						<select
+							value={userFeedbackAutoRefresh === null ? 'off' : userFeedbackAutoRefresh.toString()}
+							onChange={(e) => {
+								const value = e.target.value
+								setUserFeedbackAutoRefresh(value === 'off' ? null : parseInt(value))
+							}}
+							style={{
+								padding: '6px 8px',
+								borderRadius: '4px',
+								border: '1px solid var(--border-color)',
+								background: 'var(--bg-secondary)',
+								color: 'var(--text-primary)',
+								fontSize: '14px',
+								cursor: 'pointer'
+							}}
+						>
+							<option value="off">{language === 'ko' ? '자동 새로고침 끄기' : 'Auto-refresh Off'}</option>
+							<option value="30">{language === 'ko' ? '30초' : '30 seconds'}</option>
+							<option value="60">{language === 'ko' ? '1분' : '1 minute'}</option>
+							<option value="300">{language === 'ko' ? '5분' : '5 minutes'}</option>
+							<option value="600">{language === 'ko' ? '10분' : '10 minutes'}</option>
+						</select>
 						<button 
 							className="refresh-btn"
 							onClick={refreshUserFeedback}

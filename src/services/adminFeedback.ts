@@ -143,12 +143,25 @@ export async function getAdminFeedbackBatch(requestIds: string[]): Promise<Recor
 }
 
 // Get ALL admin feedback entries
-export async function getAllAdminFeedback(): Promise<Record<string, AdminFeedbackData>> {
+export async function getAllAdminFeedback(startDate?: string, endDate?: string): Promise<Record<string, AdminFeedbackData>> {
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from('admin_feedback')
       .select('*')
-      .order('created_at', { ascending: false })
+    
+    // Apply date filter if provided
+    if (startDate && endDate) {
+      // Format dates for Supabase (ISO format)
+      // Use local timezone to ensure we include the entire day
+      const start = new Date(startDate + 'T00:00:00')
+      const end = new Date(endDate + 'T23:59:59.999')
+      
+      query = query
+        .gte('created_at', start.toISOString())
+        .lte('created_at', end.toISOString())
+    }
+    
+    const { data, error } = await query.order('created_at', { ascending: false })
 
     if (error) throw error
 

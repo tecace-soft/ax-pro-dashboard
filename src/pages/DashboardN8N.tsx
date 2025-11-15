@@ -102,8 +102,30 @@ export default function DashboardN8N() {
 	const [selectedPeriod, setSelectedPeriod] = useState(7)
 	const [searchQuery, setSearchQuery] = useState('')
 
-	const [startDate, setStartDate] = useState<string>('')
-	const [endDate, setEndDate] = useState<string>('')
+	// Set default date range to last 30 days
+	const getDefaultStartDate = (): string => {
+		const today = new Date()
+		// Create a new date object to avoid mutating today
+		const date = new Date(today.getTime())
+		// Subtract 29 days to get 30 days total (today + 29 days before = 30 days inclusive)
+		date.setDate(date.getDate() - 29)
+		// Format as YYYY-MM-DD using local timezone
+		const year = date.getFullYear()
+		const month = String(date.getMonth() + 1).padStart(2, '0')
+		const day = String(date.getDate()).padStart(2, '0')
+		return `${year}-${month}-${day}`
+	}
+	
+	const getDefaultEndDate = (): string => {
+		const today = new Date()
+		const year = today.getFullYear()
+		const month = String(today.getMonth() + 1).padStart(2, '0')
+		const day = String(today.getDate()).padStart(2, '0')
+		return `${year}-${month}-${day}`
+	}
+	
+	const [startDate, setStartDate] = useState<string>(getDefaultStartDate())
+	const [endDate, setEndDate] = useState<string>(getDefaultEndDate())
 
 	const performanceData = Array.from({ length: 30 }, (_, i) => ({
 		date: `월${13 + i}일`,
@@ -200,13 +222,8 @@ export default function DashboardN8N() {
 		return () => { cancelled = true }
 	}, [startDate, endDate])
 
-	useEffect(() => {
-		const today = new Date()
-		const start = new Date()
-		start.setDate(today.getDate() - 6)
-		setStartDate(formatDate(start))
-		setEndDate(formatDate(today))
-	}, [])
+	// Removed: This was overriding the default 30-day date range with only 6 days
+	// The default dates are now set correctly in useState initialization above
 
 	useEffect(() => {
 		const section = searchParams.get('section')
