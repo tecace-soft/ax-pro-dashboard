@@ -61,10 +61,16 @@ export async function fetchAllConversationsN8N(
   }>>
 }> {
   try {
-    // Step 1: Fetch ALL chats (not filtered by date range)
+    // Step 1: Fetch chats filtered by date range
+    // Use local timezone to ensure we include the entire day
+    const start = new Date(startDate + 'T00:00:00')
+    const end = new Date(endDate + 'T23:59:59.999')
+    
     const { data: allChats, error: chatsError } = await supabaseN8N
       .from('chat')
       .select('id, created_at, chat_message, response, session_id, chat_id, user_id')
+      .gte('created_at', start.toISOString())
+      .lte('created_at', end.toISOString())
       .order('created_at', { ascending: true })
 
     if (chatsError) throw chatsError
@@ -144,10 +150,9 @@ export async function fetchSessionsN8N(
   endDate: string
 ): Promise<SessionResponseN8N> {
   try {
-    const start = new Date(startDate)
-    start.setHours(0, 0, 0, 0)
-    const end = new Date(endDate)
-    end.setHours(23, 59, 59, 999)
+    // Use local timezone to ensure we include the entire day
+    const start = new Date(startDate + 'T00:00:00')
+    const end = new Date(endDate + 'T23:59:59.999')
 
     const { data, error } = await supabaseN8N
       .from('session')

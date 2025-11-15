@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useLocation } from 'react-router-dom'
 import { IconX } from '../ui/icons'
 import { useLanguage } from '../contexts/LanguageContext'
@@ -7,6 +7,7 @@ import { getAuthToken } from '../services/auth'
 import { fetchSessions } from '../services/sessions'
 import { fetchSessionRequests } from '../services/requests'
 import { fetchRequestDetail } from '../services/requestDetails'
+import { getChatData } from '../services/chatData'
 import { fetchAllConversationsN8N, fetchSessionsN8N, fetchSessionRequestsN8N, fetchRequestDetailN8N } from '../services/conversationsN8N'
 import { supabaseN8N } from '../services/supabaseN8N'
 import { getAdminFeedbackBatch, getAllAdminFeedback, saveAdminFeedback, updateAdminFeedback, deleteAdminFeedback, updateAdminFeedbackPromptApply, saveManualAdminFeedback, bulkSaveAdminFeedback } from '../services/adminFeedback'
@@ -121,6 +122,7 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 	const [isLoadingSessions, setIsLoadingSessions] = useState(false)
 	const [sessionRequests, setSessionRequests] = useState<Record<string, any[]>>({})
 	const [requestDetails, setRequestDetails] = useState<Record<string, any>>({})
+	const requestDetailsRef = useRef<Record<string, any>>({})
 	const [expandedSessions, setExpandedSessions] = useState<Set<string>>(new Set())
 	const [feedbackModal, setFeedbackModal] = useState<{
 		isOpen: boolean, 
@@ -185,6 +187,10 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 	const [adminFeedbackLastRefreshed, setAdminFeedbackLastRefreshed] = useState<Date | null>(null)
 	const [isRefreshingConversations, setIsRefreshingConversations] = useState(false)
 	const [isRefreshingAdminFeedback, setIsRefreshingAdminFeedback] = useState(false)
+	const [conversationsAutoRefresh, setConversationsAutoRefresh] = useState<number | null>(null) // Off by default
+	const [adminFeedbackAutoRefresh, setAdminFeedbackAutoRefresh] = useState<number | null>(30) // 30 seconds default, null = off
+	const [isBackgroundLoading, setIsBackgroundLoading] = useState(false)
+	const [backgroundLoadProgress, setBackgroundLoadProgress] = useState<string>('')
 	const [isUpdatingPrompt, setIsUpdatingPrompt] = useState(false)
 	const [showUpdatePromptModal, setShowUpdatePromptModal] = useState(false)
 	const [deleteAdminFeedbackModal, setDeleteAdminFeedbackModal] = useState<{
@@ -558,7 +564,7 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 	})
 
 	// Refresh functions
-	const refreshConversations = async () => {
+	const refreshConversations = useCallback(async () => {
 		setIsRefreshingConversations(true)
 		try {
 			await loadConversationsOptimized(true) // bypassCache = true
@@ -568,13 +574,13 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 		} finally {
 			setIsRefreshingConversations(false)
 		}
-	}
+	}, [startDate, endDate, isN8NRoute, authToken])
 
-	const refreshAdminFeedback = async () => {
+	const refreshAdminFeedback = useCallback(async () => {
 		setIsRefreshingAdminFeedback(true)
 		try {
 			if (isN8NRoute) {
-				const allFeedbackN8N = await getAllAdminFeedbackN8N()
+				const allFeedbackN8N = await getAllAdminFeedbackN8N(startDate, endDate)
 				// Map n8n feedback format (chat_id, apply) to UI format (request_id, prompt_apply)
 				const mappedFeedback: Record<string, AdminFeedbackData> = {}
 				Object.entries(allFeedbackN8N).forEach(([chatId, feedback]) => {
@@ -591,7 +597,7 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 				})
 				setAdminFeedback(mappedFeedback)
 			} else if (authToken) {
-				const allFeedback = await getAllAdminFeedback()
+				const allFeedback = await getAllAdminFeedback(startDate, endDate)
 				setAdminFeedback(allFeedback)
 			}
 			setAdminFeedbackLastRefreshed(new Date())
@@ -600,7 +606,7 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 		} finally {
 			setIsRefreshingAdminFeedback(false)
 		}
-	}
+	}, [isN8NRoute, authToken, startDate, endDate])
 
 	// 최적화된 데이터 로딩 함수
 	const loadConversationsOptimized = async (bypassCache: boolean = false) => {
@@ -648,6 +654,9 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 					loadedDetails: allRequestIds.length,
 					details: false
 				}))
+
+				// Start background loading after initial load completes
+				loadBackgroundConversations(startDate, endDate, sessionsList, sessionRequestsMap, requestDetailsMap)
 
 			} catch (error) {
 				console.error('Failed to load n8n conversations:', error)
@@ -790,6 +799,9 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 				
 				conversationsCache.set(cacheKey, cacheData)
 				conversationsCache.setToStorage(cacheKey, cacheData)
+				
+				// Start background loading after initial load completes
+				loadBackgroundConversations(startDate, endDate, sessions, sessionRequestsMap, requestDetailsMap)
 			}
 			
 			setLoadingState(prev => ({ ...prev, progress: 100 }))
@@ -803,6 +815,267 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 			setLoadingState(prev => ({ ...prev, details: false, progress: 0, loadedDetails: 0, totalDetails: 0 }))
 		}
 	}
+
+	// Background loading: Load data outside the current date range and cache it
+	const loadBackgroundConversations = async (
+		currentStartDate: string,
+		currentEndDate: string,
+		currentSessions: any[],
+		currentSessionRequests: Record<string, any[]>,
+		currentRequestDetails: Record<string, any>
+	) => {
+		if (isBackgroundLoading) return // Already loading
+		
+		setIsBackgroundLoading(true)
+		setBackgroundLoadProgress('Loading extended date range...')
+		
+		try {
+			// Calculate extended date range: 30 days before and 30 days after
+			const startDateObj = new Date(currentStartDate + 'T00:00:00')
+			const endDateObj = new Date(currentEndDate + 'T23:59:59.999')
+			
+			// 30 days before start date
+			const extendedStartDate = new Date(startDateObj)
+			extendedStartDate.setDate(extendedStartDate.getDate() - 30)
+			const bgStartDate = formatDate(extendedStartDate)
+			
+			// 30 days after end date
+			const extendedEndDate = new Date(endDateObj)
+			extendedEndDate.setDate(extendedEndDate.getDate() + 30)
+			const bgEndDate = formatDate(extendedEndDate)
+			
+			// Load data for extended range (only outside current range)
+			let bgSessions: any[] = []
+			let bgSessionRequests: Record<string, any[]> = {}
+			let bgRequestDetails: Record<string, any> = {}
+			
+			// Load data before current start date
+			if (isN8NRoute) {
+				setBackgroundLoadProgress('Loading earlier conversations...')
+				const beforeRange = await fetchAllConversationsN8N(bgStartDate, currentStartDate)
+				beforeRange.sessions.forEach(s => bgSessions.push(s))
+				Object.assign(bgSessionRequests, beforeRange.sessionRequests)
+				
+				// Build requestDetails from the chat data
+				Object.values(beforeRange.sessionRequests).forEach((requests) => {
+					requests.forEach((request: any) => {
+						const requestId = request.requestId || request.id
+						if (requestId) {
+							bgRequestDetails[requestId] = {
+								inputText: request.chat_message || '',
+								outputText: request.response || ''
+							}
+						}
+					})
+				})
+				
+				// Load data after current end date
+				setBackgroundLoadProgress('Loading later conversations...')
+				const afterRange = await fetchAllConversationsN8N(currentEndDate, bgEndDate)
+				afterRange.sessions.forEach(s => bgSessions.push(s))
+				Object.assign(bgSessionRequests, afterRange.sessionRequests)
+				
+				// Build requestDetails from the chat data
+				Object.values(afterRange.sessionRequests).forEach((requests) => {
+					requests.forEach((request: any) => {
+						const requestId = request.requestId || request.id
+						if (requestId) {
+							bgRequestDetails[requestId] = {
+								inputText: request.chat_message || '',
+								outputText: request.response || ''
+							}
+						}
+					})
+				})
+			} else if (authToken) {
+				// Load data before current start date
+				setBackgroundLoadProgress('Loading earlier conversations...')
+				const beforeApiStartDate = getApiStartDate(bgStartDate)
+				const beforeApiEndDate = getApiEndDate(currentStartDate)
+				const beforeSessionsResponse = await fetchSessions(authToken, beforeApiStartDate, beforeApiEndDate)
+				const beforeSessions = beforeSessionsResponse.sessions || []
+				
+				// Fetch session requests for before range
+				const beforeRequestPromises = beforeSessions
+					.filter(session => session.sessionId)
+					.map(session => 
+						fetchSessionRequests(authToken, session.sessionId, beforeApiStartDate, beforeApiEndDate)
+							.catch(error => {
+								console.error(`Failed to fetch requests for session ${session.sessionId}:`, error)
+								return { requests: [] }
+							})
+					)
+				
+				const beforeRequestResponses = await Promise.all(beforeRequestPromises)
+				const beforeSessionRequests: Record<string, any[]> = {}
+				const beforeRequestIds: string[] = []
+				
+				beforeRequestResponses.forEach((response, index) => {
+					const session = beforeSessions[index]
+					if (session && session.sessionId) {
+						beforeSessionRequests[session.sessionId] = response.requests || []
+						response.requests?.forEach((req: any) => {
+							const requestId = req.requestId || req.id
+							if (requestId) {
+								beforeRequestIds.push(requestId)
+							}
+						})
+					}
+				})
+				
+				// Load data after current end date
+				setBackgroundLoadProgress('Loading later conversations...')
+				const afterApiStartDate = getApiStartDate(currentEndDate)
+				const afterApiEndDate = getApiEndDate(bgEndDate)
+				const afterSessionsResponse = await fetchSessions(authToken, afterApiStartDate, afterApiEndDate)
+				const afterSessions = afterSessionsResponse.sessions || []
+				
+				// Fetch session requests for after range
+				const afterRequestPromises = afterSessions
+					.filter(session => session.sessionId)
+					.map(session => 
+						fetchSessionRequests(authToken, session.sessionId, afterApiStartDate, afterApiEndDate)
+							.catch(error => {
+								console.error(`Failed to fetch requests for session ${session.sessionId}:`, error)
+								return { requests: [] }
+							})
+					)
+				
+				const afterRequestResponses = await Promise.all(afterRequestPromises)
+				const afterSessionRequests: Record<string, any[]> = {}
+				const afterRequestIds: string[] = []
+				
+				afterRequestResponses.forEach((response, index) => {
+					const session = afterSessions[index]
+					if (session && session.sessionId) {
+						afterSessionRequests[session.sessionId] = response.requests || []
+						response.requests?.forEach((req: any) => {
+							const requestId = req.requestId || req.id
+							if (requestId) {
+								afterRequestIds.push(requestId)
+							}
+						})
+					}
+				})
+				
+				// Combine before and after
+				bgSessions = [...beforeSessions, ...afterSessions]
+				bgSessionRequests = { ...beforeSessionRequests, ...afterSessionRequests }
+				const allRequestIds = [...beforeRequestIds, ...afterRequestIds]
+				
+				// Fetch request details in batches
+				setBackgroundLoadProgress(`Loading ${allRequestIds.length} request details...`)
+				for (let i = 0; i < allRequestIds.length; i += 10) {
+					const batch = allRequestIds.slice(i, i + 10)
+					await Promise.all(batch.map(async (requestId) => {
+						try {
+							const detailResponse = await fetchRequestDetail(authToken, requestId)
+							if (detailResponse && detailResponse.request) {
+								bgRequestDetails[requestId] = detailResponse.request
+							}
+						} catch (error) {
+							console.error(`Failed to fetch detail for ${requestId}:`, error)
+						}
+					}))
+					
+					if (i % 50 === 0) {
+						setBackgroundLoadProgress(`Loading ${i}/${allRequestIds.length} request details...`)
+					}
+				}
+			}
+			
+			// Merge background data with current data (background data takes precedence for overlapping dates)
+			const mergedSessions = [...currentSessions]
+			const mergedSessionRequests = { ...currentSessionRequests }
+			const mergedRequestDetails = { ...currentRequestDetails }
+			
+			// Add new sessions that aren't already in currentSessions
+			bgSessions.forEach(bgSession => {
+				if (!mergedSessions.find(s => s.sessionId === bgSession.sessionId)) {
+					mergedSessions.push(bgSession)
+				}
+			})
+			
+			// Merge session requests
+			Object.entries(bgSessionRequests).forEach(([sessionId, requests]) => {
+				if (!mergedSessionRequests[sessionId]) {
+					mergedSessionRequests[sessionId] = []
+				}
+				requests.forEach((req: any) => {
+					const requestId = req.requestId || req.id
+					if (!mergedSessionRequests[sessionId].find((r: any) => (r.requestId || r.id) === requestId)) {
+						mergedSessionRequests[sessionId].push(req)
+					}
+				})
+			})
+			
+			// Merge request details
+			Object.assign(mergedRequestDetails, bgRequestDetails)
+			
+			// Update state with merged data
+			setSessions(mergedSessions)
+			setSessionRequests(mergedSessionRequests)
+			setRequestDetails(mergedRequestDetails)
+			
+			// Cache the extended range data
+			const cacheKey = conversationsCache.generateKey(bgStartDate, bgEndDate)
+			const cacheData: CacheData = {
+				sessions: mergedSessions,
+				sessionRequests: mergedSessionRequests,
+				requestDetails: mergedRequestDetails,
+				adminFeedback: {}
+			}
+			conversationsCache.set(cacheKey, cacheData)
+			conversationsCache.setToStorage(cacheKey, cacheData)
+			
+			setBackgroundLoadProgress('Background loading complete!')
+			setConversationsLastRefreshed(new Date())
+			
+			// Small delay before clearing progress message
+			setTimeout(() => {
+				setBackgroundLoadProgress('')
+			}, 2000)
+			
+		} catch (error) {
+			console.error('Background loading failed:', error)
+			setBackgroundLoadProgress('Background loading failed')
+			setTimeout(() => {
+				setBackgroundLoadProgress('')
+			}, 3000)
+		} finally {
+			setIsBackgroundLoading(false)
+		}
+	}
+
+	// Auto-refresh Conversations based on selected interval
+	useEffect(() => {
+		if (conversationsAutoRefresh === null) return // Auto-refresh disabled
+		
+		const intervalId = setInterval(() => {
+			if (!isLoadingSessions && !isRefreshingConversations) {
+				refreshConversations()
+			}
+		}, conversationsAutoRefresh * 1000) // Convert seconds to milliseconds
+
+		return () => {
+			clearInterval(intervalId)
+		}
+	}, [refreshConversations, conversationsAutoRefresh, isLoadingSessions, isRefreshingConversations])
+
+	// Auto-refresh Admin Feedback based on selected interval
+	useEffect(() => {
+		if (adminFeedbackAutoRefresh === null) return // Auto-refresh disabled
+		
+		const intervalId = setInterval(() => {
+			if (!isRefreshingAdminFeedback) {
+				refreshAdminFeedback()
+			}
+		}, adminFeedbackAutoRefresh * 1000) // Convert seconds to milliseconds
+
+		return () => {
+			clearInterval(intervalId)
+		}
+	}, [refreshAdminFeedback, isRefreshingAdminFeedback, adminFeedbackAutoRefresh])
 
 	// Fetch sessions when token is available or dates change
 	useEffect(() => {
@@ -837,7 +1110,7 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 			
 			async function loadAllAdminFeedbackN8N() {
 				try {
-					const allFeedbackN8N = await getAllAdminFeedbackN8N()
+					const allFeedbackN8N = await getAllAdminFeedbackN8N(startDate, endDate)
 					if (!cancelled) {
 						// Map n8n feedback format (chat_id, apply) to UI format (request_id, prompt_apply)
 						const mappedFeedback: Record<string, AdminFeedbackData> = {}
@@ -855,6 +1128,54 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 						})
 						setAdminFeedback(mappedFeedback)
 						setAdminFeedbackLastRefreshed(new Date())
+						
+						// Load chat data for all feedback entries (for N8N route)
+						// This ensures User Message, AI Response, and Session ID are available even if not in current date range
+						const chatIds = Object.keys(mappedFeedback)
+						const requestDetailsMap: Record<string, any> = {}
+						const sessionRequestsMap: Record<string, any[]> = {}
+						
+						// Load chat data in batches to avoid overwhelming the API
+						for (let i = 0; i < chatIds.length; i += 10) {
+							if (cancelled) break
+							const batch = chatIds.slice(i, i + 10)
+							
+							await Promise.all(batch.map(async (chatId) => {
+								// Always try to fetch to ensure we have the data
+								try {
+									const detail = await fetchRequestDetailN8N(chatId)
+									if (detail && detail.request) {
+										// Store in requestDetails
+										requestDetailsMap[chatId] = {
+											inputText: detail.request.chat_message || '',
+											outputText: detail.request.response || ''
+										}
+										
+										// Store in sessionRequests for sessionId lookup
+										if (detail.request.sessionId) {
+											if (!sessionRequestsMap[detail.request.sessionId]) {
+												sessionRequestsMap[detail.request.sessionId] = []
+											}
+											sessionRequestsMap[detail.request.sessionId].push({
+												requestId: chatId,
+												id: chatId
+											})
+										}
+									}
+								} catch (error) {
+									console.warn(`Could not fetch detail for ${chatId}:`, error)
+								}
+							}))
+						}
+						
+						if (!cancelled) {
+							if (Object.keys(requestDetailsMap).length > 0) {
+								setRequestDetails(prev => ({ ...prev, ...requestDetailsMap }))
+							}
+							if (Object.keys(sessionRequestsMap).length > 0) {
+								setSessionRequests(prev => ({ ...prev, ...sessionRequestsMap }))
+							}
+						}
 					}
 				} catch (error) {
 					if (!cancelled) {
@@ -877,10 +1198,70 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 		
 		async function loadAllAdminFeedback() {
 			try {
-				const allFeedback = await getAllAdminFeedback()
+				const allFeedback = await getAllAdminFeedback(startDate, endDate)
 				if (!cancelled) {
 					setAdminFeedback(allFeedback)
 					setAdminFeedbackLastRefreshed(new Date())
+					
+					// Load chat data for all feedback entries (for tecace route)
+					// This ensures User Message, AI Response, and Session ID are available even if not in current date range
+					const requestIds = Object.keys(allFeedback)
+					const requestDetailsMap: Record<string, any> = {}
+					const sessionRequestsMap: Record<string, any[]> = {}
+					
+					// Load chat data in batches to avoid overwhelming the API
+					for (let i = 0; i < requestIds.length; i += 10) {
+						if (cancelled) break
+						const batch = requestIds.slice(i, i + 10)
+						
+						await Promise.all(batch.map(async (requestId) => {
+							// Always try to fetch to ensure we have the data
+							try {
+								const chatData = await getChatData(requestId)
+								if (chatData) {
+									// Store in requestDetails
+									requestDetailsMap[requestId] = {
+										inputText: chatData.input_text || '',
+										outputText: chatData.output_text || ''
+									}
+									
+									// Store in sessionRequests for sessionId lookup
+									if (chatData.session_id) {
+										if (!sessionRequestsMap[chatData.session_id]) {
+											sessionRequestsMap[chatData.session_id] = []
+										}
+										sessionRequestsMap[chatData.session_id].push({
+											requestId: requestId,
+											id: requestId
+										})
+									}
+								} else {
+									// Fallback to API if chat_data doesn't exist
+									if (authToken) {
+										try {
+											const detail = await fetchRequestDetail(authToken, requestId)
+											if (detail && detail.request) {
+												requestDetailsMap[requestId] = detail.request
+											}
+										} catch (error) {
+											console.warn(`Could not fetch detail for ${requestId}:`, error)
+										}
+									}
+								}
+							} catch (error) {
+								console.warn(`Could not fetch chat data for ${requestId}:`, error)
+							}
+						}))
+					}
+					
+					if (!cancelled) {
+						if (Object.keys(requestDetailsMap).length > 0) {
+							setRequestDetails(prev => ({ ...prev, ...requestDetailsMap }))
+						}
+						if (Object.keys(sessionRequestsMap).length > 0) {
+							setSessionRequests(prev => ({ ...prev, ...sessionRequestsMap }))
+						}
+					}
 				}
 			} catch (error) {
 				if (!cancelled) {
@@ -894,7 +1275,122 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 		return () => {
 			cancelled = true
 		}
-	}, [authToken, isN8NRoute])
+	}, [authToken, startDate, endDate, isN8NRoute])
+
+	// Keep requestDetailsRef in sync with requestDetails state
+	useEffect(() => {
+		requestDetailsRef.current = requestDetails
+	}, [requestDetails])
+
+	// Load missing chat data for admin feedback entries on-demand
+	// This runs whenever adminFeedback changes, ensuring we always try to load missing data
+	useEffect(() => {
+		if (Object.keys(adminFeedback).length === 0) return
+		
+		let cancelled = false
+		const requestIds = Object.keys(adminFeedback)
+		
+		async function loadMissingData() {
+			// Use ref to get current requestDetails without dependency issues
+			const currentRequestDetails = requestDetailsRef.current
+			const missingIds: string[] = []
+			
+			// Find requestIds that don't have requestDetails or have empty/dash values
+			requestIds.forEach(requestId => {
+				const detail = currentRequestDetails[requestId]
+				// Check if detail is missing, empty, or shows dash
+				if (!detail || !detail.inputText || detail.inputText.trim() === '' || detail.inputText === '-' || 
+				    !detail.outputText || detail.outputText.trim() === '' || detail.outputText === '-') {
+					missingIds.push(requestId)
+				}
+			})
+			
+			if (missingIds.length === 0) return
+			
+			console.log('Loading missing data for admin feedback:', missingIds)
+			
+			const requestDetailsMap: Record<string, any> = {}
+			const sessionRequestsMap: Record<string, any[]> = {}
+			
+			// Load in batches
+			for (let i = 0; i < missingIds.length; i += 10) {
+				if (cancelled) break
+				const batch = missingIds.slice(i, i + 10)
+				
+				await Promise.all(batch.map(async (requestId) => {
+					try {
+						if (isN8NRoute) {
+							// N8N route: Fetch from Supabase
+							const detail = await fetchRequestDetailN8N(requestId)
+							if (detail && detail.request) {
+								requestDetailsMap[requestId] = {
+									inputText: detail.request.chat_message || '',
+									outputText: detail.request.response || ''
+								}
+								
+								if (detail.request.sessionId) {
+									if (!sessionRequestsMap[detail.request.sessionId]) {
+										sessionRequestsMap[detail.request.sessionId] = []
+									}
+									sessionRequestsMap[detail.request.sessionId].push({
+										requestId: requestId,
+										id: requestId
+									})
+								}
+							}
+						} else {
+							// Tecace route: Try chat_data first, then API
+							const chatData = await getChatData(requestId)
+							if (chatData) {
+								requestDetailsMap[requestId] = {
+									inputText: chatData.input_text || '',
+									outputText: chatData.output_text || ''
+								}
+								
+								if (chatData.session_id) {
+									if (!sessionRequestsMap[chatData.session_id]) {
+										sessionRequestsMap[chatData.session_id] = []
+									}
+									sessionRequestsMap[chatData.session_id].push({
+										requestId: requestId,
+										id: requestId
+									})
+								}
+							} else if (authToken) {
+								// Fallback to API
+								const detail = await fetchRequestDetail(authToken, requestId)
+								if (detail && detail.request) {
+									requestDetailsMap[requestId] = detail.request
+								}
+							}
+						}
+					} catch (error) {
+						console.warn(`Could not fetch data for ${requestId}:`, error)
+					}
+				}))
+			}
+			
+			if (!cancelled) {
+				if (Object.keys(requestDetailsMap).length > 0) {
+					console.log('Updating requestDetails with:', Object.keys(requestDetailsMap))
+					setRequestDetails(prev => ({ ...prev, ...requestDetailsMap }))
+				}
+				if (Object.keys(sessionRequestsMap).length > 0) {
+					setSessionRequests(prev => ({ ...prev, ...sessionRequestsMap }))
+				}
+			}
+		}
+		
+		// Small delay to let initial adminFeedback load complete
+		const timeoutId = setTimeout(() => {
+			loadMissingData()
+		}, 300)
+		
+		return () => {
+			cancelled = true
+			clearTimeout(timeoutId)
+		}
+	}, [adminFeedback, isN8NRoute, authToken])
 
 	function toggleSessionExpansion(sessionId: string) {
 		const newExpanded = new Set(expandedSessions)
@@ -1931,24 +2427,53 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 									>
 										{isExportingConversations ? (language === 'ko' ? '내보내는 중...' : 'Exporting...') : t('export')}
 									</button>
-									<button 
-										className="refresh-btn"
-										onClick={refreshConversations}
-										disabled={isRefreshingConversations}
-										title={isRefreshingConversations ? (language === 'ko' ? '새로고침 중...' : 'Refreshing...') : (language === 'ko' ? '새로고침' : 'Refresh')}
-									>
-										<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={isRefreshingConversations ? 'spinning' : ''}>
-											<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
-											<path d="M21 3v5h-5"/>
-											<path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
-											<path d="M3 21v-5h5"/>
-										</svg>
-										<span className="refresh-btn-text">{language === 'ko' ? '새로고침' : 'Refresh'}</span>
-									</button>
+									<div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+										<select
+											value={conversationsAutoRefresh === null ? 'off' : conversationsAutoRefresh.toString()}
+											onChange={(e) => {
+												const value = e.target.value
+												setConversationsAutoRefresh(value === 'off' ? null : parseInt(value))
+											}}
+											style={{
+												padding: '6px 8px',
+												borderRadius: '4px',
+												border: '1px solid var(--border-color)',
+												background: 'var(--bg-secondary)',
+												color: 'var(--text-primary)',
+												fontSize: '14px',
+												cursor: 'pointer'
+											}}
+										>
+											<option value="off">{language === 'ko' ? '자동 새로고침 끄기' : 'Auto-refresh Off'}</option>
+											<option value="30">{language === 'ko' ? '30초' : '30 seconds'}</option>
+											<option value="60">{language === 'ko' ? '1분' : '1 minute'}</option>
+											<option value="300">{language === 'ko' ? '5분' : '5 minutes'}</option>
+											<option value="600">{language === 'ko' ? '10분' : '10 minutes'}</option>
+										</select>
+										<button 
+											className="refresh-btn"
+											onClick={refreshConversations}
+											disabled={isRefreshingConversations}
+											title={isRefreshingConversations ? (language === 'ko' ? '새로고침 중...' : 'Refreshing...') : (language === 'ko' ? '새로고침' : 'Refresh')}
+										>
+											<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={isRefreshingConversations ? 'spinning' : ''}>
+												<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+												<path d="M21 3v5h-5"/>
+												<path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
+												<path d="M3 21v-5h5"/>
+											</svg>
+											<span className="refresh-btn-text">{language === 'ko' ? '새로고침' : 'Refresh'}</span>
+										</button>
+									</div>
 								</div>
 								{conversationsLastRefreshed && (
 									<div className="last-refreshed">
 										{t('lastRefreshed')} {conversationsLastRefreshed.toLocaleString()}
+										{backgroundLoadProgress && (
+											<span style={{ marginLeft: '10px', fontSize: '0.9em', opacity: 0.8 }}>
+												• {backgroundLoadProgress}
+											</span>
+										)}
 									</div>
 								)}
 							</div>
@@ -1982,34 +2507,46 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 																</div>
 															</div>
 															<div className="conversation-card-footer">
-																<span className="admin-label">{t('adminFeedback')}:</span>
+																<span className="admin-label">{t('feedback')}:</span>
 																<div className="admin-actions">
-																	<button 
-																		className={`thumbs-btn thumbs-up ${adminFb?.feedback_verdict === 'good' ? 'submitted' : ''}`}
-																		title="Good"
-																		onClick={(e) => {
-																			e.preventDefault()
-																			e.stopPropagation()
-																			handleFeedbackClick('positive', conv.requestId)
-																		}}
-																	>
-																		<svg fill="currentColor" viewBox="0 0 24 24" width="18" height="18">
+																	{adminFb?.feedback_verdict === 'good' ? (
+																		<svg fill="#22c55e" viewBox="0 0 24 24" width="20" height="20">
 																			<path d="M20 8h-5.612l1.123-3.367c.202-.608.1-1.282-.275-1.802S14.253 2 13.612 2H12c-.297 0-.578.132-.769.36L6.531 8H4c-1.103 0-2 .897-2 2v9c0 1.103.897 2 2 2h13.307a2.01 2.01 0 0 0 1.873-1.298l2.757-7.351A1 1 0 0 0 22 12v-2c0-1.103-.897-2-2-2zM4 10h2v9H4v-9zm16 1.819L17.307 19H8V9.362L12.468 4h1.146l-1.562 4.683A.998.998 0 0 0 13 10h7v1.819z"></path>
 																		</svg>
-																	</button>
-																	<button 
-																		className={`thumbs-btn thumbs-down ${adminFb?.feedback_verdict === 'bad' ? 'submitted' : ''}`}
-																		title="Bad"
-																		onClick={(e) => {
-																			e.preventDefault()
-																			e.stopPropagation()
-																			handleFeedbackClick('negative', conv.requestId)
-																		}}
-																	>
-																		<svg fill="currentColor" viewBox="0 0 24 24" width="18" height="18">
+																	) : adminFb?.feedback_verdict === 'bad' ? (
+																		<svg fill="#ef4444" viewBox="0 0 24 24" width="20" height="20">
 																			<path d="M20 3H6.693A2.01 2.01 0 0 0 4.82 4.298l-2.757 7.351A1 1 0 0 0 2 12v2c0 1.103.897 2 2 2h5.612L8.49 19.367a2.004 2.004 0 0 0 .274 1.802c.376.52.982.831 1.624.831H12c.297 0 .578-.132.769-.360l4.7-5.64H20c1.103 0 2-.897 2-2V5c0-1.103-.897-2-2-2zm-8.469 17h-1.145l1.562-4.684A1 1 0 0 0 11 14H4v-1.819L6.693 5H16v9.638L11.531 20zM18 14V5h2l.001 9H18z"></path>
 																		</svg>
-																	</button>
+																	) : (
+																		<>
+																			<button 
+																				className="thumbs-btn thumbs-up"
+																				title="Good"
+																				onClick={(e) => {
+																					e.preventDefault()
+																					e.stopPropagation()
+																					handleFeedbackClick('positive', conv.requestId)
+																				}}
+																			>
+																				<svg fill="currentColor" viewBox="0 0 24 24" width="18" height="18">
+																					<path d="M20 8h-5.612l1.123-3.367c.202-.608.1-1.282-.275-1.802S14.253 2 13.612 2H12c-.297 0-.578.132-.769.36L6.531 8H4c-1.103 0-2 .897-2 2v9c0 1.103.897 2 2 2h13.307a2.01 2.01 0 0 0 1.873-1.298l2.757-7.351A1 1 0 0 0 22 12v-2c0-1.103-.897-2-2-2zM4 10h2v9H4v-9zm16 1.819L17.307 19H8V9.362L12.468 4h1.146l-1.562 4.683A.998.998 0 0 0 13 10h7v1.819z"></path>
+																				</svg>
+																			</button>
+																			<button 
+																				className="thumbs-btn thumbs-down"
+																				title="Bad"
+																				onClick={(e) => {
+																					e.preventDefault()
+																					e.stopPropagation()
+																					handleFeedbackClick('negative', conv.requestId)
+																				}}
+																			>
+																				<svg fill="currentColor" viewBox="0 0 24 24" width="18" height="18">
+																					<path d="M20 3H6.693A2.01 2.01 0 0 0 4.82 4.298l-2.757 7.351A1 1 0 0 0 2 12v2c0 1.103.897 2 2 2h5.612L8.49 19.367a2.004 2.004 0 0 0 .274 1.802c.376.52.982.831 1.624.831H12c.297 0 .578-.132.769-.360l4.7-5.64H20c1.103 0 2-.897 2-2V5c0-1.103-.897-2-2-2zm-8.469 17h-1.145l1.562-4.684A1 1 0 0 0 11 14H4v-1.819L6.693 5H16v9.638L11.531 20zM18 14V5h2l.001 9H18z"></path>
+																				</svg>
+																			</button>
+																		</>
+																	)}
 																	{adminFb && (
 																		<button 
 																			className="btn btn-sm edit-btn"
@@ -2108,32 +2645,44 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 																</td>
 																<td>
 																	<div className="admin-actions">
-																		<button 
-																			className={`thumbs-btn thumbs-up ${adminFb?.feedback_verdict === 'good' ? 'submitted' : ''}`}
-																			title="Thumbs Up"
-																			onClick={(e) => {
-																				e.preventDefault()
-																				e.stopPropagation()
-																				handleFeedbackClick('positive', conv.requestId)
-																			}}
-																		>
-																			<svg fill="currentColor" viewBox="0 0 24 24" width="18" height="18">
+																		{adminFb?.feedback_verdict === 'good' ? (
+																			<svg fill="#22c55e" viewBox="0 0 24 24" width="20" height="20">
 																				<path d="M20 8h-5.612l1.123-3.367c.202-.608.1-1.282-.275-1.802S14.253 2 13.612 2H12c-.297 0-.578.132-.769.36L6.531 8H4c-1.103 0-2 .897-2 2v9c0 1.103.897 2 2 2h13.307a2.01 2.01 0 0 0 1.873-1.298l2.757-7.351A1 1 0 0 0 22 12v-2c0-1.103-.897-2-2-2zM4 10h2v9H4v-9zm16 1.819L17.307 19H8V9.362L12.468 4h1.146l-1.562 4.683A.998.998 0 0 0 13 10h7v1.819z"></path>
 																			</svg>
-																		</button>
-																		<button 
-																			className={`thumbs-btn thumbs-down ${adminFb?.feedback_verdict === 'bad' ? 'submitted' : ''}`}
-																			title="Thumbs Down"
-																			onClick={(e) => {
-																				e.preventDefault()
-																				e.stopPropagation()
-																				handleFeedbackClick('negative', conv.requestId)
-																			}}
-																		>
-																			<svg fill="currentColor" viewBox="0 0 24 24" width="18" height="18">
+																		) : adminFb?.feedback_verdict === 'bad' ? (
+																			<svg fill="#ef4444" viewBox="0 0 24 24" width="20" height="20">
 																				<path d="M20 3H6.693A2.01 2.01 0 0 0 4.82 4.298l-2.757 7.351A1 1 0 0 0 2 12v2c0 1.103.897 2 2 2h5.612L8.49 19.367a2.004 2.004 0 0 0 .274 1.802c.376.52.982.831 1.624.831H12c.297 0 .578-.132.769-.360l4.7-5.64H20c1.103 0 2-.897 2-2V5c0-1.103-.897-2-2-2zm-8.469 17h-1.145l1.562-4.684A1 1 0 0 0 11 14H4v-1.819L6.693 5H16v9.638L11.531 20zM18 14V5h2l.001 9H18z"></path>
 																			</svg>
-																		</button>
+																		) : (
+																			<>
+																				<button 
+																					className="thumbs-btn thumbs-up"
+																					title="Thumbs Up"
+																					onClick={(e) => {
+																						e.preventDefault()
+																						e.stopPropagation()
+																						handleFeedbackClick('positive', conv.requestId)
+																					}}
+																				>
+																					<svg fill="currentColor" viewBox="0 0 24 24" width="18" height="18">
+																						<path d="M20 8h-5.612l1.123-3.367c.202-.608.1-1.282-.275-1.802S14.253 2 13.612 2H12c-.297 0-.578.132-.769.36L6.531 8H4c-1.103 0-2 .897-2 2v9c0 1.103.897 2 2 2h13.307a2.01 2.01 0 0 0 1.873-1.298l2.757-7.351A1 1 0 0 0 22 12v-2c0-1.103-.897-2-2-2zM4 10h2v9H4v-9zm16 1.819L17.307 19H8V9.362L12.468 4h1.146l-1.562 4.683A.998.998 0 0 0 13 10h7v1.819z"></path>
+																					</svg>
+																				</button>
+																				<button 
+																					className="thumbs-btn thumbs-down"
+																					title="Thumbs Down"
+																					onClick={(e) => {
+																						e.preventDefault()
+																						e.stopPropagation()
+																						handleFeedbackClick('negative', conv.requestId)
+																					}}
+																				>
+																					<svg fill="currentColor" viewBox="0 0 24 24" width="18" height="18">
+																						<path d="M20 3H6.693A2.01 2.01 0 0 0 4.82 4.298l-2.757 7.351A1 1 0 0 0 2 12v2c0 1.103.897 2 2 2h5.612L8.49 19.367a2.004 2.004 0 0 0 .274 1.802c.376.52.982.831 1.624.831H12c.297 0 .578-.132.769-.360l4.7-5.64H20c1.103 0 2-.897 2-2V5c0-1.103-.897-2-2-2zm-8.469 17h-1.145l1.562-4.684A1 1 0 0 0 11 14H4v-1.819L6.693 5H16v9.638L11.531 20zM18 14V5h2l.001 9H18z"></path>
+																					</svg>
+																				</button>
+																			</>
+																		)}
 																		{adminFb && (
 																			<button 
 																				className="btn btn-sm edit-btn"
@@ -2141,14 +2690,7 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 																				onClick={(e) => {
 																					e.preventDefault()
 																					e.stopPropagation()
-																					setExpandedFeedbackForms(prev => new Set(prev).add(conv.requestId))
-																					setFeedbackFormData(prev => ({
-																						...prev,
-																						[conv.requestId]: { 
-																							text: adminFb.feedback_text || '', 
-																							preferredResponse: adminFb.corrected_response || '' 
-																						}
-																					}))
+																					handleMessageClick(conv.requestId, true)
 																				}}
 																			>
 																				Edit
@@ -2276,6 +2818,16 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 							<div className="section-header">
 								<div id="admin-feedback-title" className="section-title">
 									{language === 'ko' ? '관리자 피드백' : 'Administrator Feedback'} ({filteredAndSortedAdminFeedback.length} {t('feedbackItems')})
+								</div>
+								<div className="date-controls">
+									<label className="date-field">
+										<span>Start Date</span>
+										<input type="date" className="input date-input" value={startDate} onChange={(e)=>onDateChange(e.target.value, endDate)} />
+									</label>
+									<label className="date-field">
+										<span>End Date</span>
+										<input type="date" className="input date-input" value={endDate} onChange={(e)=>onDateChange(startDate, e.target.value)} />
+									</label>
 								</div>
 								<div className="conversations-controls">
 									<div className="sort-control">
@@ -2410,20 +2962,44 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 											{language === 'ko' ? '템플릿' : 'Template'}
 										</button>
 									</div>
-									<button 
-										className="refresh-btn"
-										onClick={refreshAdminFeedback}
-										disabled={isRefreshingAdminFeedback}
-										title={isRefreshingAdminFeedback ? (language === 'ko' ? '새로고침 중...' : 'Refreshing...') : (language === 'ko' ? '새로고침' : 'Refresh')}
-									>
-										<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={isRefreshingAdminFeedback ? 'spinning' : ''}>
-											<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
-											<path d="M21 3v5h-5"/>
-											<path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
-											<path d="M3 21v-5h5"/>
-										</svg>
-										<span className="refresh-btn-text">{language === 'ko' ? '새로고침' : 'Refresh'}</span>
-									</button>
+									<div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+										<select
+											value={adminFeedbackAutoRefresh === null ? 'off' : adminFeedbackAutoRefresh.toString()}
+											onChange={(e) => {
+												const value = e.target.value
+												setAdminFeedbackAutoRefresh(value === 'off' ? null : parseInt(value))
+											}}
+											style={{
+												padding: '6px 8px',
+												borderRadius: '4px',
+												border: '1px solid var(--border-color)',
+												background: 'var(--bg-secondary)',
+												color: 'var(--text-primary)',
+												fontSize: '14px',
+												cursor: 'pointer'
+											}}
+										>
+											<option value="off">{language === 'ko' ? '자동 새로고침 끄기' : 'Auto-refresh Off'}</option>
+											<option value="30">{language === 'ko' ? '30초' : '30 seconds'}</option>
+											<option value="60">{language === 'ko' ? '1분' : '1 minute'}</option>
+											<option value="300">{language === 'ko' ? '5분' : '5 minutes'}</option>
+											<option value="600">{language === 'ko' ? '10분' : '10 minutes'}</option>
+										</select>
+										<button 
+											className="refresh-btn"
+											onClick={refreshAdminFeedback}
+											disabled={isRefreshingAdminFeedback}
+											title={isRefreshingAdminFeedback ? (language === 'ko' ? '새로고침 중...' : 'Refreshing...') : (language === 'ko' ? '새로고침' : 'Refresh')}
+										>
+											<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={isRefreshingAdminFeedback ? 'spinning' : ''}>
+												<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+												<path d="M21 3v5h-5"/>
+												<path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
+												<path d="M3 21v-5h5"/>
+											</svg>
+											<span className="refresh-btn-text">{language === 'ko' ? '새로고침' : 'Refresh'}</span>
+										</button>
+									</div>
 									{!isN8NRoute && (
 										<button 
 											className="btn btn-primary update-prompt-btn" 
@@ -2598,7 +3174,7 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 																			}}
 																			style={{ cursor: 'pointer' }}
 																		>
-																			{feedback.feedback_text || ''}
+																			{feedback.feedback_text || (language === 'ko' ? '(피드백 없음)' : '(No feedback)')}
 																		</div>
 																	)}
 																</div>
@@ -2786,7 +3362,7 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 																) : (
 																	<div 
 																		className="message-text-truncated" 
-																		title={feedback.feedback_text || ''}
+																		title={feedback.feedback_text || (language === 'ko' ? '피드백 없음' : 'No feedback')}
 																		data-full-text={feedback.feedback_text || ''}
 																		onClick={() => {
 																			setEditingAdminFeedback(prev => new Set(prev).add(requestId))
@@ -2800,7 +3376,7 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 																		}}
 																		style={{ cursor: 'pointer' }}
 																	>
-																		{feedback.feedback_text || ''}
+																		{feedback.feedback_text || (language === 'ko' ? '(피드백 없음)' : '(No feedback)')}
 																	</div>
 																)}
 															</td>
@@ -2923,6 +3499,9 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 					{/* User Feedback Section */}
 					<div className="content-section">
 						<UserFeedback 
+							startDate={startDate}
+							endDate={endDate}
+							onDateChange={onDateChange}
 							onChatIdClick={(chatId) => {
 								setConversationsSearch(chatId)
 								setAdminFeedbackFilter(chatId)

@@ -156,12 +156,25 @@ export async function getAdminFeedbackBatchN8N(chatIds: string[]): Promise<Recor
 }
 
 // Get ALL admin feedback entries
-export async function getAllAdminFeedbackN8N(): Promise<Record<string, AdminFeedbackDataN8N>> {
+export async function getAllAdminFeedbackN8N(startDate?: string, endDate?: string): Promise<Record<string, AdminFeedbackDataN8N>> {
   try {
-    const { data, error } = await supabaseN8N
+    let query = supabaseN8N
       .from('admin_feedback')
       .select('*')
-      .order('created_at', { ascending: false })
+    
+    // Apply date filter if provided
+    if (startDate && endDate) {
+      // Format dates for Supabase (ISO format)
+      // Use local timezone to ensure we include the entire day
+      const start = new Date(startDate + 'T00:00:00')
+      const end = new Date(endDate + 'T23:59:59.999')
+      
+      query = query
+        .gte('created_at', start.toISOString())
+        .lte('created_at', end.toISOString())
+    }
+    
+    const { data, error } = await query.order('created_at', { ascending: false })
 
     if (error) throw error
 
