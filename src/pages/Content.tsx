@@ -157,7 +157,7 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 	const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false)
 	const [expandedFeedbackForms, setExpandedFeedbackForms] = useState<Set<string>>(new Set())
 	const [closingFeedbackForms, setClosingFeedbackForms] = useState<Set<string>>(new Set())
-	const [feedbackFormData, setFeedbackFormData] = useState<Record<string, { text: string, preferredResponse: string }>>({})
+	const [feedbackFormData, setFeedbackFormData] = useState<Record<string, { text: string, preferredResponse: string, correctedMessage: string }>>({})
 	const [feedbackFormType, setFeedbackFormType] = useState<Record<string, 'positive' | 'negative'>>({})
 	const [submittingFeedbackRequests, setSubmittingFeedbackRequests] = useState<Set<string>>(new Set())
 	const [confirmationModal, setConfirmationModal] = useState<{
@@ -206,11 +206,10 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 		isOpen: false
 	})
 	const [manualFeedbackData, setManualFeedbackData] = useState({
-		userMessage: '',
-		aiResponse: '',
 		verdict: 'bad' as 'good' | 'bad',
-		feedbackText: '',
-		correctedResponse: ''
+		correctedMessage: '',
+		correctedResponse: '',
+		feedbackText: ''
 	})
 	const [isImporting, setIsImporting] = useState(false)
 	const [importFileInput, setImportFileInput] = useState<HTMLInputElement | null>(null)
@@ -251,18 +250,21 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 	// Handle Add Admin Feedback
 	const handleAddAdminFeedback = () => {
 		setManualFeedbackData({
-			userMessage: '',
-			aiResponse: '',
 			verdict: 'bad',
-			feedbackText: '',
-			correctedResponse: ''
+			correctedMessage: '',
+			correctedResponse: '',
+			feedbackText: ''
 		})
 		setAddAdminFeedbackModal({ isOpen: true })
 	}
 
 	const handleSaveManualFeedback = async () => {
-		if (!manualFeedbackData.feedbackText.trim()) {
-			alert(language === 'ko' ? '피드백 텍스트를 입력해주세요.' : 'Please enter feedback text.')
+		// Check if either Supervisor Feedback OR Corrected Response is filled (same validation as submit button)
+		const hasFeedbackText = manualFeedbackData.feedbackText.trim().length > 0
+		const hasCorrectedResponse = manualFeedbackData.correctedResponse.trim().length > 0
+		
+		if (!hasFeedbackText && !hasCorrectedResponse) {
+			alert(language === 'ko' ? 'Supervisor Feedback 또는 Corrected Response 중 하나를 입력해주세요.' : 'Please fill in either Supervisor Feedback or Corrected Response.')
 			return
 		}
 
@@ -272,14 +274,15 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 				savedFeedback = await saveManualAdminFeedbackN8N(
 					manualFeedbackData.verdict,
 					manualFeedbackData.feedbackText,
-					manualFeedbackData.userMessage,
-					manualFeedbackData.aiResponse,
-					manualFeedbackData.correctedResponse
+					manualFeedbackData.correctedResponse,
+					manualFeedbackData.correctedMessage
 				)
 				// Map to UI format
+				// Use feedback ID as key since chat_id is null
+				const feedbackKey = savedFeedback.id ? `feedback-${savedFeedback.id}` : `feedback-${Date.now()}`
 				const mappedFeedback: AdminFeedbackData = {
 					id: savedFeedback.id,
-					request_id: savedFeedback.chat_id || '',
+					request_id: feedbackKey, // Use generated key since chat_id is null
 					feedback_verdict: savedFeedback.feedback_verdict || manualFeedbackData.verdict,
 					feedback_text: savedFeedback.feedback_text || '',
 					corrected_response: savedFeedback.corrected_response || null,
@@ -289,49 +292,28 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 				}
 				setAdminFeedback(prev => ({
 					...prev,
-					[mappedFeedback.request_id]: mappedFeedback
+					[feedbackKey]: mappedFeedback
 				}))
-				// Store user message and AI response in requestDetails for display
-				if (manualFeedbackData.userMessage || manualFeedbackData.aiResponse) {
-					setRequestDetails(prev => ({
-						...prev,
-						[mappedFeedback.request_id]: {
-							inputText: manualFeedbackData.userMessage,
-							outputText: manualFeedbackData.aiResponse
-						}
-					}))
-				}
 			} else {
 				const savedFeedbackLegacy: AdminFeedbackData = await saveManualAdminFeedback(
 					manualFeedbackData.verdict,
 					manualFeedbackData.feedbackText,
-					manualFeedbackData.userMessage,
-					manualFeedbackData.aiResponse,
+					'', // userMessage - not used for manual feedback
+					'', // aiResponse - not used for manual feedback
 					manualFeedbackData.correctedResponse
 				)
 				setAdminFeedback(prev => ({
 					...prev,
 					[savedFeedbackLegacy.request_id]: savedFeedbackLegacy
 				}))
-				// Store user message and AI response in requestDetails for display
-				if (manualFeedbackData.userMessage || manualFeedbackData.aiResponse) {
-					setRequestDetails(prev => ({
-						...prev,
-						[savedFeedbackLegacy.request_id]: {
-							inputText: manualFeedbackData.userMessage,
-							outputText: manualFeedbackData.aiResponse
-						}
-					}))
-				}
 			}
 
 			setAddAdminFeedbackModal({ isOpen: false })
 			setManualFeedbackData({
-				userMessage: '',
-				aiResponse: '',
 				verdict: 'bad',
-				feedbackText: '',
-				correctedResponse: ''
+				correctedMessage: '',
+				correctedResponse: '',
+				feedbackText: ''
 			})
 			await refreshAdminFeedback()
 			alert(language === 'ko' ? '피드백이 추가되었습니다.' : 'Feedback added successfully.')
@@ -344,11 +326,10 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 	const handleCancelManualFeedback = () => {
 		setAddAdminFeedbackModal({ isOpen: false })
 		setManualFeedbackData({
-			userMessage: '',
-			aiResponse: '',
 			verdict: 'bad',
-			feedbackText: '',
-			correctedResponse: ''
+			correctedMessage: '',
+			correctedResponse: '',
+			feedbackText: ''
 		})
 	}
 
@@ -450,7 +431,7 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 	const handleDeleteAdminFeedback = async (requestId: string) => {
 		try {
 			if (isN8NRoute) {
-				await deleteAdminFeedbackN8N(requestId) // requestId is chat_id for n8n
+				await deleteAdminFeedbackN8N(requestId) // Can be chat_id or feedback-{id}
 			} else {
 				await deleteAdminFeedback(requestId)
 			}
@@ -462,11 +443,15 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 				return newState
 			})
 			
-			// Update system prompt to reflect the deletion
-			await updatePromptWithFeedback()
+			// Refresh admin feedback to ensure data is fresh
+			await refreshAdminFeedback()
 			
-			// Trigger prompt refresh in PromptControl component
-			triggerPromptRefresh()
+			// Update system prompt to reflect the deletion (only for standard route)
+			if (!isN8NRoute) {
+				await updatePromptWithFeedback()
+				// Trigger prompt refresh in PromptControl component
+				triggerPromptRefresh()
+			}
 			
 			// Close modal
 			setDeleteAdminFeedbackModal({
@@ -476,6 +461,7 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 			})
 		} catch (error) {
 			console.error('Failed to delete admin feedback:', error)
+			alert(language === 'ko' ? '피드백 삭제 실패' : 'Failed to delete feedback')
 		}
 	}
 
@@ -582,7 +568,8 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 			if (isN8NRoute) {
 				const allFeedbackN8N = await getAllAdminFeedbackN8N(startDate, endDate)
 				// Map n8n feedback format (chat_id, apply) to UI format (request_id, prompt_apply)
-				const mappedFeedback: Record<string, AdminFeedbackData> = {}
+				// Preserve corrected_message field for editing
+				const mappedFeedback: Record<string, AdminFeedbackData & { corrected_message?: string | null }> = {}
 				Object.entries(allFeedbackN8N).forEach(([chatId, feedback]) => {
 					mappedFeedback[chatId] = {
 						id: feedback.id,
@@ -590,6 +577,7 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 						feedback_verdict: feedback.feedback_verdict || 'good',
 						feedback_text: feedback.feedback_text || '',
 						corrected_response: feedback.corrected_response || null,
+						corrected_message: feedback.corrected_message || null,
 						prompt_apply: feedback.apply !== undefined ? feedback.apply : true,
 						created_at: feedback.created_at,
 						updated_at: feedback.updated_at || undefined
@@ -1113,7 +1101,8 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 					const allFeedbackN8N = await getAllAdminFeedbackN8N(startDate, endDate)
 					if (!cancelled) {
 						// Map n8n feedback format (chat_id, apply) to UI format (request_id, prompt_apply)
-						const mappedFeedback: Record<string, AdminFeedbackData> = {}
+						// Preserve corrected_message field for editing
+						const mappedFeedback: Record<string, AdminFeedbackData & { corrected_message?: string | null }> = {}
 						Object.entries(allFeedbackN8N).forEach(([chatId, feedback]) => {
 							mappedFeedback[chatId] = {
 								id: feedback.id,
@@ -1121,6 +1110,7 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 								feedback_verdict: feedback.feedback_verdict || 'good',
 								feedback_text: feedback.feedback_text || '',
 								corrected_response: feedback.corrected_response || null,
+								corrected_message: feedback.corrected_message || null,
 								prompt_apply: feedback.apply !== undefined ? feedback.apply : true, // Map apply to prompt_apply
 								created_at: feedback.created_at,
 								updated_at: feedback.updated_at || undefined
@@ -1131,7 +1121,8 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 						
 						// Load chat data for all feedback entries (for N8N route)
 						// This ensures User Message, AI Response, and Session ID are available even if not in current date range
-						const chatIds = Object.keys(mappedFeedback)
+						// Only load chat data for entries that have a chat_id (skip entries with feedback-{id} keys)
+						const chatIds = Object.keys(mappedFeedback).filter(key => !key.startsWith('feedback-'))
 						const requestDetailsMap: Record<string, any> = {}
 						const sessionRequestsMap: Record<string, any[]> = {}
 						
@@ -1143,12 +1134,20 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 							await Promise.all(batch.map(async (chatId) => {
 								// Always try to fetch to ensure we have the data
 								try {
-									const detail = await fetchRequestDetailN8N(chatId)
+									const trimmedChatId = chatId.trim() // Trim whitespace
+									const detail = await fetchRequestDetailN8N(trimmedChatId)
 									if (detail && detail.request) {
-										// Store in requestDetails
-										requestDetailsMap[chatId] = {
-											inputText: detail.request.chat_message || '',
-											outputText: detail.request.response || ''
+										// Store in requestDetails (use both trimmed and original as keys for lookup)
+										requestDetailsMap[trimmedChatId] = {
+											inputText: detail.request.inputText || '',
+											outputText: detail.request.outputText || ''
+										}
+										// Also store with original chatId if different
+										if (trimmedChatId !== chatId) {
+											requestDetailsMap[chatId] = {
+												inputText: detail.request.inputText || '',
+												outputText: detail.request.outputText || ''
+											}
 										}
 										
 										// Store in sessionRequests for sessionId lookup
@@ -1157,8 +1156,8 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 												sessionRequestsMap[detail.request.sessionId] = []
 											}
 											sessionRequestsMap[detail.request.sessionId].push({
-												requestId: chatId,
-												id: chatId
+												requestId: trimmedChatId,
+												id: trimmedChatId
 											})
 										}
 									}
@@ -1321,11 +1320,20 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 					try {
 						if (isN8NRoute) {
 							// N8N route: Fetch from Supabase
-							const detail = await fetchRequestDetailN8N(requestId)
+							const trimmedRequestId = requestId.trim() // Trim whitespace
+							const detail = await fetchRequestDetailN8N(trimmedRequestId)
 							if (detail && detail.request) {
-								requestDetailsMap[requestId] = {
-									inputText: detail.request.chat_message || '',
-									outputText: detail.request.response || ''
+								// Store in requestDetails (use both trimmed and original as keys for lookup)
+								requestDetailsMap[trimmedRequestId] = {
+									inputText: detail.request.inputText || '',
+									outputText: detail.request.outputText || ''
+								}
+								// Also store with original requestId if different
+								if (trimmedRequestId !== requestId) {
+									requestDetailsMap[requestId] = {
+										inputText: detail.request.inputText || '',
+										outputText: detail.request.outputText || ''
+									}
 								}
 								
 								if (detail.request.sessionId) {
@@ -1333,8 +1341,8 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 										sessionRequestsMap[detail.request.sessionId] = []
 									}
 									sessionRequestsMap[detail.request.sessionId].push({
-										requestId: requestId,
-										id: requestId
+										requestId: trimmedRequestId,
+										id: trimmedRequestId
 									})
 								}
 							}
@@ -1403,56 +1411,67 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 	}
 
 	const handleFeedbackClick = async (type: 'positive' | 'negative', requestId: string) => {
-		const existingFeedback = adminFeedback[requestId]
-		const requestDetail = requestDetails[requestId] || {}
+		const trimmedRequestId = requestId.trim() // Trim whitespace
+		const existingFeedback = adminFeedback[trimmedRequestId] || adminFeedback[requestId]
+		const requestDetail = requestDetails[trimmedRequestId] || requestDetails[requestId] || {}
 		const aiResponse = requestDetail.outputText || ''
+		const userMessage = requestDetail.inputText || ''
 		
 		// Open modal popup with User Message and AI Response
 		setFeedbackModal({
 			isOpen: true,
 			type: type,
-			requestId: requestId,
+			requestId: trimmedRequestId,
 			mode: existingFeedback ? 'edit' : 'submit',
 			existingFeedback: existingFeedback || null,
 			showThumbsButtons: true
 		})
 		setFeedbackText(existingFeedback?.feedback_text || '')
 		
-		// Set preferred response (corrected response) to AI Response if no existing corrected response
+		// Set corrected message - use existing if editing, otherwise default to User Message
+		// Corrected response stays empty by default (only use existing if editing)
+		const existingCorrectedMessage = (existingFeedback as any)?.corrected_message
 		setFeedbackFormData(prev => ({
 			...prev,
-			[requestId]: {
+			[trimmedRequestId]: {
 				text: existingFeedback?.feedback_text || '',
-				preferredResponse: existingFeedback?.corrected_response || aiResponse
+				preferredResponse: existingFeedback?.corrected_response || '',
+				correctedMessage: existingCorrectedMessage || userMessage
 			}
 		}))
 	}
 
 	const handleMessageClick = (requestId: string, showThumbsButtons: boolean = true) => {
-		const existingFeedback = adminFeedback[requestId]
-		const requestDetail = requestDetails[requestId] || {}
+		const trimmedRequestId = requestId.trim() // Trim whitespace
+		const existingFeedback = adminFeedback[trimmedRequestId] || adminFeedback[requestId]
+		const requestDetail = requestDetails[trimmedRequestId] || requestDetails[requestId] || {}
 		const aiResponse = requestDetail.outputText || ''
+		const userMessage = requestDetail.inputText || ''
 		
 		// Open modal popup when clicking on User Message or AI Response
 		setFeedbackModal({
 			isOpen: true,
 			type: existingFeedback?.feedback_verdict === 'good' ? 'positive' : existingFeedback?.feedback_verdict === 'bad' ? 'negative' : null,
-			requestId: requestId,
+			requestId: trimmedRequestId,
 			mode: existingFeedback ? 'edit' : 'submit',
 			existingFeedback: existingFeedback || null,
 			showThumbsButtons: showThumbsButtons
 		})
 		setFeedbackText(existingFeedback?.feedback_text || '')
 		
-		// Set preferred response (corrected response) to AI Response if no existing corrected response
+		// Set corrected message - use existing if editing, otherwise default to User Message
+		// Corrected response stays empty by default (only use existing if editing)
+		const existingCorrectedMessage = (existingFeedback as any)?.corrected_message
 		setFeedbackFormData(prev => ({
 			...prev,
-			[requestId]: {
+			[trimmedRequestId]: {
 				text: existingFeedback?.feedback_text || '',
-				preferredResponse: existingFeedback?.corrected_response || aiResponse
+				preferredResponse: existingFeedback?.corrected_response || '',
+				correctedMessage: existingCorrectedMessage || userMessage
 			}
 		}))
 	}
+
 
 	const closeFeedbackModal = () => {
 		setFeedbackModal({
@@ -1542,7 +1561,29 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 			// Delete existing negative feedback and save positive
 			if (isN8NRoute) {
 				await deleteAdminFeedbackN8N(requestId) // requestId is chat_id for n8n
-				const savedFeedbackN8N = await saveAdminFeedbackN8N(requestId, 'good', '')
+				
+				// Get sessionId and message data for ensuring chat exists
+				const requestDetail = requestDetails[requestId] || {}
+				const userMessage = requestDetail.inputText || ''
+				const aiResponse = requestDetail.outputText || ''
+				let sessionId = ''
+				for (const [sId, requests] of Object.entries(sessionRequests)) {
+					if (requests.some((r: any) => (r.requestId || r.id || r.chat_id) === requestId)) {
+						sessionId = sId
+						break
+					}
+				}
+				
+				const savedFeedbackN8N = await saveAdminFeedbackN8N(
+					requestId, 
+					'good', 
+					'', 
+					undefined, 
+					undefined,
+					sessionId || undefined,
+					userMessage || undefined,
+					aiResponse || undefined
+				)
 				// Map n8n format to UI format
 				const savedFeedback: AdminFeedbackData = {
 					id: savedFeedbackN8N.id,
@@ -1601,10 +1642,12 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 		})
 		
 		// Open the negative feedback form for new input
+		const requestDetail = requestDetails[requestId] || {}
+		const userMessage = requestDetail.inputText || ''
 		setExpandedFeedbackForms(prev => new Set(prev).add(requestId))
 		setFeedbackFormData(prev => ({
 			...prev,
-			[requestId]: { text: '', preferredResponse: '' }
+			[requestId]: { text: '', preferredResponse: '', correctedMessage: userMessage }
 		}))
 	}
 
@@ -1662,12 +1705,28 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 			// Delete existing positive feedback and save negative
 			if (isN8NRoute) {
 				await deleteAdminFeedbackN8N(requestId) // requestId is chat_id for n8n
-				// For n8n, chat data already exists in Supabase, no need to ensure it exists
+				
+				// Get sessionId and message data for ensuring chat exists
+				const requestDetail = requestDetails[requestId] || {}
+				const userMessage = requestDetail.inputText || ''
+				const aiResponse = requestDetail.outputText || ''
+				let sessionId = ''
+				for (const [sId, requests] of Object.entries(sessionRequests)) {
+					if (requests.some((r: any) => (r.requestId || r.id || r.chat_id) === requestId)) {
+						sessionId = sId
+						break
+					}
+				}
+				
 				const savedFeedbackN8N = await saveAdminFeedbackN8N(
 					requestId, // chat_id
 					'bad', 
 					formData.text,
-					formData.preferredResponse.trim() || undefined
+					formData.preferredResponse.trim() || undefined,
+					formData.correctedMessage?.trim() || undefined,
+					sessionId || undefined,
+					userMessage || undefined,
+					aiResponse || undefined
 				)
 				// Map n8n format to UI format
 				const savedFeedback: AdminFeedbackData = {
@@ -1753,8 +1812,28 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 		
 		try {
 			if (isN8NRoute) {
-				// For n8n, chat data already exists in Supabase, no need to ensure it exists
-				const savedFeedbackN8N = await saveAdminFeedbackN8N(requestId, 'good', '') // requestId is chat_id for n8n
+				// Get sessionId and message data for ensuring chat exists
+				const requestDetail = requestDetails[requestId] || {}
+				const userMessage = requestDetail.inputText || ''
+				const aiResponse = requestDetail.outputText || ''
+				let sessionId = ''
+				for (const [sId, requests] of Object.entries(sessionRequests)) {
+					if (requests.some((r: any) => (r.requestId || r.id || r.chat_id) === requestId)) {
+						sessionId = sId
+						break
+					}
+				}
+				
+				const savedFeedbackN8N = await saveAdminFeedbackN8N(
+					requestId, 
+					'good', 
+					'', 
+					undefined, 
+					undefined,
+					sessionId || undefined,
+					userMessage || undefined,
+					aiResponse || undefined
+				) // requestId is chat_id for n8n
 				// Map n8n format to UI format
 				const savedFeedback: AdminFeedbackData = {
 					id: savedFeedbackN8N.id,
@@ -1820,12 +1899,27 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 		
 		try {
 			if (isN8NRoute) {
-				// For n8n, chat data already exists in Supabase, no need to ensure it exists
+				// Get sessionId and message data for ensuring chat exists
+				const requestDetail = requestDetails[requestId] || {}
+				const userMessage = requestDetail.inputText || ''
+				const aiResponse = requestDetail.outputText || ''
+				let sessionId = ''
+				for (const [sId, requests] of Object.entries(sessionRequests)) {
+					if (requests.some((r: any) => (r.requestId || r.id || r.chat_id) === requestId)) {
+						sessionId = sId
+						break
+					}
+				}
+				
 				const savedFeedbackN8N = await saveAdminFeedbackN8N(
 					requestId, // chat_id
 					verdict, 
 					formData.text,
-					formData.preferredResponse.trim() || undefined
+					formData.preferredResponse.trim() || undefined,
+					formData.correctedMessage?.trim() || undefined,
+					sessionId || undefined,
+					userMessage || undefined,
+					aiResponse || undefined
 				)
 				// Map n8n format to UI format
 				const savedFeedback: AdminFeedbackData = {
@@ -1904,7 +1998,17 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 	}
 
 	const submitFeedback = async () => {
-		if (!feedbackModal.requestId || !feedbackModal.type || !feedbackText.trim()) {
+		if (!feedbackModal.requestId || !feedbackModal.type) {
+			return
+		}
+
+		// Check if either Supervisor Feedback OR Corrected Response is filled
+		const hasFeedbackText = feedbackText.trim().length > 0
+		const preferredResponse = feedbackFormData[feedbackModal.requestId]?.preferredResponse || ''
+		const hasPreferredResponse = preferredResponse.trim().length > 0
+		
+		if (!hasFeedbackText && !hasPreferredResponse) {
+			alert(language === 'ko' ? 'Supervisor Feedback 또는 Corrected Response 중 하나를 입력해주세요.' : 'Please fill in either Supervisor Feedback or Corrected Response.')
 			return
 		}
 
@@ -1912,41 +2016,66 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 		
 		try {
 			const verdict = feedbackModal.type === 'positive' ? 'good' : 'bad'
-			const preferredResponse = feedbackFormData[feedbackModal.requestId]?.preferredResponse || feedbackModal.existingFeedback?.corrected_response || ''
+			const requestId = feedbackModal.requestId!.trim() // Trim whitespace from requestId
+			const preferredResponse = feedbackFormData[requestId]?.preferredResponse || feedbackModal.existingFeedback?.corrected_response || ''
+			const correctedMessage = feedbackFormData[requestId]?.correctedMessage || ''
 			
 			if (isN8NRoute) {
-				// For n8n, chat data already exists in Supabase, no need to ensure it exists
+				// Find sessionId and get userMessage/aiResponse for ensuring chat exists
+				const requestDetail = requestDetails[requestId] || {}
+				const userMessage = requestDetail.inputText || ''
+				const aiResponse = requestDetail.outputText || ''
+				
+				// Find the session ID for this request
+				let sessionId = ''
+				for (const [sId, requests] of Object.entries(sessionRequests)) {
+					if (requests.some((r: any) => (r.requestId || r.id || r.chat_id) === requestId)) {
+						sessionId = sId
+						break
+					}
+				}
+				
 				let savedFeedbackN8N: AdminFeedbackDataN8N
 				if (feedbackModal.mode === 'edit' || feedbackModal.existingFeedback) {
 					// Update existing feedback
-					savedFeedbackN8N = await updateAdminFeedbackN8N(feedbackModal.requestId, verdict, feedbackText, preferredResponse.trim() || undefined)
+					savedFeedbackN8N = await updateAdminFeedbackN8N(requestId, verdict, feedbackText, preferredResponse.trim() || undefined, correctedMessage.trim() || undefined)
 				} else {
-					// Save new feedback
-					savedFeedbackN8N = await saveAdminFeedbackN8N(feedbackModal.requestId, verdict, feedbackText, preferredResponse.trim() || undefined)
+					// Save new feedback - ensure chat exists first
+					savedFeedbackN8N = await saveAdminFeedbackN8N(
+						requestId, 
+						verdict, 
+						feedbackText, 
+						preferredResponse.trim() || undefined, 
+						correctedMessage.trim() || undefined,
+						sessionId || undefined,
+						userMessage || undefined,
+						aiResponse || undefined
+					)
 				}
-				// Map n8n format to UI format
-				const savedFeedback: AdminFeedbackData = {
+				// Map n8n format to UI format, preserve corrected_message
+				const savedFeedback: AdminFeedbackData & { corrected_message?: string | null } = {
 					id: savedFeedbackN8N.id,
-					request_id: feedbackModal.requestId,
+					request_id: requestId,
 					feedback_verdict: savedFeedbackN8N.feedback_verdict || verdict,
 					feedback_text: savedFeedbackN8N.feedback_text || '',
 					corrected_response: savedFeedbackN8N.corrected_response || null,
+					corrected_message: savedFeedbackN8N.corrected_message || null,
 					prompt_apply: savedFeedbackN8N.apply !== undefined ? savedFeedbackN8N.apply : true,
 					created_at: savedFeedbackN8N.created_at,
 					updated_at: savedFeedbackN8N.updated_at || undefined
 				}
 				setAdminFeedback(prev => ({
 					...prev,
-					[feedbackModal.requestId!]: savedFeedback
+					[requestId]: savedFeedback
 				}))
 			} else {
 				// Ensure chat data exists first (required for foreign key constraint)
-				const requestDetail = requestDetails[feedbackModal.requestId]
+				const requestDetail = requestDetails[requestId]
 				if (requestDetail) {
 					// Find the session ID for this request
 					let sessionId = ''
 					for (const [sId, requests] of Object.entries(sessionRequests)) {
-						if (requests.some(r => (r.requestId || r.id) === feedbackModal.requestId)) {
+						if (requests.some(r => (r.requestId || r.id) === requestId)) {
 							sessionId = sId
 							break
 						}
@@ -1954,7 +2083,7 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 					
 					if (sessionId) {
 						await ensureChatDataExists(
-							feedbackModal.requestId,
+							requestId,
 							sessionId,
 							requestDetail.inputText || '',
 							requestDetail.outputText || ''
@@ -1965,14 +2094,14 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 				let savedFeedback: AdminFeedbackData
 				if (feedbackModal.mode === 'edit' || feedbackModal.existingFeedback) {
 					// Update existing feedback
-					savedFeedback = await updateAdminFeedback(feedbackModal.requestId, verdict, feedbackText, preferredResponse.trim() || undefined)
+					savedFeedback = await updateAdminFeedback(requestId, verdict, feedbackText, preferredResponse.trim() || undefined)
 				} else {
 					// Save new feedback
-					savedFeedback = await saveAdminFeedback(feedbackModal.requestId, verdict, feedbackText, preferredResponse.trim() || undefined)
+					savedFeedback = await saveAdminFeedback(requestId, verdict, feedbackText, preferredResponse.trim() || undefined)
 				}
 				setAdminFeedback(prev => ({
 					...prev,
-					[feedbackModal.requestId!]: savedFeedback
+					[requestId]: savedFeedback
 				}))
 			}
 			
@@ -1990,7 +2119,7 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 			}
 		} catch (error) {
 			console.error('Failed to submit feedback:', error)
-			// TODO: Show error message to user
+			alert(`Failed to submit feedback: ${error instanceof Error ? error.message : 'Unknown error'}`)
 		} finally {
 			setIsSubmittingFeedback(false)
 		}
@@ -2012,7 +2141,8 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 					requestId,
 					existingFeedback.feedback_verdict,
 					editData.text,
-					editData.correctedResponse.trim() || undefined
+					editData.correctedResponse.trim() || undefined,
+					undefined // correctedMessage not available in table edit view
 				)
 				const updatedFeedback: AdminFeedbackData = {
 					id: updatedFeedbackN8N.id,
@@ -2554,12 +2684,15 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 																			onClick={(e) => {
 																				e.preventDefault()
 																				e.stopPropagation()
+																				const requestDetail = requestDetails[conv.requestId] || {}
+																				const userMessage = requestDetail.inputText || ''
 																				setExpandedFeedbackForms(prev => new Set(prev).add(conv.requestId))
 																				setFeedbackFormData(prev => ({
 																					...prev,
 																					[conv.requestId]: { 
 																						text: adminFb.feedback_text || '', 
-																						preferredResponse: adminFb.corrected_response || '' 
+																						preferredResponse: adminFb.corrected_response || '',
+																						correctedMessage: userMessage
 																					}
 																				}))
 																			}}
@@ -2722,7 +2855,9 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 							
 							{/* Inline feedback form modal - appears when Edit is clicked or thumbs down is clicked */}
 							{expandedFeedbackForms.size > 0 && Array.from(expandedFeedbackForms).map(requestId => {
-								const formData = feedbackFormData[requestId] || { text: '', preferredResponse: '' }
+								const requestDetail = requestDetails[requestId] || {}
+								const userMessage = requestDetail.inputText || ''
+								const formData = feedbackFormData[requestId] || { text: '', preferredResponse: '', correctedMessage: userMessage }
 								const existingFeedback = adminFeedback[requestId]
 								
 								return (
@@ -3124,17 +3259,21 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 																</div>
 																<div className="admin-feedback-card-field">
 																	<strong>{t('chatId')}:</strong>
-																	<button
-																		className="chat-id-link"
-																		onClick={() => {
-																			setConversationsSearch(requestId)
-																			setAdminFeedbackFilter(requestId)
-																			scrollToConversation(requestId)
-																		}}
-																		title={requestId}
-																	>
-																		{requestId}
-																	</button>
+																	{requestId.startsWith('feedback-') ? (
+																		<span>-</span>
+																	) : (
+																		<button
+																			className="chat-id-link"
+																			onClick={() => {
+																				setConversationsSearch(requestId)
+																				setAdminFeedbackFilter(requestId)
+																				scrollToConversation(requestId)
+																			}}
+																			title={requestId}
+																		>
+																			{requestId}
+																		</button>
+																	)}
 																</div>
 																<div className="admin-feedback-card-field">
 																	<strong>{language === 'ko' ? '원본 AI 응답:' : 'Original AI Response:'}</strong>
@@ -3174,12 +3313,18 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 																			}}
 																			style={{ cursor: 'pointer' }}
 																		>
-																			{feedback.feedback_text || (language === 'ko' ? '(피드백 없음)' : '(No feedback)')}
+																			{feedback.feedback_text || '-'}
 																		</div>
 																	)}
 																</div>
 																<div className="admin-feedback-card-field">
-																	<strong>{language === 'ko' ? '수정된 응답:' : 'Modified Response:'}</strong>
+																	<strong>{language === 'ko' ? '수정된 메시지:' : 'Corrected Message:'}</strong>
+																	<div>
+																		{(feedback as any).corrected_message || '-'}
+																	</div>
+																</div>
+																<div className="admin-feedback-card-field">
+																	<strong>{language === 'ko' ? '수정된 응답:' : 'Corrected Response:'}</strong>
 																	{isEditing ? (
 																		<textarea
 																			className="feedback-edit-input"
@@ -3251,7 +3396,8 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 														<th>{t('userMessage')}</th>
 														<th>{t('aiResponse')}</th>
 														<th>{t('feedback')}</th>
-														<th>{t('corrected')}</th>
+														<th>{language === 'ko' ? '수정된 메시지' : 'Corrected Message'}</th>
+														<th>{language === 'ko' ? '수정된 응답' : 'Corrected Response'}</th>
 														<th>{t('applied')}</th>
 														<th>{t('delete')}</th>
 													</tr>
@@ -3284,17 +3430,21 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 																)}
 															</td>
 															<td>
-																<button
-																	className="chat-id-link"
-																	onClick={() => {
-																		setConversationsSearch(requestId)
-																		setAdminFeedbackFilter(requestId)
-																		scrollToConversation(requestId)
-																	}}
-																	title={requestId}
-																>
-																	<span className="chat-id-display">{formatChatId(requestId)}</span>
-																</button>
+																{requestId.startsWith('feedback-') ? (
+																	<span>-</span>
+																) : (
+																	<button
+																		className="chat-id-link"
+																		onClick={() => {
+																			setConversationsSearch(requestId)
+																			setAdminFeedbackFilter(requestId)
+																			scrollToConversation(requestId)
+																		}}
+																		title={requestId}
+																	>
+																		<span className="chat-id-display">{formatChatId(requestId)}</span>
+																	</button>
+																)}
 															</td>
 															<td>
 																{sessionId ? (
@@ -3362,7 +3512,7 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 																) : (
 																	<div 
 																		className="message-text-truncated" 
-																		title={feedback.feedback_text || (language === 'ko' ? '피드백 없음' : 'No feedback')}
+																		title={feedback.feedback_text || '-'}
 																		data-full-text={feedback.feedback_text || ''}
 																		onClick={() => {
 																			setEditingAdminFeedback(prev => new Set(prev).add(requestId))
@@ -3376,9 +3526,18 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 																		}}
 																		style={{ cursor: 'pointer' }}
 																	>
-																		{feedback.feedback_text || (language === 'ko' ? '(피드백 없음)' : '(No feedback)')}
+																		{feedback.feedback_text || '-'}
 																	</div>
 																)}
+															</td>
+															<td className="feedback-cell">
+																<div 
+																	className="message-text-truncated" 
+																	title={(feedback as any).corrected_message || '-'}
+																	data-full-text={(feedback as any).corrected_message || ''}
+																>
+																	{(feedback as any).corrected_message || '-'}
+																</div>
 															</td>
 															<td className="feedback-cell">
 																{isEditing ? (
@@ -3536,7 +3695,7 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 
 			{feedbackModal.isOpen && feedbackModal.requestId && (
 				<div className="modal-backdrop" onClick={closeFeedbackModal}>
-					<div className="modal card feedback-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '800px', width: '90%' }}>
+					<div className="modal card feedback-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '800px', width: '90%', zIndex: 9999 }}>
 						<div className="modal-header">
 							<h2 className="h1 modal-title">{language === 'ko' ? '관리자 피드백' : 'Admin Feedback'}</h2>
 							<button className="icon-btn" onClick={closeFeedbackModal}>
@@ -3693,13 +3852,19 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 									</p>
 									<div style={{ marginBottom: '16px' }}>
 										<label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: 'var(--text)' }}>
-											{language === 'ko' ? '관리자 피드백' : 'Supervisor Feedback'}:
+											{language === 'ko' ? '수정된 메시지' : 'Corrected Message'}:
 										</label>
 										<textarea
 											className="feedback-textarea"
-											value={feedbackText}
-											onChange={(e) => setFeedbackText(e.target.value)}
-											placeholder={language === 'ko' ? '피드백을 입력하세요...' : 'Explain what was wrong with this response...'}
+											value={feedbackFormData[feedbackModal.requestId]?.correctedMessage || requestDetails[feedbackModal.requestId]?.inputText || ''}
+											onChange={(e) => setFeedbackFormData(prev => ({
+												...prev,
+												[feedbackModal.requestId!]: {
+													...prev[feedbackModal.requestId!],
+													correctedMessage: e.target.value
+												}
+											}))}
+											placeholder={language === 'ko' ? '수정된 메시지를 입력하세요...' : 'Enter the corrected message...'}
 											rows={4}
 											disabled={isSubmittingFeedback}
 											style={{ width: '100%', resize: 'vertical' }}
@@ -3711,7 +3876,7 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 										</label>
 										<textarea
 											className="feedback-textarea"
-											value={feedbackFormData[feedbackModal.requestId]?.preferredResponse || requestDetails[feedbackModal.requestId]?.outputText || ''}
+											value={feedbackFormData[feedbackModal.requestId]?.preferredResponse || ''}
 											onChange={(e) => setFeedbackFormData(prev => ({
 												...prev,
 												[feedbackModal.requestId!]: {
@@ -3725,6 +3890,20 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 											style={{ width: '100%', resize: 'vertical' }}
 										/>
 									</div>
+									<div style={{ marginBottom: '16px' }}>
+										<label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: 'var(--text)' }}>
+											{language === 'ko' ? '관리자 피드백' : 'Supervisor Feedback'}:
+										</label>
+										<textarea
+											className="feedback-textarea"
+											value={feedbackText}
+											onChange={(e) => setFeedbackText(e.target.value)}
+											placeholder={language === 'ko' ? '피드백을 입력하세요...' : 'Explain what was wrong with this response...'}
+											rows={4}
+											disabled={isSubmittingFeedback}
+											style={{ width: '100%', resize: 'vertical' }}
+										/>
+									</div>
 									<div className="feedback-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
 										<button 
 											className="btn btn-ghost" 
@@ -3733,13 +3912,42 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 										>
 											{language === 'ko' ? '취소' : 'Cancel'}
 										</button>
-										<button 
-											className="btn btn-primary" 
-											onClick={submitFeedback}
-											disabled={!feedbackText.trim() || !feedbackModal.type || isSubmittingFeedback}
-										>
-											{isSubmittingFeedback ? (language === 'ko' ? '제출 중...' : 'Submitting...') : (language === 'ko' ? '제출' : 'Submit')}
-										</button>
+										{(() => {
+											const hasFeedbackText = feedbackText.trim().length > 0
+											const requestId = feedbackModal.requestId?.trim() || ''
+											const preferredResponse = requestId ? (feedbackFormData[requestId]?.preferredResponse || '') : ''
+											const hasPreferredResponse = preferredResponse.trim().length > 0
+											const isDisabled = !feedbackModal.type || isSubmittingFeedback || (!hasFeedbackText && !hasPreferredResponse)
+											const tooltipText = isDisabled 
+												? (!feedbackModal.type 
+													? (language === 'ko' ? '평가를 선택해주세요 (좋음/나쁨)' : 'Please select a rating (Good/Bad)')
+													: (!hasFeedbackText && !hasPreferredResponse
+														? (language === 'ko' ? 'Supervisor Feedback 또는 Corrected Response 중 하나를 입력해주세요' : 'Please fill in either Supervisor Feedback or Corrected Response')
+														: ''))
+												: ''
+											
+											return (
+												<button 
+													className="btn btn-primary" 
+													onClick={(e) => {
+														e.preventDefault()
+														e.stopPropagation()
+														if (!isDisabled) {
+															submitFeedback()
+														}
+													}}
+													disabled={isDisabled}
+													title={tooltipText}
+													style={{ 
+														cursor: isDisabled ? 'not-allowed' : 'pointer',
+														opacity: isDisabled ? 0.5 : 1,
+														position: 'relative'
+													}}
+												>
+													{isSubmittingFeedback ? (language === 'ko' ? '제출 중...' : 'Submitting...') : (language === 'ko' ? '제출' : 'Submit')}
+												</button>
+											)
+										})()}
 									</div>
 								</>
 							)}
@@ -3926,8 +4134,8 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 								<IconX />
 							</button>
 						</div>
-						<div className="confirmation-content">
-							<p>Are you certain you want to delete this admin feedback? This action cannot be undone.</p>
+						<div className="confirmation-content" style={{ padding: '24px', marginBottom: '32px' }}>
+							<p style={{ marginBottom: '16px' }}>Are you certain you want to delete this admin feedback? This action cannot be undone.</p>
 							{deleteAdminFeedbackModal.feedbackText && (
 								<div className="feedback-preview">
 									<strong>Feedback to be deleted:</strong>
@@ -3937,115 +4145,141 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 								</div>
 							)}
 						</div>
-						<button 
-							className="btn btn-ghost confirmation-no-btn" 
-							onClick={() => setDeleteAdminFeedbackModal({
-								isOpen: false,
-								requestId: null,
-								feedbackText: ''
-							})}
-						>
-							Cancel
-						</button>
-						<button 
-							className="btn btn-primary confirmation-yes-btn" 
-							onClick={() => deleteAdminFeedbackModal.requestId && handleDeleteAdminFeedback(deleteAdminFeedbackModal.requestId)}
-						>
-							Delete
-						</button>
+						<div className="feedback-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', padding: '0 24px 24px 24px' }}>
+							<button 
+								className="btn btn-ghost confirmation-no-btn" 
+								onClick={() => setDeleteAdminFeedbackModal({
+									isOpen: false,
+									requestId: null,
+									feedbackText: ''
+								})}
+							>
+								Cancel
+							</button>
+							<button 
+								className="btn btn-primary confirmation-yes-btn" 
+								onClick={(e) => {
+									e.preventDefault()
+									e.stopPropagation()
+									if (deleteAdminFeedbackModal.requestId) {
+										handleDeleteAdminFeedback(deleteAdminFeedbackModal.requestId)
+									}
+								}}
+							>
+								Delete
+							</button>
+						</div>
 					</div>
 				</div>
 			)}
 
 			{addAdminFeedbackModal.isOpen && (
 				<div className="modal-backdrop" onClick={handleCancelManualFeedback}>
-					<div className="inline-feedback-form-modal card" onClick={(e) => e.stopPropagation()}>
-						<div className="feedback-form-header">
-							<h3>{language === 'ko' ? '피드백 추가' : 'Add Feedback'}</h3>
+					<div className="modal card feedback-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '800px', width: '90%', zIndex: 9999 }}>
+						<div className="modal-header">
+							<h2 className="h1 modal-title">{language === 'ko' ? '피드백 추가' : 'Add Feedback'}</h2>
 							<button className="icon-btn" onClick={handleCancelManualFeedback}>
 								<IconX />
 							</button>
 						</div>
-						<div className="feedback-form-body" style={{ padding: '20px' }}>
+						<div className="feedback-content" style={{ padding: '20px' }}>
 							<div style={{ marginBottom: '16px' }}>
-								<label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>
-									{language === 'ko' ? '사용자 메시지 (선택사항)' : 'User Message (Optional)'}
-								</label>
-								<textarea
-									className="input"
-									value={manualFeedbackData.userMessage}
-									onChange={(e) => setManualFeedbackData(prev => ({ ...prev, userMessage: e.target.value }))}
-									placeholder={language === 'ko' ? '사용자 메시지를 입력하세요...' : 'Enter user message...'}
-									rows={3}
-									style={{ width: '100%', resize: 'vertical' }}
-								/>
-							</div>
-							<div style={{ marginBottom: '16px' }}>
-								<label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>
-									{language === 'ko' ? 'AI 응답 (선택사항)' : 'AI Response (Optional)'}
-								</label>
-								<textarea
-									className="input"
-									value={manualFeedbackData.aiResponse}
-									onChange={(e) => setManualFeedbackData(prev => ({ ...prev, aiResponse: e.target.value }))}
-									placeholder={language === 'ko' ? 'AI 응답을 입력하세요...' : 'Enter AI response...'}
-									rows={3}
-									style={{ width: '100%', resize: 'vertical' }}
-								/>
-							</div>
-							<div style={{ marginBottom: '16px' }}>
-								<label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>
-									{language === 'ko' ? '피드백 평가' : 'Feedback Verdict'} *
+								<label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: 'var(--text)' }}>
+									{language === 'ko' ? '피드백 평가' : 'Feedback Verdict'}:
 								</label>
 								<div style={{ display: 'flex', gap: '12px' }}>
 									<button
-										className={`btn ${manualFeedbackData.verdict === 'good' ? 'btn-primary' : 'btn-secondary'}`}
+										className={`thumbs-btn thumbs-up ${manualFeedbackData.verdict === 'good' ? 'submitted' : ''}`}
 										onClick={() => setManualFeedbackData(prev => ({ ...prev, verdict: 'good' }))}
+										style={{ width: '48px', height: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+										title={language === 'ko' ? '좋음' : 'Good'}
 									>
-										{language === 'ko' ? '좋음' : 'Good'}
+										<svg fill="currentColor" viewBox="0 0 24 24" width="24" height="24">
+											<path d="M20 8h-5.612l1.123-3.367c.202-.608.1-1.282-.275-1.802S14.253 2 13.612 2H12c-.297 0-.578.132-.769.36L6.531 8H4c-1.103 0-2 .897-2 2v9c0 1.103.897 2 2 2h13.307a2.01 2.01 0 0 0 1.873-1.298l2.757-7.351A1 1 0 0 0 22 12v-2c0-1.103-.897-2-2-2zM4 10h2v9H4v-9zm16 1.819L17.307 19H8V9.362L12.468 4h1.146l-1.562 4.683A.998.998 0 0 0 13 10h7v1.819z"></path>
+										</svg>
 									</button>
 									<button
-										className={`btn ${manualFeedbackData.verdict === 'bad' ? 'btn-primary' : 'btn-secondary'}`}
+										className={`thumbs-btn thumbs-down ${manualFeedbackData.verdict === 'bad' ? 'submitted' : ''}`}
 										onClick={() => setManualFeedbackData(prev => ({ ...prev, verdict: 'bad' }))}
+										style={{ width: '48px', height: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+										title={language === 'ko' ? '나쁨' : 'Bad'}
 									>
-										{language === 'ko' ? '나쁨' : 'Bad'}
+										<svg fill="currentColor" viewBox="0 0 24 24" width="24" height="24">
+											<path d="M20 3H6.693A2.01 2.01 0 0 0 4.82 4.298l-2.757 7.351A1 1 0 0 0 2 12v2c0 1.103.897 2 2 2h5.612L8.49 19.367a2.004 2.004 0 0 0 .274 1.802c.376.52.982.831 1.624.831H12c.297 0 .578-.132.769-.360l4.7-5.64H20c1.103 0 2-.897 2-2V5c0-1.103-.897-2-2-2zm-8.469 17h-1.145l1.562-4.684A1 1 0 0 0 11 14H4v-1.819L6.693 5H16v9.638L11.531 20zM18 14V5h2l.001 9H18z"></path>
+										</svg>
 									</button>
 								</div>
 							</div>
 							<div style={{ marginBottom: '16px' }}>
-								<label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>
-									{language === 'ko' ? '피드백 텍스트' : 'Feedback Text'} *
+								<label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: 'var(--text)' }}>
+									{language === 'ko' ? '수정된 메시지' : 'Corrected Message'}:
 								</label>
 								<textarea
-									className="input"
-									value={manualFeedbackData.feedbackText}
-									onChange={(e) => setManualFeedbackData(prev => ({ ...prev, feedbackText: e.target.value }))}
-									placeholder={language === 'ko' ? '피드백을 입력하세요...' : 'Enter feedback...'}
-									rows={3}
+									className="feedback-textarea"
+									value={manualFeedbackData.correctedMessage}
+									onChange={(e) => setManualFeedbackData(prev => ({ ...prev, correctedMessage: e.target.value }))}
+									placeholder={language === 'ko' ? '수정된 메시지를 입력하세요...' : 'Enter the corrected message...'}
+									rows={4}
 									style={{ width: '100%', resize: 'vertical' }}
-									required
 								/>
 							</div>
 							<div style={{ marginBottom: '16px' }}>
-								<label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>
-									{language === 'ko' ? '수정된 응답 (선택사항)' : 'Corrected Response (Optional)'}
+								<label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: 'var(--text)' }}>
+									{language === 'ko' ? '수정된 응답' : 'Corrected Response'}:
 								</label>
 								<textarea
-									className="input"
+									className="feedback-textarea"
 									value={manualFeedbackData.correctedResponse}
 									onChange={(e) => setManualFeedbackData(prev => ({ ...prev, correctedResponse: e.target.value }))}
-									placeholder={language === 'ko' ? '수정된 응답을 입력하세요...' : 'Enter corrected response...'}
-									rows={3}
+									placeholder={language === 'ko' ? '수정된 응답을 입력하세요...' : 'Enter the corrected response...'}
+									rows={4}
 									style={{ width: '100%', resize: 'vertical' }}
 								/>
 							</div>
-							<div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '24px' }}>
-								<button className="btn btn-secondary" onClick={handleCancelManualFeedback}>
+							<div style={{ marginBottom: '16px' }}>
+								<label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: 'var(--text)' }}>
+									{language === 'ko' ? '관리자 피드백' : 'Supervisor Feedback'}:
+								</label>
+								<textarea
+									className="feedback-textarea"
+									value={manualFeedbackData.feedbackText}
+									onChange={(e) => setManualFeedbackData(prev => ({ ...prev, feedbackText: e.target.value }))}
+									placeholder={language === 'ko' ? '피드백을 입력하세요...' : 'Explain what was wrong with this response...'}
+									rows={4}
+									style={{ width: '100%', resize: 'vertical' }}
+								/>
+							</div>
+							<div className="feedback-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+								<button className="btn btn-ghost" onClick={handleCancelManualFeedback}>
 									{language === 'ko' ? '취소' : 'Cancel'}
 								</button>
-								<button className="btn btn-primary" onClick={handleSaveManualFeedback}>
-									{language === 'ko' ? '저장' : 'Save'}
-								</button>
+								{(() => {
+									const hasFeedbackText = manualFeedbackData.feedbackText.trim().length > 0
+									const hasCorrectedResponse = manualFeedbackData.correctedResponse.trim().length > 0
+									const isDisabled = !manualFeedbackData.verdict || (!hasFeedbackText && !hasCorrectedResponse)
+									const tooltipText = isDisabled 
+										? (!manualFeedbackData.verdict 
+											? (language === 'ko' ? '평가를 선택해주세요 (좋음/나쁨)' : 'Please select a rating (Good/Bad)')
+											: (!hasFeedbackText && !hasCorrectedResponse
+												? (language === 'ko' ? 'Supervisor Feedback 또는 Corrected Response 중 하나를 입력해주세요' : 'Please fill in either Supervisor Feedback or Corrected Response')
+												: ''))
+										: ''
+									
+									return (
+										<button 
+											className="btn btn-primary" 
+											onClick={handleSaveManualFeedback}
+											disabled={isDisabled}
+											title={tooltipText}
+											style={{ 
+												cursor: isDisabled ? 'not-allowed' : 'pointer',
+												opacity: isDisabled ? 0.5 : 1
+											}}
+										>
+											{language === 'ko' ? '저장' : 'Save'}
+										</button>
+									)
+								})()}
 							</div>
 						</div>
 					</div>

@@ -24,6 +24,7 @@ export interface AdminFeedbackData {
   feedback_verdict: 'good' | 'bad'
   feedback_text: string
   corrected_response?: string | null
+  corrected_message?: string | null
   prompt_apply?: boolean
   created_at?: string
   updated_at?: string

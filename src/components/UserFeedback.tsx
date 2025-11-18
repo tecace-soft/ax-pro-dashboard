@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
 import { fetchUserFeedback } from '../services/userFeedback'
 import { UserFeedbackData } from '../services/supabase'
-import { fetchUserFeedbackN8N, UserFeedbackDataN8N } from '../services/userFeedbackN8N'
+import { fetchUserFeedbackN8N, deleteUserFeedbackN8N, UserFeedbackDataN8N } from '../services/userFeedbackN8N'
 import { getChatData } from '../services/chatData'
 import { fetchRequestDetailN8N } from '../services/conversationsN8N'
 import { useLanguage } from '../contexts/LanguageContext'
@@ -451,11 +451,33 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 	const handleDeleteUserFeedback = async () => {
 		if (!deleteUserFeedbackModal.feedbackId) return
 		
-		// TODO: Implement delete functionality
-		console.log('Delete user feedback:', deleteUserFeedbackModal.feedbackId)
-		
-		// Close modal after deletion
-		setDeleteUserFeedbackModal({ isOpen: false, feedbackId: null })
+		try {
+			if (isN8NRoute) {
+				await deleteUserFeedbackN8N(deleteUserFeedbackModal.feedbackId)
+			} else {
+				// TODO: Implement delete for standard route if needed
+				console.warn('Delete user feedback not implemented for standard route')
+			}
+			
+			// Update local state - remove deleted feedback
+			setUserFeedbacks(prev => prev.filter(fb => {
+				const fbId = (fb as UserFeedbackDataN8N).id || (fb as UserFeedbackData).id
+				// Compare as numbers to handle string/number mismatch
+				const modalId = typeof deleteUserFeedbackModal.feedbackId === 'string' 
+					? parseInt(deleteUserFeedbackModal.feedbackId) 
+					: deleteUserFeedbackModal.feedbackId
+				return fbId !== modalId
+			}))
+			
+			// Reload user feedback to ensure data is fresh
+			await loadUserFeedback(true)
+			
+			// Close modal after deletion
+			setDeleteUserFeedbackModal({ isOpen: false, feedbackId: null })
+		} catch (error) {
+			console.error('Failed to delete user feedback:', error)
+			alert(language === 'ko' ? '피드백 삭제 실패' : 'Failed to delete feedback')
+		}
 	}
 
 	const handleCancelDeleteUserFeedback = () => {
@@ -973,27 +995,46 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 			</div>
 
 			{deleteUserFeedbackModal.isOpen && (
-				<div className="modal-backdrop" role="dialog" aria-modal="true">
-					<div className="confirmation-modal card">
-						<div className="confirmation-content">
-							<p>
+				<div className="modal-backdrop" onClick={handleCancelDeleteUserFeedback} role="dialog" aria-modal="true">
+					<div className="confirmation-modal card" onClick={(e) => e.stopPropagation()}>
+						<div className="modal-header">
+							<h2 className="h1 modal-title">{language === 'ko' ? '사용자 피드백 삭제' : 'Delete User Feedback'}</h2>
+							<button className="icon-btn" onClick={handleCancelDeleteUserFeedback}>
+								<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+									<line x1="18" y1="6" x2="6" y2="18"></line>
+									<line x1="6" y1="6" x2="18" y2="18"></line>
+								</svg>
+							</button>
+						</div>
+						<div className="confirmation-content" style={{ padding: '24px', marginBottom: '32px' }}>
+							<p style={{ marginBottom: '0' }}>
 								{language === 'ko' 
 									? '이 사용자 피드백을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.' 
 									: 'Are you sure you want to delete this user feedback? This action cannot be undone.'}
 							</p>
 						</div>
-						<button 
-							className="btn btn-ghost confirmation-no-btn" 
-							onClick={handleCancelDeleteUserFeedback}
-						>
-							{language === 'ko' ? '취소' : 'Cancel'}
-						</button>
-						<button 
-							className="btn btn-primary confirmation-yes-btn" 
-							onClick={handleDeleteUserFeedback}
-						>
-							{t('delete')}
-						</button>
+						<div className="feedback-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', padding: '0 24px 24px 24px' }}>
+							<button 
+								className="btn btn-ghost confirmation-no-btn" 
+								onClick={(e) => {
+									e.preventDefault()
+									e.stopPropagation()
+									handleCancelDeleteUserFeedback()
+								}}
+							>
+								{language === 'ko' ? '취소' : 'Cancel'}
+							</button>
+							<button 
+								className="btn btn-primary confirmation-yes-btn" 
+								onClick={(e) => {
+									e.preventDefault()
+									e.stopPropagation()
+									handleDeleteUserFeedback()
+								}}
+							>
+								{t('delete')}
+							</button>
+						</div>
 					</div>
 				</div>
 			)}

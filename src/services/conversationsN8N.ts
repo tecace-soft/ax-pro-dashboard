@@ -223,7 +223,7 @@ export async function fetchRequestDetailN8N(
 
     let query = supabaseN8N
       .from('chat')
-      .select('chat_message, response')
+      .select('chat_message, response, session_id')
 
     if (isNumeric) {
       query = query.or(`chat_id.eq.${requestId},id.eq.${numericId}`)
@@ -235,7 +235,7 @@ export async function fetchRequestDetailN8N(
 
     if (error) {
       if (error.code === 'PGRST116') {
-        return { request: { inputText: '', outputText: '' } }
+        return { request: { inputText: '', outputText: '', sessionId: '' } }
       }
       throw error
     }
@@ -243,7 +243,8 @@ export async function fetchRequestDetailN8N(
     return {
       request: {
         inputText: data?.chat_message || '',
-        outputText: data?.response || ''
+        outputText: data?.response || '',
+        sessionId: data?.session_id || ''
       }
     }
   } catch (error) {

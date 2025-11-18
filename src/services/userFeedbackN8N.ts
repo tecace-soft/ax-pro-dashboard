@@ -74,3 +74,23 @@ export async function fetchUserFeedbackByDateRangeN8N(startDate: string, endDate
   }
 }
 
+// Delete user feedback by id
+export async function deleteUserFeedbackN8N(feedbackId: number | string): Promise<void> {
+  try {
+    const id = typeof feedbackId === 'string' ? parseInt(feedbackId) : feedbackId
+    if (isNaN(id)) {
+      throw new Error('Invalid feedback ID')
+    }
+    
+    const { error } = await supabaseN8N
+      .from('user_feedback')
+      .delete()
+      .eq('id', id)
+
+    if (error) throw error
+  } catch (error) {
+    console.error('Error deleting user feedback from n8n Supabase:', error)
+    throw error
+  }
+}
+
