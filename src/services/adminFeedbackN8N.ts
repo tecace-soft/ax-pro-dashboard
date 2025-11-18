@@ -6,6 +6,7 @@ export interface AdminFeedbackDataN8N {
   feedback_verdict?: 'good' | 'bad' | null
   feedback_text?: string | null
   corrected_response?: string | null
+  corrected_message?: string | null
   updated_at?: string | null
   chat_id?: string | null
   apply?: boolean
@@ -35,14 +36,100 @@ export async function getAdminFeedbackN8N(chatId: string): Promise<AdminFeedback
   }
 }
 
+// Ensure chat exists in the chat table (required for foreign key constraint)
+async function ensureChatExistsN8N(
+  chatId: string,
+  sessionId: string,
+  userMessage: string,
+  aiResponse: string
+): Promise<void> {
+  try {
+    // First, check if chat exists
+    const { data: existingChat, error: selectError } = await supabaseN8N
+      .from('chat')
+      .select('chat_id')
+      .eq('chat_id', chatId)
+      .single()
+
+    if (existingChat) {
+      // Chat already exists
+      return
+    }
+
+    if (selectError && selectError.code !== 'PGRST116') {
+      // Error other than "no rows found"
+      throw selectError
+    }
+
+    // Chat doesn't exist, ensure session exists first
+    const { error: sessionError } = await supabaseN8N
+      .from('session')
+      .insert({
+        session_id: sessionId,
+        created_at: new Date().toISOString()
+      })
+      .select()
+      .single()
+
+    // Ignore unique violation (session already exists)
+    if (sessionError && sessionError.code !== '23505') {
+      // If it's not a unique violation, check if session exists
+      const { data: existingSession } = await supabaseN8N
+        .from('session')
+        .select('session_id')
+        .eq('session_id', sessionId)
+        .single()
+
+      if (!existingSession) {
+        throw sessionError
+      }
+    }
+
+    // Now create the chat entry
+    const { error: insertError } = await supabaseN8N
+      .from('chat')
+      .insert({
+        chat_id: chatId,
+        session_id: sessionId,
+        chat_message: userMessage || '',
+        response: aiResponse || '',
+        user_id: null
+      })
+
+    if (insertError) {
+      // If chat already exists (race condition), that's okay
+      if (insertError.code !== '23505') {
+        throw insertError
+      }
+    }
+  } catch (error) {
+    console.error('Error ensuring chat exists:', error)
+    throw error
+  }
+}
+
 // Save new admin feedback
 export async function saveAdminFeedbackN8N(
   chatId: string, 
   verdict: 'good' | 'bad', 
   text: string,
-  correctedResponse?: string
+  correctedResponse?: string,
+  correctedMessage?: string,
+  sessionId?: string,
+  userMessage?: string,
+  aiResponse?: string
 ): Promise<AdminFeedbackDataN8N> {
   try {
+    // Ensure chat exists before saving feedback (required for foreign key constraint)
+    if (sessionId && (userMessage !== undefined || aiResponse !== undefined)) {
+      await ensureChatExistsN8N(
+        chatId,
+        sessionId,
+        userMessage || '',
+        aiResponse || ''
+      )
+    }
+
     const { data, error } = await supabaseN8N
       .from('admin_feedback')
       .insert({
@@ -50,6 +137,7 @@ export async function saveAdminFeedbackN8N(
         feedback_verdict: verdict,
         feedback_text: text,
         corrected_response: correctedResponse || null,
+        corrected_message: correctedMessage || null,
         apply: true
       })
       .select()
@@ -69,7 +157,8 @@ export async function updateAdminFeedbackN8N(
   chatId: string, 
   verdict: 'good' | 'bad', 
   text: string,
-  correctedResponse?: string
+  correctedResponse?: string,
+  correctedMessage?: string
 ): Promise<AdminFeedbackDataN8N> {
   try {
     const { data, error } = await supabaseN8N
@@ -78,6 +167,7 @@ export async function updateAdminFeedbackN8N(
         feedback_verdict: verdict,
         feedback_text: text,
         corrected_response: correctedResponse || null,
+        corrected_message: correctedMessage || null,
         updated_at: new Date().toISOString()
       })
       .eq('chat_id', chatId)
@@ -115,13 +205,29 @@ export async function updateAdminFeedbackApplyN8N(chatId: string, apply: boolean
   }
 }
 
-// Delete admin feedback
-export async function deleteAdminFeedbackN8N(chatId: string): Promise<void> {
+// Delete admin feedback by chat_id or id
+export async function deleteAdminFeedbackN8N(chatIdOrId: string): Promise<void> {
   try {
+    // Check if it's a feedback-{id} key (for entries without chat_id)
+    if (chatIdOrId.startsWith('feedback-')) {
+      const id = parseInt(chatIdOrId.replace('feedback-', ''))
+      if (!isNaN(id)) {
+        // Delete by id
+        const { error } = await supabaseN8N
+          .from('admin_feedback')
+          .delete()
+          .eq('id', id)
+        
+        if (error) throw error
+        return
+      }
+    }
+    
+    // Otherwise, delete by chat_id
     const { error } = await supabaseN8N
       .from('admin_feedback')
       .delete()
-      .eq('chat_id', chatId)
+      .eq('chat_id', chatIdOrId)
 
     if (error) throw error
   } catch (error) {
@@ -178,11 +284,14 @@ export async function getAllAdminFeedbackN8N(startDate?: string, endDate?: strin
 
     if (error) throw error
 
-    // Convert array to object keyed by chat_id
+    // Convert array to object keyed by chat_id (or feedback ID if chat_id is null)
     const feedbackMap: Record<string, AdminFeedbackDataN8N> = {}
     data?.forEach(feedback => {
       if (feedback.chat_id) {
         feedbackMap[feedback.chat_id] = feedback
+      } else if (feedback.id) {
+        // Use feedback ID as key for entries without chat_id
+        feedbackMap[`feedback-${feedback.id}`] = feedback
       }
     })
 
@@ -253,35 +362,23 @@ async function createManualChatEntryN8N(
   }
 }
 
-// Save manual admin feedback (creates a new entry with generated chat_id)
+// Save manual admin feedback (creates a new entry without chat_id)
 export async function saveManualAdminFeedbackN8N(
   verdict: 'good' | 'bad',
   text: string,
-  userMessage?: string,
-  aiResponse?: string,
-  correctedResponse?: string
+  correctedResponse?: string,
+  correctedMessage?: string
 ): Promise<AdminFeedbackDataN8N> {
   try {
-    const chatId = generateManualChatId()
-    
-    // First, create a chat entry if we have user message or AI response
-    // This is required because of the foreign key constraint
-    if (userMessage || aiResponse) {
-      await createManualChatEntryN8N(chatId, userMessage || '', aiResponse || '')
-    } else {
-      // If no user message or AI response, we still need a chat entry
-      // Create a minimal one
-      await createManualChatEntryN8N(chatId, '', '')
-    }
-    
-    // Now create the admin feedback entry
+    // Create the admin feedback entry without chat_id (set to null)
     const { data, error } = await supabaseN8N
       .from('admin_feedback')
       .insert({
-        chat_id: chatId,
+        chat_id: null,
         feedback_verdict: verdict,
         feedback_text: text,
         corrected_response: correctedResponse || null,
+        corrected_message: correctedMessage || null,
         apply: true
       })
       .select()

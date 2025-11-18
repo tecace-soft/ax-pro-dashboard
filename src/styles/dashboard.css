@@ -6344,40 +6344,40 @@ input:checked + .toggle-slider::before {
 /* Admin Feedback table - Date, Chat ID, Session ID, Rating columns - percentage width */
 .admin-feedback-table th:nth-child(1),
 .admin-feedback-table td:nth-child(1) {
-  width: 10%;
-  padding: 10px 8px;
+  width: 8%;
+  padding: 10px 6px;
 }
 
 .admin-feedback-table th:nth-child(2),
 .admin-feedback-table td:nth-child(2) {
-  width: 5%;
+  width: 4%;
   padding: 10px 2px;
-  max-width: 60px;
+  max-width: 50px;
 }
 
 .admin-feedback-table th:nth-child(3),
 .admin-feedback-table td:nth-child(3) {
-  width: 5%;
+  width: 4%;
   padding: 10px 2px;
-  max-width: 60px;
+  max-width: 50px;
 }
 
 .admin-feedback-table th:nth-child(4),
 .admin-feedback-table td:nth-child(4) {
-  width: 5%;
-  padding: 10px 4px;
+  width: 4%;
+  padding: 10px 3px;
   text-align: center;
 }
 
 /* Admin Feedback table - Message and Response columns - percentage width */
 .admin-feedback-table th:nth-child(5),
 .admin-feedback-table td:nth-child(5) {
-  width: 12%;
+  width: 10%;
 }
 
 .admin-feedback-table th:nth-child(6),
 .admin-feedback-table td:nth-child(6) {
-  width: 12%;
+  width: 10%;
 }
 
 /* Ensure message and response cells show one line only */
@@ -6396,30 +6396,35 @@ input:checked + .toggle-slider::before {
   word-break: break-word;
 }
 
-/* Admin Feedback table - Feedback and Corrected columns - percentage width */
+/* Admin Feedback table - Feedback, Corrected Message, and Corrected Response columns - percentage width */
 .admin-feedback-table th:nth-child(7),
 .admin-feedback-table td:nth-child(7) {
-  width: 15%;
+  width: 12%;
 }
 
 .admin-feedback-table th:nth-child(8),
 .admin-feedback-table td:nth-child(8) {
-  width: 15%;
+  width: 12%;
+}
+
+.admin-feedback-table th:nth-child(9),
+.admin-feedback-table td:nth-child(9) {
+  width: 12%;
 }
 
 /* Admin Feedback table - Applied column - percentage width */
-.admin-feedback-table th:nth-child(9),
-.admin-feedback-table td:nth-child(9) {
-  width: 6%;
+.admin-feedback-table th:nth-child(10),
+.admin-feedback-table td:nth-child(10) {
+  width: 5%;
   text-align: center;
 }
 
 /* Admin Feedback table - Delete column - center aligned */
-.admin-feedback-table th:nth-child(10),
-.admin-feedback-table td:nth-child(10) {
-  width: 5%;
+.admin-feedback-table th:nth-child(11),
+.admin-feedback-table td:nth-child(11) {
+  width: 4%;
   text-align: center !important;
-  padding: 10px 4px !important;
+  padding: 10px 3px !important;
   vertical-align: middle !important;
 }
 
