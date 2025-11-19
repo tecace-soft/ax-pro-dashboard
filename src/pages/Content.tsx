@@ -130,14 +130,18 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 		requestId: string | null, 
 		mode: 'submit' | 'view' | 'edit',
 		existingFeedback?: AdminFeedbackData | null,
-		showThumbsButtons?: boolean
+		showThumbsButtons?: boolean,
+		userMessage?: string,
+		aiResponse?: string
 	}>({
 		isOpen: false,
 		type: null,
 		requestId: null,
 		mode: 'submit',
 		existingFeedback: null,
-		showThumbsButtons: true
+		showThumbsButtons: true,
+		userMessage: '',
+		aiResponse: ''
 	})
 	const [userFeedbackModal, setUserFeedbackModal] = useState<{
 		isOpen: boolean,
@@ -599,38 +603,100 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 	// 최적화된 데이터 로딩 함수
 	const loadConversationsOptimized = async (bypassCache: boolean = false) => {
 		if (isN8NRoute) {
-			// N8N route: Use Supabase - fetch all chats, group by session_id, order by session.created_at
+			// N8N route: Simple - just fetch chats directly from Supabase
 			if (!startDate || !endDate) return
 
 			setIsLoadingSessions(true)
 			setLoadingState(prev => ({ ...prev, sessions: true, progress: 10 }))
 
 			try {
-				// Fetch all chats, group by session_id, and order by session.created_at
-				const { sessions: sessionsList, sessionRequests: sessionRequestsMap } = await fetchAllConversationsN8N(startDate, endDate)
+				// Fetch chats directly from Supabase, ordered by created_at descending
+				const start = new Date(startDate + 'T00:00:00')
+				const end = new Date(endDate + 'T23:59:59.999')
 				
-				setSessions(sessionsList)
-				setLoadingState(prev => ({ ...prev, sessions: false, requests: false, progress: 50 }))
+				const { data: allChats, error: chatsError } = await supabaseN8N
+					.from('chat')
+					.select('id, created_at, chat_message, response, session_id, chat_id, user_id')
+					.gte('created_at', start.toISOString())
+					.lte('created_at', end.toISOString())
+					.order('created_at', { ascending: false })
 
-				// Build requestDetails from the chat data (chat_message and response are already in sessionRequests)
+				if (chatsError) {
+					console.error('Error fetching chats:', chatsError)
+					throw chatsError
+				}
+
+				if (!allChats || allChats.length === 0) {
+					// No chats found - set empty data
+					setSessions([])
+					setSessionRequests({})
+					setRequestDetails({})
+					setIsLoadingSessions(false)
+					setConversationsLastRefreshed(new Date())
+					setLoadingState(prev => ({
+						...prev,
+						progress: 100,
+						totalDetails: 0,
+						loadedDetails: 0,
+						details: false
+					}))
+					return
+				}
+
+				// Build simple data structures
+				const sessionRequestsMap: Record<string, any[]> = {}
 				const requestDetailsMap: Record<string, any> = {}
-				const allRequestIds: string[] = []
+				const sessionsList: any[] = []
+				const seenSessionIds = new Set<string>()
 
-				Object.values(sessionRequestsMap).forEach((requests) => {
-					requests.forEach((request: any) => {
-						const requestId = request.requestId || request.id
-						if (requestId) {
-							allRequestIds.push(requestId)
-							// Store chat_message and response directly in requestDetails
-							requestDetailsMap[requestId] = {
-								inputText: request.chat_message || '',
-								outputText: request.response || ''
-							}
+				// Process each chat
+				allChats.forEach((chat: any) => {
+					// Ensure requestId is always a string for consistent key matching
+					const requestId = String(chat.chat_id || chat.id)
+					const sessionId = chat.session_id || ''
+					
+					// Build requestDetails with all chat data
+					requestDetailsMap[requestId] = {
+						inputText: chat.chat_message || '',
+						outputText: chat.response || '',
+						created_at: chat.created_at,
+						session_id: sessionId,
+						user_id: chat.user_id || null
+					}
+					
+					// Build sessionRequests (for compatibility with existing code)
+					if (sessionId) {
+						if (!sessionRequestsMap[sessionId]) {
+							sessionRequestsMap[sessionId] = []
 						}
-					})
+						sessionRequestsMap[sessionId].push({
+							requestId: String(requestId),
+							id: String(requestId),
+							createdAt: chat.created_at,
+							chat_message: chat.chat_message || '',
+							response: chat.response || '',
+							sessionId: sessionId,
+							user_id: chat.user_id || null
+						})
+						
+						// Build sessions list (only add each session once)
+						if (!seenSessionIds.has(sessionId)) {
+							seenSessionIds.add(sessionId)
+							sessionsList.push({
+								sessionId: sessionId,
+								createdAt: chat.created_at,
+								id: sessionId,
+								date: chat.created_at
+							})
+						}
+					}
 				})
 
+				// Sort sessions by created_at descending (most recent first)
+				sessionsList.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+
 				// Set the data
+				setSessions(sessionsList)
 				setSessionRequests(sessionRequestsMap)
 				setRequestDetails(requestDetailsMap)
 				setIsLoadingSessions(false)
@@ -638,16 +704,17 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 				setLoadingState(prev => ({
 					...prev,
 					progress: 100,
-					totalDetails: allRequestIds.length,
-					loadedDetails: allRequestIds.length,
+					totalDetails: allChats.length,
+					loadedDetails: allChats.length,
 					details: false
 				}))
 
-				// Start background loading after initial load completes
-				loadBackgroundConversations(startDate, endDate, sessionsList, sessionRequestsMap, requestDetailsMap)
-
 			} catch (error) {
 				console.error('Failed to load n8n conversations:', error)
+				// Set empty data on error to prevent stale data
+				setSessions([])
+				setSessionRequests({})
+				setRequestDetails({})
 				setIsLoadingSessions(false)
 			} finally {
 				setLoadingState(prev => ({ ...prev, details: false, progress: 0, loadedDetails: 0, totalDetails: 0 }))
@@ -840,15 +907,24 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 			// Load data before current start date
 			if (isN8NRoute) {
 				setBackgroundLoadProgress('Loading earlier conversations...')
-				const beforeRange = await fetchAllConversationsN8N(bgStartDate, currentStartDate)
+				// Calculate the day before currentStartDate to exclude current range
+				const dayBeforeStartDate = new Date(startDateObj)
+				dayBeforeStartDate.setDate(dayBeforeStartDate.getDate() - 1)
+				const beforeEndDate = formatDate(dayBeforeStartDate)
+				const beforeRange = await fetchAllConversationsN8N(bgStartDate, beforeEndDate)
 				beforeRange.sessions.forEach(s => bgSessions.push(s))
-				Object.assign(bgSessionRequests, beforeRange.sessionRequests)
+				// Only merge sessions/requests that don't already exist to avoid overwriting
+				Object.keys(beforeRange.sessionRequests).forEach(sessionId => {
+					if (!currentSessionRequests[sessionId]) {
+						bgSessionRequests[sessionId] = beforeRange.sessionRequests[sessionId]
+					}
+				})
 				
-				// Build requestDetails from the chat data
+				// Build requestDetails from the chat data (only for new requests)
 				Object.values(beforeRange.sessionRequests).forEach((requests) => {
 					requests.forEach((request: any) => {
 						const requestId = request.requestId || request.id
-						if (requestId) {
+						if (requestId && !currentRequestDetails[requestId]) {
 							bgRequestDetails[requestId] = {
 								inputText: request.chat_message || '',
 								outputText: request.response || ''
@@ -857,17 +933,26 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 					})
 				})
 				
-				// Load data after current end date
+				// Load data after current end date (exclude current range to avoid overwriting)
 				setBackgroundLoadProgress('Loading later conversations...')
-				const afterRange = await fetchAllConversationsN8N(currentEndDate, bgEndDate)
+				// Calculate the day after currentEndDate to exclude current range
+				const dayAfterEndDate = new Date(endDateObj)
+				dayAfterEndDate.setDate(dayAfterEndDate.getDate() + 1)
+				const afterStartDate = formatDate(dayAfterEndDate)
+				const afterRange = await fetchAllConversationsN8N(afterStartDate, bgEndDate)
 				afterRange.sessions.forEach(s => bgSessions.push(s))
-				Object.assign(bgSessionRequests, afterRange.sessionRequests)
+				// Only merge sessions/requests that don't already exist to avoid overwriting
+				Object.keys(afterRange.sessionRequests).forEach(sessionId => {
+					if (!currentSessionRequests[sessionId]) {
+						bgSessionRequests[sessionId] = afterRange.sessionRequests[sessionId]
+					}
+				})
 				
-				// Build requestDetails from the chat data
+				// Build requestDetails from the chat data (only for new requests)
 				Object.values(afterRange.sessionRequests).forEach((requests) => {
 					requests.forEach((request: any) => {
 						const requestId = request.requestId || request.id
-						if (requestId) {
+						if (requestId && !currentRequestDetails[requestId]) {
 							bgRequestDetails[requestId] = {
 								inputText: request.chat_message || '',
 								outputText: request.response || ''
@@ -984,21 +1069,46 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 				}
 			})
 			
-			// Merge session requests
+			// Merge session requests (only add new ones, don't overwrite existing)
 			Object.entries(bgSessionRequests).forEach(([sessionId, requests]) => {
 				if (!mergedSessionRequests[sessionId]) {
 					mergedSessionRequests[sessionId] = []
 				}
 				requests.forEach((req: any) => {
 					const requestId = req.requestId || req.id
-					if (!mergedSessionRequests[sessionId].find((r: any) => (r.requestId || r.id) === requestId)) {
+					const existingRequest = mergedSessionRequests[sessionId].find((r: any) => (r.requestId || r.id) === requestId)
+					if (!existingRequest) {
+						// Only add if it doesn't exist
 						mergedSessionRequests[sessionId].push(req)
+					} else {
+						// If it exists, only update if existing has empty chat_message/response and new one has data
+						if ((!existingRequest.chat_message || existingRequest.chat_message === '') && req.chat_message) {
+							existingRequest.chat_message = req.chat_message
+						}
+						if ((!existingRequest.response || existingRequest.response === '') && req.response) {
+							existingRequest.response = req.response
+						}
 					}
 				})
 			})
 			
-			// Merge request details
-			Object.assign(mergedRequestDetails, bgRequestDetails)
+			// Merge request details (only add new ones, don't overwrite existing with empty values)
+			Object.entries(bgRequestDetails).forEach(([requestId, detail]: [string, any]) => {
+				// Only add if it doesn't exist, or if existing is empty and new one has data
+				if (!mergedRequestDetails[requestId]) {
+					mergedRequestDetails[requestId] = detail
+				} else {
+					// Only update if existing is empty and new one has data
+					const existing = mergedRequestDetails[requestId]
+					if ((!existing.inputText || existing.inputText === '-') && detail.inputText) {
+						mergedRequestDetails[requestId] = {
+							...existing,
+							inputText: detail.inputText || existing.inputText,
+							outputText: detail.outputText || existing.outputText
+						}
+					}
+				}
+			})
 			
 			// Update state with merged data
 			setSessions(mergedSessions)
@@ -1411,20 +1521,63 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 	}
 
 	const handleFeedbackClick = async (type: 'positive' | 'negative', requestId: string) => {
-		const trimmedRequestId = requestId.trim() // Trim whitespace
-		const existingFeedback = adminFeedback[trimmedRequestId] || adminFeedback[requestId]
-		const requestDetail = requestDetails[trimmedRequestId] || requestDetails[requestId] || {}
-		const aiResponse = requestDetail.outputText || ''
-		const userMessage = requestDetail.inputText || ''
+		// Normalize requestId - ensure it's a string and trim whitespace
+		const normalizedRequestId = String(requestId).trim()
+		const existingFeedback = adminFeedback[normalizedRequestId] || adminFeedback[requestId]
+		
+		// Try to get data from requestDetails first - check multiple key formats
+		let requestDetail = requestDetails[normalizedRequestId] || requestDetails[requestId] || requestDetails[String(requestId)] || {}
+		let aiResponse = requestDetail.outputText || ''
+		let userMessage = requestDetail.inputText || ''
+		
+		// If requestDetails is empty, try to find the data from sessionRequests as fallback
+		if (!aiResponse && !userMessage) {
+			for (const [sessionId, requests] of Object.entries(sessionRequests)) {
+				const request = requests.find((r: any) => {
+					const rId = String(r.requestId || r.id)
+					return rId === normalizedRequestId || rId === String(requestId) || rId === requestId
+				})
+				if (request) {
+					userMessage = request.chat_message || ''
+					aiResponse = request.response || ''
+					
+					// Update requestDetails so the modal can access it
+					setRequestDetails(prev => ({
+						...prev,
+						[normalizedRequestId]: {
+							inputText: userMessage,
+							outputText: aiResponse,
+							created_at: request.createdAt || requestDetail.created_at,
+							session_id: request.sessionId || requestDetail.session_id,
+							user_id: request.user_id || requestDetail.user_id
+						},
+						// Also store with original requestId if different
+						...(normalizedRequestId !== String(requestId) ? {
+							[String(requestId)]: {
+								inputText: userMessage,
+								outputText: aiResponse,
+								created_at: request.createdAt || requestDetail.created_at,
+								session_id: request.sessionId || requestDetail.session_id,
+								user_id: request.user_id || requestDetail.user_id
+							}
+						} : {})
+					}))
+					break
+				}
+			}
+		}
 		
 		// Open modal popup with User Message and AI Response
+		// Store userMessage and aiResponse directly in modal state so they're available immediately
 		setFeedbackModal({
 			isOpen: true,
 			type: type,
-			requestId: trimmedRequestId,
+			requestId: normalizedRequestId,
 			mode: existingFeedback ? 'edit' : 'submit',
 			existingFeedback: existingFeedback || null,
-			showThumbsButtons: true
+			showThumbsButtons: true,
+			userMessage: userMessage,
+			aiResponse: aiResponse
 		})
 		setFeedbackText(existingFeedback?.feedback_text || '')
 		
@@ -1433,7 +1586,7 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 		const existingCorrectedMessage = (existingFeedback as any)?.corrected_message
 		setFeedbackFormData(prev => ({
 			...prev,
-			[trimmedRequestId]: {
+			[normalizedRequestId]: {
 				text: existingFeedback?.feedback_text || '',
 				preferredResponse: existingFeedback?.corrected_response || '',
 				correctedMessage: existingCorrectedMessage || userMessage
@@ -1442,20 +1595,63 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 	}
 
 	const handleMessageClick = (requestId: string, showThumbsButtons: boolean = true) => {
-		const trimmedRequestId = requestId.trim() // Trim whitespace
-		const existingFeedback = adminFeedback[trimmedRequestId] || adminFeedback[requestId]
-		const requestDetail = requestDetails[trimmedRequestId] || requestDetails[requestId] || {}
-		const aiResponse = requestDetail.outputText || ''
-		const userMessage = requestDetail.inputText || ''
+		// Normalize requestId - ensure it's a string and trim whitespace
+		const normalizedRequestId = String(requestId).trim()
+		const existingFeedback = adminFeedback[normalizedRequestId] || adminFeedback[requestId]
+		
+		// Try to get data from requestDetails first - check multiple key formats
+		let requestDetail = requestDetails[normalizedRequestId] || requestDetails[requestId] || requestDetails[String(requestId)] || {}
+		let aiResponse = requestDetail.outputText || ''
+		let userMessage = requestDetail.inputText || ''
+		
+		// If requestDetails is empty, try to find the data from sessionRequests as fallback
+		if (!aiResponse && !userMessage) {
+			for (const [sessionId, requests] of Object.entries(sessionRequests)) {
+				const request = requests.find((r: any) => {
+					const rId = String(r.requestId || r.id)
+					return rId === normalizedRequestId || rId === String(requestId) || rId === requestId
+				})
+				if (request) {
+					userMessage = request.chat_message || ''
+					aiResponse = request.response || ''
+					
+					// Update requestDetails so the modal can access it
+					setRequestDetails(prev => ({
+						...prev,
+						[normalizedRequestId]: {
+							inputText: userMessage,
+							outputText: aiResponse,
+							created_at: request.createdAt || requestDetail.created_at,
+							session_id: request.sessionId || requestDetail.session_id,
+							user_id: request.user_id || requestDetail.user_id
+						},
+						// Also store with original requestId if different
+						...(normalizedRequestId !== String(requestId) ? {
+							[String(requestId)]: {
+								inputText: userMessage,
+								outputText: aiResponse,
+								created_at: request.createdAt || requestDetail.created_at,
+								session_id: request.sessionId || requestDetail.session_id,
+								user_id: request.user_id || requestDetail.user_id
+							}
+						} : {})
+					}))
+					break
+				}
+			}
+		}
 		
 		// Open modal popup when clicking on User Message or AI Response
+		// Store userMessage and aiResponse directly in modal state so they're available immediately
 		setFeedbackModal({
 			isOpen: true,
 			type: existingFeedback?.feedback_verdict === 'good' ? 'positive' : existingFeedback?.feedback_verdict === 'bad' ? 'negative' : null,
-			requestId: trimmedRequestId,
+			requestId: normalizedRequestId,
 			mode: existingFeedback ? 'edit' : 'submit',
 			existingFeedback: existingFeedback || null,
-			showThumbsButtons: showThumbsButtons
+			showThumbsButtons: showThumbsButtons,
+			userMessage: userMessage,
+			aiResponse: aiResponse
 		})
 		setFeedbackText(existingFeedback?.feedback_text || '')
 		
@@ -1464,7 +1660,7 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 		const existingCorrectedMessage = (existingFeedback as any)?.corrected_message
 		setFeedbackFormData(prev => ({
 			...prev,
-			[trimmedRequestId]: {
+			[normalizedRequestId]: {
 				text: existingFeedback?.feedback_text || '',
 				preferredResponse: existingFeedback?.corrected_response || '',
 				correctedMessage: existingCorrectedMessage || userMessage
@@ -1480,7 +1676,9 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 			requestId: null,
 			mode: 'submit',
 			existingFeedback: null,
-			showThumbsButtons: true
+			showThumbsButtons: true,
+			userMessage: '',
+			aiResponse: ''
 		})
 		setFeedbackText('')
 	}
@@ -2037,8 +2235,16 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 				
 				let savedFeedbackN8N: AdminFeedbackDataN8N
 				if (feedbackModal.mode === 'edit' || feedbackModal.existingFeedback) {
-					// Update existing feedback
-					savedFeedbackN8N = await updateAdminFeedbackN8N(requestId, verdict, feedbackText, preferredResponse.trim() || undefined, correctedMessage.trim() || undefined)
+					// Update existing feedback - use id if available to avoid duplicate chat_id issues
+					const feedbackId = feedbackModal.existingFeedback?.id
+					savedFeedbackN8N = await updateAdminFeedbackN8N(
+						requestId, 
+						verdict, 
+						feedbackText, 
+						preferredResponse.trim() || undefined, 
+						correctedMessage.trim() || undefined,
+						feedbackId
+					)
 				} else {
 					// Save new feedback - ensure chat exists first
 					savedFeedbackN8N = await saveAdminFeedbackN8N(
@@ -2142,7 +2348,8 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 					existingFeedback.feedback_verdict,
 					editData.text,
 					editData.correctedResponse.trim() || undefined,
-					undefined // correctedMessage not available in table edit view
+					undefined, // correctedMessage not available in table edit view
+					existingFeedback.id // Use id to avoid duplicate chat_id issues
 				)
 				const updatedFeedback: AdminFeedbackData = {
 					id: updatedFeedbackN8N.id,
@@ -2245,35 +2452,88 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 			timestamp: number
 		}> = []
 
-		sessions.forEach(session => {
-			const sessionId = session?.sessionId || session?.id
-			const requests = sessionRequests[sessionId] || []
-			
-			requests.forEach((request: any) => {
-				const requestId = request.requestId || request.id
-				const detail = requestDetails[requestId] || {}
-				const feedback = adminFeedback[requestId]
+		if (isN8NRoute) {
+			// For N8N route: Build directly from requestDetails (which contains all chats)
+			Object.entries(requestDetails).forEach(([requestId, detail]: [string, any]) => {
+				// Find the corresponding request in sessionRequests to get metadata
+				let request: any = null
+				let sessionId = ''
 				
-				// Get user feedback from user feedback service (we'll need to fetch this separately)
-				// For now, we'll use admin feedback as a proxy
+				for (const [sId, requests] of Object.entries(sessionRequests)) {
+					const foundRequest = requests.find((r: any) => (r.requestId || r.id) === requestId)
+					if (foundRequest) {
+						request = foundRequest
+						sessionId = sId
+						break
+					}
+				}
+				
+				// If not found in sessionRequests, try to get from sessions (might be a chat without session)
+				if (!request) {
+					// Try to find sessionId from any session that might have this requestId
+					for (const [sId, requests] of Object.entries(sessionRequests)) {
+						if (requests.some((r: any) => (r.requestId || r.id) === requestId)) {
+							sessionId = sId
+							break
+						}
+					}
+				}
+				
+				const feedback = adminFeedback[requestId]
 				const userFb = feedback?.feedback_verdict === 'good' ? 'positive' : 
 				              feedback?.feedback_verdict === 'bad' ? 'negative' : null
 				
-				const timestamp = request.createdAt ? new Date(request.createdAt).getTime() : 0
+				const timestamp = request?.createdAt ? new Date(request.createdAt).getTime() : 
+				                  detail.created_at ? new Date(detail.created_at).getTime() : 0
+				
+				const userMessage = detail.inputText || request?.chat_message || ''
+				const aiResponse = detail.outputText || request?.response || ''
 				
 				conversations.push({
-					date: request.createdAt || '',
-					userId: request.user_id || '', // Use user_id from request if available
-					sessionId: sessionId,
+					date: request?.createdAt || detail.created_at || '',
+					userId: request?.user_id || detail.user_id || '',
+					sessionId: sessionId || detail.session_id || '',
 					requestId: requestId,
-					userMessage: detail.inputText || '',
-					aiResponse: detail.outputText || '',
+					userMessage: userMessage,
+					aiResponse: aiResponse,
 					userFeedback: userFb,
 					adminFeedback: feedback || null,
 					timestamp: timestamp
 				})
 			})
-		})
+		} else {
+			// Standard route: Use sessions/sessionRequests (original logic)
+			sessions.forEach(session => {
+				const sessionId = session?.sessionId || session?.id
+				const requests = sessionRequests[sessionId] || []
+				
+				requests.forEach((request: any) => {
+					const requestId = request.requestId || request.id
+					const detail = requestDetails[requestId] || {}
+					const feedback = adminFeedback[requestId]
+					
+					const userFb = feedback?.feedback_verdict === 'good' ? 'positive' : 
+					              feedback?.feedback_verdict === 'bad' ? 'negative' : null
+					
+					const timestamp = request.createdAt ? new Date(request.createdAt).getTime() : 0
+					
+					const userMessage = detail.inputText || request.chat_message || ''
+					const aiResponse = detail.outputText || request.response || ''
+					
+					conversations.push({
+						date: request.createdAt || '',
+						userId: request.user_id || '',
+						sessionId: sessionId,
+						requestId: requestId,
+						userMessage: userMessage,
+						aiResponse: aiResponse,
+						userFeedback: userFb,
+						adminFeedback: feedback || null,
+						timestamp: timestamp
+					})
+				})
+			})
+		}
 
 		// Sort by date (newest first) or session
 		conversations.sort((a, b) => {
@@ -2296,7 +2556,7 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 		}
 
 		return conversations
-	}, [sessions, sessionRequests, requestDetails, adminFeedback, conversationsSortBy, conversationsSearch])
+	}, [sessions, sessionRequests, requestDetails, adminFeedback, conversationsSortBy, conversationsSearch, isN8NRoute])
 
 	// Check if any conversation has a userId (to conditionally show/hide User ID column)
 	const hasAnyUserId = useMemo(() => {
@@ -3720,7 +3980,46 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 										maxHeight: '200px',
 										overflowY: 'auto'
 									}}>
-										{requestDetails[feedbackModal.requestId]?.inputText || '-'}
+										{feedbackModal.userMessage || (() => {
+											const requestId = feedbackModal.requestId
+											if (!requestId) return '-'
+											
+											// Normalize requestId for lookup
+											const normalizedId = String(requestId).trim()
+											
+											// Try requestDetails first - check multiple key formats
+											let detail = requestDetails[normalizedId] || requestDetails[requestId] || requestDetails[String(requestId)] || {}
+											let userMessage = detail.inputText || ''
+											
+											// If empty, try to find from sessionRequests
+											if (!userMessage) {
+												for (const [sessionId, requests] of Object.entries(sessionRequests)) {
+													const request = requests.find((r: any) => {
+														const rId = String(r.requestId || r.id)
+														return rId === normalizedId || rId === String(requestId) || rId === requestId
+													})
+													if (request) {
+														userMessage = request.chat_message || ''
+														// Update requestDetails for future access
+														if (!requestDetails[normalizedId]) {
+															setRequestDetails(prev => ({
+																...prev,
+																[normalizedId]: {
+																	inputText: request.chat_message || '',
+																	outputText: request.response || '',
+																	created_at: request.createdAt,
+																	session_id: request.sessionId,
+																	user_id: request.user_id
+																}
+															}))
+														}
+														break
+													}
+												}
+											}
+											
+											return userMessage || '-'
+										})()}
 									</div>
 								</div>
 								<div>
@@ -3738,7 +4037,46 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 										maxHeight: '200px',
 										overflowY: 'auto'
 									}}>
-										{requestDetails[feedbackModal.requestId]?.outputText || '-'}
+										{feedbackModal.aiResponse || (() => {
+											const requestId = feedbackModal.requestId
+											if (!requestId) return '-'
+											
+											// Normalize requestId for lookup
+											const normalizedId = String(requestId).trim()
+											
+											// Try requestDetails first - check multiple key formats
+											let detail = requestDetails[normalizedId] || requestDetails[requestId] || requestDetails[String(requestId)] || {}
+											let aiResponse = detail.outputText || ''
+											
+											// If empty, try to find from sessionRequests
+											if (!aiResponse) {
+												for (const [sessionId, requests] of Object.entries(sessionRequests)) {
+													const request = requests.find((r: any) => {
+														const rId = String(r.requestId || r.id)
+														return rId === normalizedId || rId === String(requestId) || rId === requestId
+													})
+													if (request) {
+														aiResponse = request.response || ''
+														// Update requestDetails for future access
+														if (!requestDetails[normalizedId]) {
+															setRequestDetails(prev => ({
+																...prev,
+																[normalizedId]: {
+																	inputText: request.chat_message || '',
+																	outputText: request.response || '',
+																	created_at: request.createdAt,
+																	session_id: request.sessionId,
+																	user_id: request.user_id
+																}
+															}))
+														}
+														break
+													}
+												}
+											}
+											
+											return aiResponse || '-'
+										})()}
 									</div>
 								</div>
 							</div>
