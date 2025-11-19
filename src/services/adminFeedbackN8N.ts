@@ -154,14 +154,15 @@ export async function saveAdminFeedbackN8N(
 
 // Update existing admin feedback
 export async function updateAdminFeedbackN8N(
-  chatId: string, 
+  chatIdOrId: string | number, 
   verdict: 'good' | 'bad', 
   text: string,
   correctedResponse?: string,
-  correctedMessage?: string
+  correctedMessage?: string,
+  feedbackId?: number
 ): Promise<AdminFeedbackDataN8N> {
   try {
-    const { data, error } = await supabaseN8N
+    let query = supabaseN8N
       .from('admin_feedback')
       .update({
         feedback_verdict: verdict,
@@ -170,7 +171,16 @@ export async function updateAdminFeedbackN8N(
         corrected_message: correctedMessage || null,
         updated_at: new Date().toISOString()
       })
-      .eq('chat_id', chatId)
+
+    // If feedbackId is provided, use it (most specific and avoids duplicates)
+    // Otherwise, use chat_id (for backward compatibility)
+    if (feedbackId !== undefined) {
+      query = query.eq('id', feedbackId)
+    } else {
+      query = query.eq('chat_id', String(chatIdOrId))
+    }
+
+    const { data, error } = await query
       .select()
       .single()
 
