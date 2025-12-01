@@ -482,7 +482,8 @@ export async function indexFileToVector(fileName: string): Promise<{
                      localStorage.getItem('n8n-dev-mode') === 'true'
     
     // 4. Construct webhook URL
-    const N8N_BASE_URL = 'https://n8n.srv978041.hstgr.cloud'
+    // const N8N_BASE_URL = 'https://n8n.srv978041.hstgr.cloud'
+    const N8N_BASE_URL = 'https://n8n.srv1153481.hstgr.cloud'
     const n8nWebhookUrl = isDevMode 
       ? `${N8N_BASE_URL}/webhook-test/${UPLOAD_WEBHOOK_ID}`
       : ((import.meta as any).env?.VITE_N8N_BASE_URL 
