@@ -1,7 +1,7 @@
 // src/pages/RagManagement/IndexDocs.tsx
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { IconRefresh, IconEye, IconAlertTriangle, IconCheck, IconX } from '../../ui/icons'
+import { IconRefresh, IconEye, IconDownload, IconAlertTriangle, IconCheck, IconX } from '../../ui/icons'
 import { listIndexDocsRows, IndexDoc, IndexRow, RAGApiError, fetchChunkContentById } from '../../lib/ragApi'
 import { fetchVectorDocuments, VectorDocument } from '../../services/ragManagementN8N'
 import { useSyncStatus } from '../../hooks/useSyncStatus'
@@ -143,10 +143,37 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
 
   // 페이지네이션 파라미터/필터된 목록 변경 시 화면 조각 갱신
   useEffect(() => {
-    const page = filteredDocs.slice(skip, skip + top)
-    setDocs(page)
-    setTotalCount(filteredDocs.length)
-  }, [top, skip, filteredDocs])
+    if (isN8NRoute) {
+      // For n8n route: paginate at file level, not row level
+      // First, get all file group rows (parent rows)
+      const fileGroups = filteredDocs.filter(doc => (doc as any)._isFileGroup)
+      const totalFiles = fileGroups.length
+      
+      // Paginate file groups
+      const startFileIndex = skip
+      const endFileIndex = Math.min(skip + top, totalFiles)
+      const paginatedFileGroups = fileGroups.slice(startFileIndex, endFileIndex)
+      
+      // Get all chunks for the paginated file groups
+      const paginatedFileNames = new Set(paginatedFileGroups.map(fg => fg.filepath || fg.title || ''))
+      const paginatedDocs = filteredDocs.filter(doc => {
+        if ((doc as any)._isFileGroup) {
+          return paginatedFileNames.has(doc.filepath || doc.title || '')
+        } else {
+          const fileName = doc.parent_id || doc.filepath || 'Unknown'
+          return paginatedFileNames.has(fileName)
+        }
+      })
+      
+      setDocs(paginatedDocs)
+      setTotalCount(totalFiles) // Count files, not rows
+    } else {
+      // For regular route: paginate at row level (original behavior)
+      const page = filteredDocs.slice(skip, skip + top)
+      setDocs(page)
+      setTotalCount(filteredDocs.length)
+    }
+  }, [top, skip, filteredDocs, isN8NRoute])
 
   // 전체 페이지를 끝까지 수집
   const loadAllIndexDocs = async () => {
@@ -201,13 +228,34 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
 
         // Group documents by fileName
         const groupedByFileName: Record<string, any[]> = {}
+        const unknownFiles: any[] = []
+        
         allDocuments.forEach((doc) => {
-          const fileName = doc.metadata?.fileName || 'Unknown'
-          if (!groupedByFileName[fileName]) {
-            groupedByFileName[fileName] = []
+          const fileName = doc.metadata?.fileName
+          if (!fileName || fileName.trim() === '' || fileName === 'Unknown') {
+            // Try to extract from other metadata fields
+            const altFileName = doc.metadata?.filepath || doc.metadata?.name || doc.metadata?.title
+            if (altFileName && altFileName !== 'Unknown') {
+              if (!groupedByFileName[altFileName]) {
+                groupedByFileName[altFileName] = []
+              }
+              groupedByFileName[altFileName].push(doc)
+            } else {
+              unknownFiles.push(doc)
+            }
+          } else {
+            if (!groupedByFileName[fileName]) {
+              groupedByFileName[fileName] = []
+            }
+            groupedByFileName[fileName].push(doc)
           }
-          groupedByFileName[fileName].push(doc)
         })
+
+        // Handle unknown files - group them together
+        if (unknownFiles.length > 0) {
+          console.warn(`⚠️ [IndexDocs] Found ${unknownFiles.length} documents without fileName in metadata`)
+          groupedByFileName['Unknown'] = unknownFiles
+        }
 
         console.log(`📁 [IndexDocs] Grouped into ${Object.keys(groupedByFileName).length} files:`, Object.keys(groupedByFileName))
 
@@ -359,6 +407,59 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
     setSelectedDoc(doc)
   }
 
+  const handleDownloadFile = async (fileName: string) => {
+    if (isN8NRoute) {
+      try {
+        const { supabaseN8N } = await import('../../services/supabaseN8N')
+        const filePath = `files/${fileName}`
+        
+        const { data: urlData, error: urlError } = await supabaseN8N.storage
+          .from('knowledge-base')
+          .createSignedUrl(filePath, 3600)
+        
+        if (urlError || !urlData) {
+          alert(`Failed to get download URL: ${urlError?.message || 'Unknown error'}`)
+          return
+        }
+        
+        const a = document.createElement('a')
+        a.href = urlData.signedUrl
+        a.download = fileName
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+      } catch (e) {
+        console.error('Failed to get download URL:', e)
+        alert('Failed to download file')
+      }
+    } else {
+      try {
+        const { downloadBlob } = await import('../../services/ragManagement')
+        const res = await downloadBlob(fileName)
+        if (res.ok && res.data?.content) {
+          const ext = fileName.split('.').pop()?.toLowerCase()
+          let mimeType = 'application/octet-stream'
+          if (ext === 'txt' || ext === 'md') mimeType = 'text/plain'
+          if (ext === 'pdf') mimeType = 'application/pdf'
+          if (ext === 'doc') mimeType = 'application/msword'
+          if (ext === 'docx') mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+          const blob = new Blob([res.data.content], { type: mimeType })
+          const url = URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.href = url
+          a.download = fileName
+          a.click()
+          URL.revokeObjectURL(url)
+        } else {
+          alert(`Failed to download file: ${res.error?.message || 'Unknown error'}`)
+        }
+      } catch (e) {
+        console.error('Failed to download file:', e)
+        alert('Failed to download file')
+      }
+    }
+  }
+
   // 모달이 열리면 자동으로 content 로드
   useEffect(() => {
     if (!selectedDoc) return
@@ -499,7 +600,10 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
         <tbody>
           {fileRows.map((fileRow) => {
             const fileName = fileRow.filepath || fileRow.title || ''
-            const chunks = groupedDocs[fileName] || []
+            // Match chunks by parent_id, filepath, or title
+            const chunks = groupedDocs[fileName] || 
+                          groupedDocs[fileRow.parent_id || ''] || 
+                          []
             const isExpanded = expandedFiles.has(fileName)
             const chunkCount = (fileRow as any)._chunkCount || chunks.length
             
@@ -526,7 +630,17 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
                   </td>
                   <td>{chunkCount} chunk{chunkCount !== 1 ? 's' : ''}</td>
                   <td>{renderSyncStatus(fileName)}</td>
-                  <td></td>
+                  <td>
+                    <div className="action-buttons">
+                      <button
+                        onClick={() => handleDownloadFile(fileName)}
+                        title="Download"
+                        className="action-btn download-btn"
+                      >
+                        <IconDownload />
+                      </button>
+                    </div>
+                  </td>
                 </tr>
                 {isExpanded && chunks.map((chunk, idx) => (
                   <tr key={chunk.chunk_id} style={{ backgroundColor: 'var(--bg)' }}>

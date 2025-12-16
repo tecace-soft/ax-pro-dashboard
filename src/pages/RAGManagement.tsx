@@ -550,7 +550,6 @@ export default function RAGManagement() {
         a.download = fileName
         a.click()
         URL.revokeObjectURL(url)
-        alert(`Downloaded: ${fileName}`)
       } else {
         alert(`Failed to download file: ${res.error?.message || 'Unknown error'}`)
       }
@@ -840,11 +839,8 @@ export default function RAGManagement() {
                                       {isSyncing[row.key] ? '⏳' : <IconX />}
                                     </button>
                                   )}
-                                  {syncStatus.blobExists && row.blob?.url && (
-                                    <button onClick={() => window.open(row.blob!.url as string, '_blank')} title={currentT.downloadAction}><IconDownload /></button>
-                                  )}
                                   {syncStatus.blobExists && (
-                                    <button onClick={() => handleDelete(row.key)} title={currentT.deleteAction}><IconTrash /></button>
+                                    <button onClick={() => handleDownload(row.key)} title={currentT.downloadAction}><IconDownload /></button>
                                   )}
                                 </div>
                               </td>

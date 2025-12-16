@@ -735,9 +735,13 @@ export default function RAGManagementN8N() {
         return
       }
       
-      // Open download URL
-      window.open(urlData.signedUrl, '_blank')
-      alert(`Downloading: ${fileName}`)
+      // Download the file
+      const a = document.createElement('a')
+      a.href = urlData.signedUrl
+      a.download = fileName
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
     } catch (e) {
       console.error('Failed to download file:', e)
       alert(`Failed to download file: ${e instanceof Error ? e.message : 'Unknown error'}`)
@@ -1018,11 +1022,8 @@ export default function RAGManagementN8N() {
                                       {isSyncing[row.key] ? '⏳' : <IconX />}
                                     </button>
                                   )}
-                                  {syncStatus.blobExists && row.blob?.url && (
-                                    <button onClick={() => window.open(row.blob!.url as string, '_blank')} title={currentT.downloadAction}><IconDownload /></button>
-                                  )}
                                   {syncStatus.blobExists && (
-                                    <button onClick={() => handleDelete(row.key)} title={currentT.deleteAction}><IconTrash /></button>
+                                    <button onClick={() => handleDownload(row.key)} title={currentT.downloadAction}><IconDownload /></button>
                                   )}
                                 </div>
                               </td>

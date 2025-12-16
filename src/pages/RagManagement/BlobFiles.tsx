@@ -346,7 +346,13 @@ export default function BlobFiles({ language = 'en', onUploadComplete, syncRows 
           return
         }
         
-        window.open(urlData.signedUrl, '_blank', 'noopener')
+        // Download the file
+        const a = document.createElement('a')
+        a.href = urlData.signedUrl
+        a.download = blob.name
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
       } catch (e) {
         console.error('Failed to get download URL:', e)
         alert('Failed to download file')
@@ -359,22 +365,17 @@ export default function BlobFiles({ language = 'en', onUploadComplete, syncRows 
         return
       }
 
-      // Open in a new tab/window for viewing; keep current page
+      // Download the file
       try {
-        const w = window.open(url, '_blank', 'noopener')
-        if (!w) {
-          // Popup blocked fallback
-          const a = document.createElement('a')
-          a.href = url
-          a.target = '_blank'
-          a.rel = 'noopener'
-          document.body.appendChild(a)
-          a.click()
-          a.remove()
-        }
+        const a = document.createElement('a')
+        a.href = url
+        a.download = blob.name
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
       } catch (e) {
-        console.error('Open in new window failed:', e)
-        window.open(url, '_blank')
+        console.error('Download failed:', e)
+        alert('Failed to download file')
       }
     }
   }
@@ -565,15 +566,13 @@ export default function BlobFiles({ language = 'en', onUploadComplete, syncRows 
                       </td>
                       <td>
                         <div className="action-buttons">
-                          {(blob as any).url_with_sas || blob.url ? (
-                            <button 
-                              onClick={() => handleDownload(blob)}
-                              title={currentT.download}
-                              className="action-btn download-btn"
-                            >
-                              <IconDownload />
-                            </button>
-                          ) : null}
+                          <button 
+                            onClick={() => handleDownload(blob)}
+                            title={currentT.download}
+                            className="action-btn download-btn"
+                          >
+                            <IconDownload />
+                          </button>
                           <button 
                             onClick={() => handleDelete(blob)}
                             title={currentT.delete}
