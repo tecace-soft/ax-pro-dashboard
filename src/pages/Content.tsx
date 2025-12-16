@@ -593,8 +593,15 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 				setAdminFeedback(allFeedback)
 			}
 			setAdminFeedbackLastRefreshed(new Date())
-		} catch (error) {
+		} catch (error: any) {
 			console.error('Failed to refresh admin feedback:', error)
+			
+			// 네트워크 에러인 경우 사용자에게 알림 (선택사항)
+			if (error?.message?.includes('Failed to fetch') || 
+			    error?.message?.includes('ERR_NAME_NOT_RESOLVED') ||
+			    error?.details?.includes('Failed to fetch')) {
+				console.warn('Network error detected. This may be a local network/DNS issue. Live environment should work fine.')
+			}
 		} finally {
 			setIsRefreshingAdminFeedback(false)
 		}

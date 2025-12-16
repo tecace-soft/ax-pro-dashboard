@@ -185,9 +185,17 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 				}
 			}
 			setUserFeedbackLastRefreshed(new Date())
-		} catch (error) {
+		} catch (error: any) {
 			console.error('Failed to load user feedback:', error)
-			setError('Failed to load user feedback')
+			
+			// 네트워크 에러인 경우 더 명확한 메시지 표시
+			if (error?.message?.includes('Failed to fetch') || 
+			    error?.message?.includes('ERR_NAME_NOT_RESOLVED') ||
+			    error?.details?.includes('Failed to fetch')) {
+				setError('Network error: Unable to connect to server. Please check your internet connection.')
+			} else {
+				setError('Failed to load user feedback')
+			}
 		} finally {
 			setIsLoading(false)
 		}
