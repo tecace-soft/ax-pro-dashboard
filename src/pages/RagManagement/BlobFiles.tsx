@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
 import { IconUpload, IconTrash, IconRefresh, IconDownload, IconAlertTriangle, IconCheck, IconCheckCircle, IconX } from '../../ui/icons'
 import { listBlobs, deleteBlob, uploadBlobFile, replaceBlobFile, BlobItem, RAGApiError, checkSyncForBlobs } from '../../lib/ragApi'
@@ -20,6 +20,27 @@ interface BlobFilesProps {
   onNavigateToSync?: () => void // Sync Status 탭으로 이동하는 콜백
 }
 
+// SelectAllCheckbox component to handle indeterminate state
+const SelectAllCheckbox = ({ checked, indeterminate, onChange }: { checked: boolean; indeterminate: boolean; onChange: (checked: boolean) => void }) => {
+  const checkboxRef = useRef<HTMLInputElement>(null)
+  
+  useEffect(() => {
+    if (checkboxRef.current) {
+      checkboxRef.current.indeterminate = indeterminate
+    }
+  }, [indeterminate])
+  
+  return (
+    <input
+      ref={checkboxRef}
+      type="checkbox"
+      checked={checked}
+      onChange={(e) => onChange(e.target.checked)}
+      title="Select all"
+    />
+  )
+}
+
 export default function BlobFiles({ language = 'en', onUploadComplete, syncRows = [], onNavigateToSync }: BlobFilesProps) {
   const location = useLocation()
   const isN8NRoute = location.pathname === '/rag-n8n'
@@ -34,6 +55,9 @@ export default function BlobFiles({ language = 'en', onUploadComplete, syncRows 
   // 검색 상태
   const [searchQuery, setSearchQuery] = useState('')
   const [filteredBlobs, setFilteredBlobs] = useState<BlobItem[]>([])
+  
+  // 선택 상태
+  const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set())
 
   // Language translations
   const t = {
@@ -64,7 +88,10 @@ export default function BlobFiles({ language = 'en', onUploadComplete, syncRows 
           dragOver: 'Drop files here to upload',
           search: 'Search',
           searchPlaceholder: 'Search by filename...',
-          clearSearch: 'Clear search'
+          clearSearch: 'Clear search',
+          totalFiles: 'Total files',
+          selectedFiles: 'Selected',
+          deleteSelected: 'Delete Selected'
     },
     ko: {
       title: '파일 라이브러리',
@@ -93,7 +120,13 @@ export default function BlobFiles({ language = 'en', onUploadComplete, syncRows 
           dragOver: '업로드하려면 파일을 여기에 놓으세요',
           search: '검색',
           searchPlaceholder: '파일명으로 검색...',
-          clearSearch: '검색 지우기'
+          clearSearch: '검색 지우기',
+          totalFiles: '전체 파일',
+          selectedFiles: '선택됨',
+          deleteSelected: '선택 삭제',
+          totalFiles: '전체 파일',
+          selectedFiles: '선택됨',
+          deleteSelected: '선택 삭제'
     }
   }
 
@@ -315,6 +348,11 @@ export default function BlobFiles({ language = 'en', onUploadComplete, syncRows 
         if (result.success) {
           alert(result.message)
           loadBlobs()
+          setSelectedFiles(prev => {
+            const next = new Set(prev)
+            next.delete(blob.name)
+            return next
+          })
         } else {
           alert(result.message)
         }
@@ -323,12 +361,94 @@ export default function BlobFiles({ language = 'en', onUploadComplete, syncRows 
         await deleteBlob(blob.name)
         alert(`${currentT.deleteSuccess}: ${blob.name}`)
         loadBlobs()
+        setSelectedFiles(prev => {
+          const next = new Set(prev)
+          next.delete(blob.name)
+          return next
+        })
       }
     } catch (error) {
       console.error('Failed to delete blob:', error)
       alert(`${currentT.deleteError}: ${blob.name}`)
     }
   }
+
+  const handleBatchDelete = async () => {
+    if (selectedFiles.size === 0) return
+    
+    const fileList = Array.from(selectedFiles).join('\n')
+    const confirmMessage = `Are you sure you want to delete ${selectedFiles.size} file(s)?\n\nFiles:\n${fileList}`
+    
+    if (!confirm(confirmMessage)) return
+
+    const filesToDelete = Array.from(selectedFiles)
+    let successCount = 0
+    let failCount = 0
+    const failedFiles: string[] = []
+
+    try {
+      for (const fileName of filesToDelete) {
+        try {
+          const blob = blobs.find(b => b.name === fileName)
+          if (!blob) continue
+
+          if (isN8NRoute) {
+            const result = await deleteFileFromSupabase(fileName)
+            if (result.success) {
+              successCount++
+            } else {
+              failCount++
+              failedFiles.push(fileName)
+            }
+          } else {
+            await deleteBlob(fileName)
+            successCount++
+          }
+        } catch (error) {
+          console.error(`Failed to delete ${fileName}:`, error)
+          failCount++
+          failedFiles.push(fileName)
+        }
+      }
+
+      if (successCount > 0) {
+        loadBlobs()
+        setSelectedFiles(new Set())
+      }
+
+      if (failCount > 0) {
+        alert(`Deleted ${successCount} file(s). Failed to delete ${failCount} file(s):\n${failedFiles.join('\n')}`)
+      } else {
+        alert(`Successfully deleted ${successCount} file(s).`)
+      }
+    } catch (error) {
+      console.error('Batch delete error:', error)
+      alert('An error occurred during batch delete.')
+    }
+  }
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedFiles(new Set(filteredBlobs.map(b => b.name)))
+    } else {
+      setSelectedFiles(new Set())
+    }
+  }
+
+  const handleSelectFile = (fileName: string, checked: boolean) => {
+    setSelectedFiles(prev => {
+      const next = new Set(prev)
+      if (checked) {
+        next.add(fileName)
+      } else {
+        next.delete(fileName)
+      }
+      return next
+    })
+  }
+
+  const isAllSelected = filteredBlobs.length > 0 && selectedFiles.size === filteredBlobs.length
+  const isIndeterminate = selectedFiles.size > 0 && selectedFiles.size < filteredBlobs.length
 
   const handleDownload = async (blob: BlobItem) => {
     if (isN8NRoute) {
@@ -491,14 +611,33 @@ export default function BlobFiles({ language = 'en', onUploadComplete, syncRows 
           </div>
         </div>
         
-        <button 
-          onClick={loadBlobs} 
-          className="refresh-btn"
-          disabled={isLoading}
-        >
-          <IconRefresh />
-          {currentT.refresh}
-        </button>
+        <div className="controls-right">
+          <div className="file-count-info">
+            {currentT.totalFiles}: <strong>{blobs.length}</strong>
+            {selectedFiles.size > 0 && (
+              <span className="selected-count">
+                {currentT.selectedFiles}: <strong>{selectedFiles.size}</strong>
+              </span>
+            )}
+          </div>
+          {selectedFiles.size > 0 && (
+            <button 
+              onClick={handleBatchDelete} 
+              className="delete-selected-btn"
+            >
+              <IconTrash size={16} />
+              {currentT.deleteSelected} ({selectedFiles.size})
+            </button>
+          )}
+          <button 
+            onClick={loadBlobs} 
+            className="refresh-btn"
+            disabled={isLoading}
+          >
+            <IconRefresh />
+            {currentT.refresh}
+          </button>
+        </div>
       </div>
 
       {/* Error Display */}
@@ -534,6 +673,13 @@ export default function BlobFiles({ language = 'en', onUploadComplete, syncRows 
             <table>
               <thead>
                 <tr>
+                  <th style={{ width: '40px', textAlign: 'center' }}>
+                    <SelectAllCheckbox
+                      checked={isAllSelected}
+                      indeterminate={isIndeterminate}
+                      onChange={handleSelectAll}
+                    />
+                  </th>
                   <th>{currentT.fileName}</th>
                   <th>{currentT.size}</th>
                   <th>{currentT.lastModified}</th>
@@ -545,12 +691,20 @@ export default function BlobFiles({ language = 'en', onUploadComplete, syncRows 
               <tbody>
                 {filteredBlobs.map((blob) => {
                   const syncStatus = getSyncStatus(blob.name)
+                  const isSelected = selectedFiles.has(blob.name)
                   // Debug logging for n8n route
                   if (isN8NRoute) {
                     console.log(`🎯 Rendering file: ${blob.name}, SyncStatus: ${syncStatus}, syncStates[${blob.name}]: ${syncStates[blob.name]}`)
                   }
                   return (
                     <tr key={blob.name}>
+                      <td style={{ textAlign: 'center' }}>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={(e) => handleSelectFile(blob.name, e.target.checked)}
+                        />
+                      </td>
                       <td className="file-name">{blob.name}</td>
                       <td>{formatFileSize(blob.size as any)}</td>
                       <td>{formatDate(blob.last_modified as any)}</td>
