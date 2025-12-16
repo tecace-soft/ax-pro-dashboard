@@ -143,7 +143,8 @@ const buildSyncRows = (blobs: Document[], idxs: IndexDocument[]): SyncRow[] => {
       // For n8n, fileName is stored in parent_id (which we set from metadata.fileName)
       // Also check filepath and title as fallbacks
       const fileName = d.parent_id || d.filepath || d.title || ''
-      if (!fileName || fileName === 'Unknown') return
+      // Don't skip 'Unknown' - include it so it shows up in Sync Overview
+      if (!fileName) return
       
       if (!idxMap.has(fileName)) idxMap.set(fileName, [])
       idxMap.get(fileName)!.push(d)
@@ -447,12 +448,62 @@ export default function RAGManagementN8N() {
       const docsResponse = await fetchVectorDocuments(1000, 0)
       const idxs: SupabaseIndexDocument[] = docsResponse.success
         ? docsResponse.documents.map((doc) => {
-            // Extract fileName from metadata - it's in metadata.fileName
-            const fileName = doc.metadata?.fileName || 'Unknown'
+            // Extract fileName from metadata - use same logic as Knowledge Index
+            let fileName = doc.metadata?.fileName
+            if (!fileName || fileName.trim() === '' || fileName === 'Unknown') {
+              // Try to extract from other metadata fields
+              let altFileName = doc.metadata?.filepath || doc.metadata?.name || doc.metadata?.title || doc.metadata?.parent_id
+              
+              // If still not found, try to extract from content
+              if (!altFileName && doc.content) {
+                // Look for patterns like 'basic-text.pdf' or file extensions in content
+                const contentMatch = doc.content.match(/([a-zA-Z0-9_-]+\.(pdf|docx?|txt|md|json|csv|xml|html|css|js|ts|yml|yaml))/i)
+                if (contentMatch && contentMatch[1]) {
+                  altFileName = contentMatch[1]
+                } else {
+                  // Try to find 'blob' as a standalone word
+                  const blobMatch = doc.content.match(/\b(blob)\b/i)
+                  if (blobMatch && blobMatch[1]) {
+                    altFileName = 'blob'
+                  }
+                }
+              }
+              
+              // Check metadata.source or other fields
+              if (!altFileName && doc.metadata?.source) {
+                altFileName = doc.metadata.source
+              }
+              
+              // Check if metadata has blobType or other identifying info
+              if (!altFileName && doc.metadata?.blobType) {
+                if (doc.metadata?.source === 'blob' || doc.content?.includes('blob')) {
+                  altFileName = 'blob'
+                }
+              }
+              
+              // For truly unknown files, try to group by content similarity
+              if (!altFileName && doc.content) {
+                const contentStart = doc.content.substring(0, 200).toLowerCase()
+                // Check for 'basic-text' pattern
+                if (contentStart.includes('basic-text') || contentStart.includes('basic text')) {
+                  altFileName = 'basic-text.pdf'
+                } else if (contentStart.includes('blob') || doc.metadata?.blobType === 'application/json') {
+                  altFileName = 'blob'
+                }
+              }
+              
+              if (altFileName && altFileName !== 'Unknown' && altFileName.trim() !== '') {
+                // Clean up the filename - remove path if present
+                fileName = altFileName.split('/').pop() || altFileName.split('\\').pop() || altFileName
+              } else {
+                fileName = 'Unknown'
+              }
+            }
+            
             return {
               id: doc.id.toString(),
               chunk_id: doc.id.toString(),
-              parent_id: fileName, // Use fileName as parent_id for grouping
+              parent_id: fileName, // Use extracted fileName as parent_id for grouping
               title: fileName, // Use fileName as title
               filepath: fileName, // Use fileName as filepath
               content: doc.content,
@@ -506,12 +557,62 @@ export default function RAGManagementN8N() {
       const docsResponse = await fetchVectorDocuments(1000, 0)
       const idxs: SupabaseIndexDocument[] = docsResponse.success
         ? docsResponse.documents.map((doc) => {
-            // Extract fileName from metadata - it's in metadata.fileName
-            const fileName = doc.metadata?.fileName || 'Unknown'
+            // Extract fileName from metadata - use same logic as Knowledge Index
+            let fileName = doc.metadata?.fileName
+            if (!fileName || fileName.trim() === '' || fileName === 'Unknown') {
+              // Try to extract from other metadata fields
+              let altFileName = doc.metadata?.filepath || doc.metadata?.name || doc.metadata?.title || doc.metadata?.parent_id
+              
+              // If still not found, try to extract from content
+              if (!altFileName && doc.content) {
+                // Look for patterns like 'basic-text.pdf' or file extensions in content
+                const contentMatch = doc.content.match(/([a-zA-Z0-9_-]+\.(pdf|docx?|txt|md|json|csv|xml|html|css|js|ts|yml|yaml))/i)
+                if (contentMatch && contentMatch[1]) {
+                  altFileName = contentMatch[1]
+                } else {
+                  // Try to find 'blob' as a standalone word
+                  const blobMatch = doc.content.match(/\b(blob)\b/i)
+                  if (blobMatch && blobMatch[1]) {
+                    altFileName = 'blob'
+                  }
+                }
+              }
+              
+              // Check metadata.source or other fields
+              if (!altFileName && doc.metadata?.source) {
+                altFileName = doc.metadata.source
+              }
+              
+              // Check if metadata has blobType or other identifying info
+              if (!altFileName && doc.metadata?.blobType) {
+                if (doc.metadata?.source === 'blob' || doc.content?.includes('blob')) {
+                  altFileName = 'blob'
+                }
+              }
+              
+              // For truly unknown files, try to group by content similarity
+              if (!altFileName && doc.content) {
+                const contentStart = doc.content.substring(0, 200).toLowerCase()
+                // Check for 'basic-text' pattern
+                if (contentStart.includes('basic-text') || contentStart.includes('basic text')) {
+                  altFileName = 'basic-text.pdf'
+                } else if (contentStart.includes('blob') || doc.metadata?.blobType === 'application/json') {
+                  altFileName = 'blob'
+                }
+              }
+              
+              if (altFileName && altFileName !== 'Unknown' && altFileName.trim() !== '') {
+                // Clean up the filename - remove path if present
+                fileName = altFileName.split('/').pop() || altFileName.split('\\').pop() || altFileName
+              } else {
+                fileName = 'Unknown'
+              }
+            }
+            
             return {
               id: doc.id.toString(),
               chunk_id: doc.id.toString(),
-              parent_id: fileName, // Use fileName as parent_id for grouping
+              parent_id: fileName, // Use extracted fileName as parent_id for grouping
               title: fileName, // Use fileName as title
               filepath: fileName, // Use fileName as filepath
               content: doc.content,

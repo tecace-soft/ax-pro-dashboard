@@ -1,7 +1,7 @@
 // src/pages/RagManagement/IndexDocs.tsx
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { IconRefresh, IconEye, IconDownload, IconAlertTriangle, IconCheck, IconX } from '../../ui/icons'
+import { IconRefresh, IconEye, IconDownload, IconX, IconAlertTriangle, IconCheck } from '../../ui/icons'
 import { listIndexDocsRows, IndexDoc, IndexRow, RAGApiError, fetchChunkContentById } from '../../lib/ragApi'
 import { fetchVectorDocuments, VectorDocument } from '../../services/ragManagementN8N'
 import { useSyncStatus } from '../../hooks/useSyncStatus'
@@ -55,6 +55,9 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
   // 검색 상태
   const [searchQuery, setSearchQuery] = useState('')
   const [filteredDocs, setFilteredDocs] = useState<IndexRow[]>([])
+  
+  // Expanded files state (moved to parent to persist across re-renders)
+  const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set())
 
   // 다국어
   const t = {
@@ -85,7 +88,10 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
       fullContent: 'Full Content',
       search: 'Search',
       searchPlaceholder: 'Search by title, filepath, or content...',
-      clearSearch: 'Clear search'
+      clearSearch: 'Clear search',
+      download: 'Download',
+      unindex: 'Unindex',
+      confirmUnindex: 'Remove from index'
     },
     ko: {
       headingTitle: '지식 인덱스',
@@ -114,7 +120,10 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
       fullContent: '전체 내용',
       search: '검색',
       searchPlaceholder: '제목, 파일 경로, 또는 내용으로 검색...',
-      clearSearch: '검색 지우기'
+      clearSearch: '검색 지우기',
+      download: '다운로드',
+      unindex: '인덱스 제거',
+      confirmUnindex: '인덱스에서 제거'
     }
   }
   const currentT = t[language]
@@ -234,14 +243,85 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
           const fileName = doc.metadata?.fileName
           if (!fileName || fileName.trim() === '' || fileName === 'Unknown') {
             // Try to extract from other metadata fields
-            const altFileName = doc.metadata?.filepath || doc.metadata?.name || doc.metadata?.title
-            if (altFileName && altFileName !== 'Unknown') {
-              if (!groupedByFileName[altFileName]) {
-                groupedByFileName[altFileName] = []
+            let altFileName = doc.metadata?.filepath || doc.metadata?.name || doc.metadata?.title || doc.metadata?.parent_id
+            
+            // If still not found, try to extract from content (sometimes filename is in content)
+            if (!altFileName && doc.content) {
+              // Look for patterns like 'basic-text.pdf', 'blob', or file extensions in content
+              // Try to find filename patterns more aggressively
+              const contentMatch = doc.content.match(/([a-zA-Z0-9_-]+\.(pdf|docx?|txt|md|json|csv|xml|html|css|js|ts|yml|yaml))/i)
+              if (contentMatch && contentMatch[1]) {
+                altFileName = contentMatch[1]
+              } else {
+                // Try to find 'blob' as a standalone word (might be a special file)
+                const blobMatch = doc.content.match(/\b(blob)\b/i)
+                if (blobMatch && blobMatch[1]) {
+                  altFileName = 'blob'
+                }
               }
-              groupedByFileName[altFileName].push(doc)
+            }
+            
+            // Check metadata.source or other fields
+            if (!altFileName && doc.metadata?.source) {
+              altFileName = doc.metadata.source
+            }
+            
+            // Check if metadata has blobType or other identifying info
+            if (!altFileName && doc.metadata?.blobType) {
+              // If blobType is 'application/json', might be from 'blob' file
+              // But we need more context - check if there are other clues
+              if (doc.metadata?.source === 'blob' || doc.content?.includes('blob')) {
+                altFileName = 'blob'
+              }
+            }
+            
+            // Also check if there's a filepath in the content or other fields
+            if (altFileName && altFileName !== 'Unknown' && altFileName.trim() !== '') {
+              // Clean up the filename - remove path if present
+              const cleanFileName = altFileName.split('/').pop() || altFileName.split('\\').pop() || altFileName
+              if (cleanFileName && cleanFileName !== 'Unknown' && cleanFileName.length > 0) {
+                if (!groupedByFileName[cleanFileName]) {
+                  groupedByFileName[cleanFileName] = []
+                }
+                groupedByFileName[cleanFileName].push(doc)
+              } else {
+                unknownFiles.push(doc)
+              }
             } else {
-              unknownFiles.push(doc)
+              // For truly unknown files, try to group by content similarity or other characteristics
+              // But for now, we'll group them separately if we can find any distinguishing feature
+              // Check if content starts with something that might indicate the source
+              if (doc.content) {
+                const contentStart = doc.content.substring(0, 200).toLowerCase()
+                // Check for 'basic-text' pattern
+                if (contentStart.includes('basic-text') || contentStart.includes('basic text')) {
+                  altFileName = 'basic-text.pdf'
+                } else if (contentStart.includes('blob') || doc.metadata?.blobType === 'application/json') {
+                  altFileName = 'blob'
+                }
+              }
+              
+              if (altFileName && altFileName !== 'Unknown' && altFileName.trim() !== '') {
+                const cleanFileName = altFileName.split('/').pop() || altFileName.split('\\').pop() || altFileName
+                if (cleanFileName && cleanFileName !== 'Unknown' && cleanFileName.length > 0) {
+                  if (!groupedByFileName[cleanFileName]) {
+                    groupedByFileName[cleanFileName] = []
+                  }
+                  groupedByFileName[cleanFileName].push(doc)
+                } else {
+                  unknownFiles.push(doc)
+                }
+              } else {
+                // Log the document to help debug - but only log first few to avoid spam
+                if (unknownFiles.length < 3) {
+                  console.warn('⚠️ [IndexDocs] Document without fileName:', {
+                    id: doc.id,
+                    metadata: doc.metadata,
+                    contentPreview: doc.content?.substring(0, 100)
+                  })
+                }
+                unknownFiles.push(doc)
+              }
             }
           } else {
             if (!groupedByFileName[fileName]) {
@@ -253,7 +333,7 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
 
         // Handle unknown files - group them together
         if (unknownFiles.length > 0) {
-          console.warn(`⚠️ [IndexDocs] Found ${unknownFiles.length} documents without fileName in metadata`)
+          console.warn(`⚠️ [IndexDocs] Found ${unknownFiles.length} documents without fileName in metadata. Sample metadata:`, unknownFiles[0]?.metadata)
           groupedByFileName['Unknown'] = unknownFiles
         }
 
@@ -279,11 +359,13 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
           } as IndexRow & { _isFileGroup: boolean; _chunkCount: number })
           
           // Add child rows for each chunk
-          chunks.forEach((chunk: VectorDocument) => {
+          chunks.forEach((chunk: VectorDocument, chunkIdx: number) => {
+            // Try to get chunkIndex from metadata, otherwise use array index + 1
+            const chunkIndex = chunk.metadata?.chunkIndex ?? chunk.metadata?.chunk_index ?? (chunkIdx + 1)
             rows.push({
               chunk_id: chunk.id.toString(),
               parent_id: fileName,
-              title: `${fileName} - Chunk ${chunk.metadata?.chunkIndex ?? '?'}`,
+              title: `${fileName} - Chunk ${chunkIndex}`,
               filepath: fileName,
               url: undefined,
               content: undefined,
@@ -405,6 +487,148 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
 
   const handleViewContent = (doc: IndexRow) => {
     setSelectedDoc(doc)
+  }
+
+  const handleUnindex = async (fileName: string) => {
+    if (!confirm(`Remove "${fileName}" from index?\n\nThis will remove all chunks for this file from the knowledge index, but the file will remain in File Library.`)) return
+    
+    try {
+      if (isN8NRoute) {
+        // Use Supabase for n8n route - delete documents from documents table
+        const { supabaseN8N } = await import('../../services/supabaseN8N')
+        const { getSessionContext } = await import('../../services/ragManagementN8N')
+        const { groupId } = await getSessionContext()
+        
+        let query
+        
+        if (fileName === 'Unknown') {
+          // For "Unknown" files, delete documents where fileName is null, empty, or missing
+          // Fetch all documents in batches to find ones without fileName
+          const PAGE_SIZE = 1000
+          let allDocsToCheck: any[] = []
+          let offset = 0
+          
+          // Fetch all documents in batches
+          while (true) {
+            let query = supabaseN8N
+              .from('documents')
+              .select('id, metadata')
+              .range(offset, offset + PAGE_SIZE - 1)
+            
+            if (groupId) {
+              query = query.eq('metadata->>groupId', groupId)
+            }
+            
+            const { data: batch, error: fetchError } = await query
+            
+            if (fetchError) {
+              throw new Error(fetchError.message || 'Failed to fetch documents')
+            }
+            
+            if (!batch || batch.length === 0) break
+            
+            allDocsToCheck = allDocsToCheck.concat(batch)
+            
+            if (batch.length < PAGE_SIZE) break
+            offset += PAGE_SIZE
+          }
+          
+          // Filter documents without fileName
+          const docsToDelete = allDocsToCheck.filter((doc: any) => {
+            const fn = doc.metadata?.fileName
+            return !fn || fn.trim() === '' || fn === 'Unknown'
+          })
+          
+          if (docsToDelete.length === 0) {
+            alert('No "Unknown" documents found to delete')
+            return
+          }
+          
+          console.log(`🗑️ [handleUnindex] Found ${docsToDelete.length} "Unknown" documents to delete`)
+          
+          // Delete in batches (Supabase has limits on IN clause)
+          const BATCH_SIZE = 100
+          let deletedCount = 0
+          
+          for (let i = 0; i < docsToDelete.length; i += BATCH_SIZE) {
+            const batch = docsToDelete.slice(i, i + BATCH_SIZE)
+            const idsToDelete = batch.map((d: any) => d.id)
+            
+            const { error: deleteError } = await supabaseN8N
+              .from('documents')
+              .delete()
+              .in('id', idsToDelete)
+            
+            if (deleteError) {
+              console.error(`Failed to delete batch ${Math.floor(i / BATCH_SIZE) + 1}:`, deleteError)
+              throw new Error(deleteError.message || 'Delete failed')
+            }
+            
+            deletedCount += idsToDelete.length
+          }
+          
+          alert(`Removed ${deletedCount} "Unknown" documents from index`)
+          loadAllIndexDocs()
+          return
+        } else {
+          // For normal files, delete by fileName
+          query = supabaseN8N
+            .from('documents')
+            .delete()
+            .eq('metadata->>fileName', fileName)
+          
+          if (groupId) {
+            query = query.eq('metadata->>groupId', groupId)
+          }
+          
+          const { error, data } = await query
+          
+          if (error) {
+            throw new Error(error.message || 'Unindex failed')
+          }
+          
+          console.log(`🗑️ [handleUnindex] Deleted documents for "${fileName}"`, data)
+          
+          // Only update files table if it's not "Unknown"
+          if (fileName !== 'Unknown') {
+            let fileQuery = supabaseN8N
+              .from('files')
+              .update({
+                is_indexed: false,
+                indexed_at: null,
+                updated_at: new Date().toISOString()
+              })
+              .eq('file_name', fileName)
+            
+            if (groupId) {
+              fileQuery = fileQuery.eq('group_id', groupId)
+            }
+            
+            await fileQuery
+          }
+          
+          alert(`Removed "${fileName}" from index`)
+          loadAllIndexDocs() // Reload the index
+        }
+      } else {
+        // Use Azure for regular route
+        if (fileName === 'Unknown') {
+          // For "Unknown" files, we need to find and delete by parent_id or other means
+          // This is more complex for Azure route, so we'll try to delete by parent_id pattern
+          alert('Cannot unindex "Unknown" files in Azure route. Please use the Azure Search interface to remove orphaned documents.')
+          return
+        }
+        
+        const { clearIndexByFile } = await import('../../services/ragManagement')
+        const res = await clearIndexByFile(fileName)
+        if (!res.ok) throw new Error(res.error?.message || 'Unindex failed')
+        alert(`Removed "${fileName}" from index`)
+        loadAllIndexDocs() // Reload the index
+      }
+    } catch (err) {
+      console.error('Failed to unindex:', err)
+      alert(`Failed to remove "${fileName}" from index\n\nError: ${err instanceof Error ? err.message : 'Unknown error'}`)
+    }
   }
 
   const handleDownloadFile = async (fileName: string) => {
@@ -548,15 +772,18 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
     onViewContent, 
     renderSyncStatus, 
     formatChunkId,
-    currentT 
+    currentT,
+    expandedFiles,
+    setExpandedFiles
   }: { 
     docs: IndexRow[]
     onViewContent: (doc: IndexRow) => void
     renderSyncStatus: (parentId: string | null | undefined) => JSX.Element
     formatChunkId: (chunkId: string | null | undefined) => string
     currentT: any
+    expandedFiles: Set<string>
+    setExpandedFiles: React.Dispatch<React.SetStateAction<Set<string>>>
   }) => {
-    const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set())
     
     // Group docs by fileName (parent_id)
     const groupedDocs: Record<string, IndexRow[]> = {}
@@ -634,28 +861,45 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
                     <div className="action-buttons">
                       <button
                         onClick={() => handleDownloadFile(fileName)}
-                        title="Download"
+                        title={currentT.download}
                         className="action-btn download-btn"
                       >
                         <IconDownload />
+                      </button>
+                      <button
+                        onClick={() => handleUnindex(fileName)}
+                        title={currentT.unindex}
+                        className="action-btn unindex-btn"
+                      >
+                        <IconX />
                       </button>
                     </div>
                   </td>
                 </tr>
                 {isExpanded && chunks.map((chunk, idx) => (
-                  <tr key={chunk.chunk_id} style={{ backgroundColor: 'var(--bg)' }}>
+                  <tr 
+                    key={chunk.chunk_id} 
+                    style={{ backgroundColor: 'var(--bg)' }}
+                    onClick={(e) => {
+                      // Prevent row click from collapsing the file
+                      e.stopPropagation()
+                    }}
+                  >
                     <td></td>
                     <td style={{ paddingLeft: '30px' }}>
-                      Chunk {((chunk as any).metadata?.chunkIndex ?? idx + 1)}
+                      Chunk {((chunk as any).metadata?.chunkIndex ?? (chunk as any).metadata?.chunk_index ?? idx + 1)}
                     </td>
                     <td className="chunk-id" title={chunk.chunk_id || ''}>
                       {formatChunkId(chunk.chunk_id)}
                     </td>
                     <td>{renderSyncStatus(fileName)}</td>
                     <td>
-                      <div className="action-buttons">
+                      <div className="action-buttons" onClick={(e) => e.stopPropagation()}>
                         <button
-                          onClick={() => onViewContent(chunk)}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onViewContent(chunk)
+                          }}
                           title={currentT.view}
                           className="action-btn view-btn"
                         >
@@ -794,6 +1038,8 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
               renderSyncStatus={renderSyncStatus}
               formatChunkId={formatChunkId}
               currentT={currentT}
+              expandedFiles={expandedFiles}
+              setExpandedFiles={setExpandedFiles}
             />
           ) : (
             // Regular Route: Original flat table
@@ -855,7 +1101,10 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
                     <td>
                       <div className="action-buttons">
                         <button
-                          onClick={() => handleViewContent(doc)}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleViewContent(doc)
+                          }}
                           title={currentT.view}
                           className="action-btn view-btn"
                         >
