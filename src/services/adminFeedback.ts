@@ -132,7 +132,12 @@ export async function getAdminFeedbackBatch(requestIds: string[]): Promise<Recor
     // Convert array to object keyed by request_id
     const feedbackMap: Record<string, AdminFeedbackData> = {}
     data?.forEach(feedback => {
-      feedbackMap[feedback.request_id] = feedback
+      // Only add to map if request_id is valid
+      if (feedback.request_id && feedback.request_id !== 'undefined' && feedback.request_id.trim() !== '') {
+        feedbackMap[feedback.request_id] = feedback
+      } else {
+        console.warn('Skipping admin feedback with invalid request_id:', feedback)
+      }
     })
 
     return feedbackMap
@@ -168,7 +173,12 @@ export async function getAllAdminFeedback(startDate?: string, endDate?: string):
     // Convert array to object keyed by request_id
     const feedbackMap: Record<string, AdminFeedbackData> = {}
     data?.forEach(feedback => {
-      feedbackMap[feedback.request_id] = feedback
+      // Only add to map if request_id is valid
+      if (feedback.request_id && feedback.request_id !== 'undefined' && feedback.request_id.trim() !== '') {
+        feedbackMap[feedback.request_id] = feedback
+      } else {
+        console.warn('Skipping admin feedback with invalid request_id:', feedback)
+      }
     })
 
     return feedbackMap

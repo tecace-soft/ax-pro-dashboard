@@ -1,7 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = 'https://zbubxrrufictliqnqxiu.supabase.co'
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpidWJ4cnJ1ZmljdGxpcW5xeGl1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUyMTQyNzMsImV4cCI6MjA3MDc5MDI3M30.Pasb5l4sUBTxU4l7Y1xwuxkwqKA9b2l07UYHIx1bGY8'
+// Use the same Supabase project as n8n route
+const supabaseUrl = 'https://kvijybrfxukdttijgmwy.supabase.co'
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt2aWp5YnJmeHVrZHR0aWpnbXd5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI0NTAxOTksImV4cCI6MjA3ODAyNjE5OX0.UhCp33M2j9PImxtQC5L-hPoMUB2iFlCagEuOh1tcOZE'
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 

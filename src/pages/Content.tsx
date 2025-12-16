@@ -1404,7 +1404,7 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 		if (Object.keys(adminFeedback).length === 0) return
 		
 		let cancelled = false
-		const requestIds = Object.keys(adminFeedback)
+		const requestIds = Object.keys(adminFeedback).filter(id => id && id !== 'undefined' && id.trim() !== '')
 		
 		async function loadMissingData() {
 			// Use ref to get current requestDetails without dependency issues
@@ -1413,6 +1413,11 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 			
 			// Find requestIds that don't have requestDetails or have empty/dash values
 			requestIds.forEach(requestId => {
+				// Skip invalid requestIds
+				if (!requestId || requestId === 'undefined' || requestId.trim() === '') {
+					return
+				}
+				
 				const detail = currentRequestDetails[requestId]
 				// Check if detail is missing, empty, or shows dash
 				if (!detail || !detail.inputText || detail.inputText.trim() === '' || detail.inputText === '-' || 
@@ -1434,6 +1439,11 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 				const batch = missingIds.slice(i, i + 10)
 				
 				await Promise.all(batch.map(async (requestId) => {
+					// Skip if requestId is invalid
+					if (!requestId || requestId === 'undefined' || requestId.trim() === '') {
+						return
+					}
+					
 					try {
 						if (isN8NRoute) {
 							// N8N route: Fetch from Supabase
