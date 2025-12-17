@@ -711,6 +711,32 @@ export default function PromptControl({ onNavigateToAdminFeedback }: PromptContr
 											placeholder={language === 'ko' ? '질문을 입력하세요...' : 'Enter question...'}
 											disabled={isLoadingAdminFeedback}
 										/>
+										{item.metadata && item.metadata.length > 0 && item.metadata[0].date && item.metadata[0].date !== 'N/A' && (() => {
+											try {
+												const dateObj = new Date(item.metadata[0].date)
+												if (!isNaN(dateObj.getTime())) {
+													return (
+														<span className="item-date-badge" title={item.metadata[0].date}>
+															{dateObj.toLocaleDateString(language === 'ko' ? 'ko-KR' : 'en-US', { 
+																year: 'numeric', 
+																month: 'short', 
+																day: 'numeric',
+																hour: '2-digit',
+																minute: '2-digit'
+															})}
+														</span>
+													)
+												}
+											} catch (e) {
+												// If date parsing fails, show original date string
+												return (
+													<span className="item-date-badge" title={item.metadata[0].date}>
+														{item.metadata[0].date}
+													</span>
+												)
+											}
+											return null
+										})()}
 									</div>
 									<div className="faq-item-actions">
 										<button
@@ -809,6 +835,17 @@ export default function PromptControl({ onNavigateToAdminFeedback }: PromptContr
 							<div key={idx} className="feedback-item">
 								<div className="feedback-item-header">
 									<span className="feedback-label">F{idx + 1}.</span>
+									{item.metadata && item.metadata.length > 0 && item.metadata[0].date && item.metadata[0].date !== 'N/A' && (
+										<span className="item-date-badge" title={item.metadata[0].date}>
+											{new Date(item.metadata[0].date).toLocaleDateString(language === 'ko' ? 'ko-KR' : 'en-US', { 
+												year: 'numeric', 
+												month: 'short', 
+												day: 'numeric',
+												hour: '2-digit',
+												minute: '2-digit'
+											})}
+										</span>
+									)}
 									<div className="feedback-item-actions">
 										<button
 											className="info-btn"

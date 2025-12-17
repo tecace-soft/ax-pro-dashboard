@@ -614,6 +614,9 @@
 
 .faq-item-header .faq-item-row {
   flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .faq-item-actions,
@@ -622,6 +625,18 @@
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
+}
+
+.item-date-badge {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  padding: 4px 8px;
+  background: rgba(59, 230, 255, 0.08);
+  border: 1px solid rgba(59, 230, 255, 0.15);
+  border-radius: 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-weight: 400;
 }
 
 .info-btn,
