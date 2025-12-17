@@ -123,9 +123,6 @@ export default function BlobFiles({ language = 'en', onUploadComplete, syncRows 
           clearSearch: '검색 지우기',
           totalFiles: '전체 파일',
           selectedFiles: '선택됨',
-          deleteSelected: '선택 삭제',
-          totalFiles: '전체 파일',
-          selectedFiles: '선택됨',
           deleteSelected: '선택 삭제'
     }
   }
