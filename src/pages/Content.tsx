@@ -2453,6 +2453,54 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 		}
 	}
 
+	// Navigate to Admin Feedback section and filter by requestId
+	const navigateToAdminFeedback = (requestId: string) => {
+		// Set filter to show the specific feedback
+		setAdminFeedbackFilter(requestId)
+		
+		// Scroll to Admin Feedback section
+		const adminFeedbackSection = document.querySelector('.admin-feedback-section') || document.querySelector('[data-section="admin-feedback"]')
+		if (adminFeedbackSection) {
+			adminFeedbackSection.scrollIntoView({ behavior: 'smooth', block: 'start' })
+			
+			// After scrolling, try to find and highlight the specific row
+			setTimeout(() => {
+				// Try to find the row by requestId (could be in requestId, chat_id, or feedback-{id} format)
+				const possibleSelectors = [
+					`tr[data-request-id="${requestId}"]`,
+					`tr[data-chat-id="${requestId}"]`,
+					`tr[data-feedback-id="${requestId}"]`
+				]
+				
+				let row: Element | null = null
+				for (const selector of possibleSelectors) {
+					row = document.querySelector(selector)
+					if (row) break
+				}
+				
+				// If not found by data attributes, try to find by text content
+				if (!row) {
+					const allRows = document.querySelectorAll('.admin-feedback-table tbody tr')
+					for (const tr of Array.from(allRows)) {
+						const text = tr.textContent || ''
+						if (text.includes(requestId)) {
+							row = tr
+							break
+						}
+					}
+				}
+				
+				if (row) {
+					row.scrollIntoView({ behavior: 'smooth', block: 'center' })
+					row.classList.add('highlight-row')
+					setTimeout(() => {
+						row?.classList.remove('highlight-row')
+					}, 3000)
+				}
+			}, 500)
+		}
+	}
+
 	// 총 메시지 수 계산 (Recent Conversations용)
 	const totalMessages = useMemo(() => {
 		let total = 0;
@@ -3243,7 +3291,7 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 					</div>
 
 					{/* Admin Feedback Section */}
-					<div className="content-section">
+					<div className="content-section admin-feedback-section" data-section="admin-feedback">
 						<div className="card section" aria-labelledby="admin-feedback-title">
 							<div className="section-header">
 								<div id="admin-feedback-title" className="section-title">
@@ -3710,7 +3758,12 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 													}
 													
 													return (
-														<tr key={requestId}>
+														<tr 
+															key={requestId} 
+															data-request-id={requestId}
+															data-chat-id={actualChatId || ''}
+															data-feedback-id={feedback.id?.toString() || ''}
+														>
 															<td className="date-cell">
 																{date ? (
 																	<span className="date-display" title={date.toLocaleString()}>
@@ -3979,7 +4032,7 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 
 					{/* Prompt Control Section */}
 					<div className="content-section">
-						<PromptControl key={promptRefreshTrigger} />
+						<PromptControl key={promptRefreshTrigger} onNavigateToAdminFeedback={navigateToAdminFeedback} />
 					</div>
 				</div>
 			</main>

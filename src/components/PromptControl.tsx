@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { fetchSystemPrompt, updateSystemPrompt } from '../services/prompt'
 import { fetchSystemPromptN8N, fetchAllPromptsN8N, deletePromptN8N, saveSystemPromptN8N } from '../services/promptN8N'
 import { PromptData } from '../services/supabaseN8N'
@@ -11,8 +11,13 @@ import { AdminFeedbackDataN8N } from '../services/adminFeedbackN8N'
 import { fetchRequestDetailN8N } from '../services/conversationsN8N'
 import { getChatData } from '../services/chatData'
 
-export default function PromptControl() {
+interface PromptControlProps {
+	onNavigateToAdminFeedback?: (requestId: string) => void
+}
+
+export default function PromptControl({ onNavigateToAdminFeedback }: PromptControlProps = {}) {
 	const location = useLocation()
+	const navigate = useNavigate()
 	const isN8NRoute = location.pathname === '/dashboard-n8n' || location.pathname === '/rag-n8n'
 	const { language, t } = useLanguage()
 	const [promptText, setPromptText] = useState('')
@@ -707,16 +712,42 @@ export default function PromptControl() {
 											disabled={isLoadingAdminFeedback}
 										/>
 									</div>
-									<button
-										className="info-btn"
-										onClick={() => setDetailModal({ isOpen: true, type: 'faq', index: idx })}
-										title={language === 'ko' ? '상세 정보 보기' : 'View details'}
-									>
-										<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-											<circle cx="12" cy="12" r="10"/>
-											<path d="M12 16v-4M12 8h.01"/>
-										</svg>
-									</button>
+									<div className="faq-item-actions">
+										<button
+											className="info-btn"
+											onClick={() => setDetailModal({ isOpen: true, type: 'faq', index: idx })}
+											title={language === 'ko' ? '상세 정보 보기' : 'View details'}
+										>
+											<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+												<circle cx="12" cy="12" r="10"/>
+												<path d="M12 16v-4M12 8h.01"/>
+											</svg>
+										</button>
+										{item.metadata && item.metadata.length > 0 && (
+											<button
+												className="delete-btn"
+												onClick={() => {
+													// Use the first metadata entry's chatId or feedbackId
+													if (!item.metadata || item.metadata.length === 0) return
+													const firstMeta = item.metadata[0]
+													const requestId = firstMeta.chatId || firstMeta.feedbackId
+													
+													if (onNavigateToAdminFeedback) {
+														onNavigateToAdminFeedback(requestId)
+													} else {
+														// Fallback: navigate to admin feedback section with filter
+														const targetPath = isN8NRoute ? '/dashboard-n8n' : '/dashboard'
+														navigate(`${targetPath}?section=admin-feedback&filter=${encodeURIComponent(requestId)}`)
+													}
+												}}
+												title={language === 'ko' ? 'Admin Feedback에서 삭제' : 'Delete in Admin Feedback'}
+											>
+												<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+													<path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+												</svg>
+											</button>
+										)}
+									</div>
 								</div>
 								<div className="faq-item-row">
 									<span className="faq-label">답변:</span>
@@ -775,16 +806,42 @@ export default function PromptControl() {
 							<div key={idx} className="feedback-item">
 								<div className="feedback-item-header">
 									<span className="feedback-label">F{idx + 1}.</span>
-									<button
-										className="info-btn"
-										onClick={() => setDetailModal({ isOpen: true, type: 'feedback', index: idx })}
-										title={language === 'ko' ? '상세 정보 보기' : 'View details'}
-									>
-										<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-											<circle cx="12" cy="12" r="10"/>
-											<path d="M12 16v-4M12 8h.01"/>
-										</svg>
-									</button>
+									<div className="feedback-item-actions">
+										<button
+											className="info-btn"
+											onClick={() => setDetailModal({ isOpen: true, type: 'feedback', index: idx })}
+											title={language === 'ko' ? '상세 정보 보기' : 'View details'}
+										>
+											<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+												<circle cx="12" cy="12" r="10"/>
+												<path d="M12 16v-4M12 8h.01"/>
+											</svg>
+										</button>
+										{item.metadata && item.metadata.length > 0 && (
+											<button
+												className="delete-btn"
+												onClick={() => {
+													// Use the first metadata entry's chatId or feedbackId
+													if (!item.metadata || item.metadata.length === 0) return
+													const firstMeta = item.metadata[0]
+													const requestId = firstMeta.chatId || firstMeta.feedbackId
+													
+													if (onNavigateToAdminFeedback) {
+														onNavigateToAdminFeedback(requestId)
+													} else {
+														// Fallback: navigate to admin feedback section with filter
+														const targetPath = isN8NRoute ? '/dashboard-n8n' : '/dashboard'
+														navigate(`${targetPath}?section=admin-feedback&filter=${encodeURIComponent(requestId)}`)
+													}
+												}}
+												title={language === 'ko' ? 'Admin Feedback에서 삭제' : 'Delete in Admin Feedback'}
+											>
+												<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+													<path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+												</svg>
+											</button>
+										)}
+									</div>
 								</div>
 								<textarea
 									className="feedback-text-textarea"
