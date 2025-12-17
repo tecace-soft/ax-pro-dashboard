@@ -21,7 +21,20 @@ export default defineConfig({
 				target: 'https://hr-ax-pro-rag-management.eastus2.inference.ml.azure.com',
 				changeOrigin: true,
 				secure: true,
-				rewrite: (path) => path.replace(/^\/rag-api/, '/score')
+				rewrite: (path) => path.replace(/^\/rag-api/, '/score'),
+				configure: (proxy, _options) => {
+					proxy.on('proxyReq', (proxyReq, req, _res) => {
+						// Forward Authorization header from request to target
+						if (req.headers.authorization) {
+							proxyReq.setHeader('Authorization', req.headers.authorization)
+						}
+						// Also check for VITE_RAG_API_KEY from env
+						const apiKey = process.env.VITE_RAG_API_KEY
+						if (apiKey && !req.headers.authorization) {
+							proxyReq.setHeader('Authorization', `Bearer ${apiKey}`)
+						}
+					})
+				}
 			}
 		}
 	},
