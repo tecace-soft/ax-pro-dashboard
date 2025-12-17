@@ -12,7 +12,7 @@ import { fetchRequestDetailN8N } from '../services/conversationsN8N'
 import { getChatData } from '../services/chatData'
 
 interface PromptControlProps {
-	onNavigateToAdminFeedback?: (requestId: string) => void
+	onNavigateToAdminFeedback?: (requestId: string, feedbackDate?: string) => void
 }
 
 export default function PromptControl({ onNavigateToAdminFeedback }: PromptControlProps = {}) {
@@ -732,8 +732,11 @@ export default function PromptControl({ onNavigateToAdminFeedback }: PromptContr
 													const firstMeta = item.metadata[0]
 													const requestId = firstMeta.chatId || firstMeta.feedbackId
 													
+													// Extract date from metadata (format: "MM/DD/YYYY, HH:MM:SS AM/PM")
+													const feedbackDate = firstMeta.date && firstMeta.date !== 'N/A' ? firstMeta.date : undefined
+													
 													if (onNavigateToAdminFeedback) {
-														onNavigateToAdminFeedback(requestId)
+														onNavigateToAdminFeedback(requestId, feedbackDate)
 													} else {
 														// Fallback: navigate to admin feedback section with filter
 														const targetPath = isN8NRoute ? '/dashboard-n8n' : '/dashboard'
@@ -826,8 +829,11 @@ export default function PromptControl({ onNavigateToAdminFeedback }: PromptContr
 													const firstMeta = item.metadata[0]
 													const requestId = firstMeta.chatId || firstMeta.feedbackId
 													
+													// Extract date from metadata (format: "MM/DD/YYYY, HH:MM:SS AM/PM")
+													const feedbackDate = firstMeta.date && firstMeta.date !== 'N/A' ? firstMeta.date : undefined
+													
 													if (onNavigateToAdminFeedback) {
-														onNavigateToAdminFeedback(requestId)
+														onNavigateToAdminFeedback(requestId, feedbackDate)
 													} else {
 														// Fallback: navigate to admin feedback section with filter
 														const targetPath = isN8NRoute ? '/dashboard-n8n' : '/dashboard'

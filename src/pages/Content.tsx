@@ -2454,9 +2454,49 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 	}
 
 	// Navigate to Admin Feedback section and filter by requestId
-	const navigateToAdminFeedback = (requestId: string) => {
-		// Set filter to show the specific feedback
-		setAdminFeedbackFilter(requestId)
+	const navigateToAdminFeedback = async (requestId: string, feedbackDate?: string) => {
+		// If feedbackDate is provided, try to adjust date range to include it
+		if (feedbackDate && feedbackDate !== 'N/A') {
+			try {
+				// Parse the date string (format: "MM/DD/YYYY, HH:MM:SS AM/PM" or similar)
+				// Try to parse it as a Date object
+				const parsedDate = new Date(feedbackDate)
+				if (!isNaN(parsedDate.getTime())) {
+					// Format as YYYY-MM-DD for date input
+					const year = parsedDate.getFullYear()
+					const month = String(parsedDate.getMonth() + 1).padStart(2, '0')
+					const day = String(parsedDate.getDate()).padStart(2, '0')
+					const dateStr = `${year}-${month}-${day}`
+					
+					// Adjust date range to include this date (±7 days)
+					const startDateObj = new Date(parsedDate)
+					startDateObj.setDate(startDateObj.getDate() - 7)
+					const endDateObj = new Date(parsedDate)
+					endDateObj.setDate(endDateObj.getDate() + 7)
+					
+					const newStartDate = `${startDateObj.getFullYear()}-${String(startDateObj.getMonth() + 1).padStart(2, '0')}-${String(startDateObj.getDate()).padStart(2, '0')}`
+					const newEndDate = `${endDateObj.getFullYear()}-${String(endDateObj.getMonth() + 1).padStart(2, '0')}-${String(endDateObj.getDate()).padStart(2, '0')}`
+					
+					// Update date range
+					onDateChange(newStartDate, newEndDate)
+					
+					// Wait a bit for data to reload, then set filter
+					setTimeout(() => {
+						setAdminFeedbackFilter(requestId)
+					}, 500)
+				} else {
+					// If date parsing fails, just set filter
+					setAdminFeedbackFilter(requestId)
+				}
+			} catch (error) {
+				console.warn('Failed to parse feedback date:', error)
+				// If date parsing fails, just set filter
+				setAdminFeedbackFilter(requestId)
+			}
+		} else {
+			// No date provided, just set filter
+			setAdminFeedbackFilter(requestId)
+		}
 		
 		// Scroll to Admin Feedback section
 		const adminFeedbackSection = document.querySelector('.admin-feedback-section') || document.querySelector('[data-section="admin-feedback"]')
@@ -2497,7 +2537,7 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 						row?.classList.remove('highlight-row')
 					}, 3000)
 				}
-			}, 500)
+			}, 1000) // Increased timeout to allow data to reload
 		}
 	}
 
