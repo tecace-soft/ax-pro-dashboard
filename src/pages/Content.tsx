@@ -1404,7 +1404,7 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 		if (Object.keys(adminFeedback).length === 0) return
 		
 		let cancelled = false
-		const requestIds = Object.keys(adminFeedback).filter(id => id && id !== 'undefined' && id.trim() !== '')
+		const requestIds = Object.keys(adminFeedback)
 		
 		async function loadMissingData() {
 			// Use ref to get current requestDetails without dependency issues
@@ -1413,11 +1413,6 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 			
 			// Find requestIds that don't have requestDetails or have empty/dash values
 			requestIds.forEach(requestId => {
-				// Skip invalid requestIds
-				if (!requestId || requestId === 'undefined' || requestId.trim() === '') {
-					return
-				}
-				
 				const detail = currentRequestDetails[requestId]
 				// Check if detail is missing, empty, or shows dash
 				if (!detail || !detail.inputText || detail.inputText.trim() === '' || detail.inputText === '-' || 
@@ -1438,28 +1433,37 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 				if (cancelled) break
 				const batch = missingIds.slice(i, i + 10)
 				
-				await Promise.all(batch.map(async (requestId) => {
-					// Skip if requestId is invalid
-					if (!requestId || requestId === 'undefined' || requestId.trim() === '') {
+				await Promise.all(batch.map(async (key) => {
+					// Get actual request_id from feedback (for feedback-{id} keys)
+					const feedback = adminFeedback[key]
+					const actualRequestId = (feedback as any)?.chat_id || feedback?.request_id || (key.startsWith('feedback-') ? null : key)
+					
+					// Skip if feedback-{id} key but no actual request_id
+					if (key.startsWith('feedback-') && (!actualRequestId || actualRequestId === 'undefined' || actualRequestId.trim() === '')) {
 						return
 					}
 					
+					// Use actual request_id for API calls, but store with key
+					const requestIdToSearch = actualRequestId || key
+					
 					try {
 						if (isN8NRoute) {
-							// N8N route: Fetch from Supabase
-							const trimmedRequestId = requestId.trim() // Trim whitespace
+							// N8N route: Fetch from Supabase using actual chat_id
+							const trimmedRequestId = requestIdToSearch.trim() // Trim whitespace
 							const detail = await fetchRequestDetailN8N(trimmedRequestId)
 							if (detail && detail.request) {
-								// Store in requestDetails (use both trimmed and original as keys for lookup)
-								requestDetailsMap[trimmedRequestId] = {
+								// Store in requestDetails using the key (not requestIdToSearch) so it matches adminFeedback keys
+								requestDetailsMap[key] = {
 									inputText: detail.request.inputText || '',
-									outputText: detail.request.outputText || ''
+									outputText: detail.request.outputText || '',
+									session_id: detail.request.sessionId || ''
 								}
-								// Also store with original requestId if different
-								if (trimmedRequestId !== requestId) {
-									requestDetailsMap[requestId] = {
+								// Also store with actual request_id if different
+								if (trimmedRequestId !== key) {
+									requestDetailsMap[trimmedRequestId] = {
 										inputText: detail.request.inputText || '',
-										outputText: detail.request.outputText || ''
+										outputText: detail.request.outputText || '',
+										session_id: detail.request.sessionId || ''
 									}
 								}
 								
@@ -1468,18 +1472,28 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 										sessionRequestsMap[detail.request.sessionId] = []
 									}
 									sessionRequestsMap[detail.request.sessionId].push({
-										requestId: trimmedRequestId,
-										id: trimmedRequestId
+										requestId: key,
+										id: key
 									})
 								}
 							}
 						} else {
 							// Tecace route: Try chat_data first, then API
-							const chatData = await getChatData(requestId)
+							const chatData = await getChatData(requestIdToSearch)
 							if (chatData) {
-								requestDetailsMap[requestId] = {
+								// Store in requestDetails using the key (not requestIdToSearch) so it matches adminFeedback keys
+								requestDetailsMap[key] = {
 									inputText: chatData.input_text || '',
-									outputText: chatData.output_text || ''
+									outputText: chatData.output_text || '',
+									session_id: chatData.session_id || ''
+								}
+								// Also store with actual request_id if different
+								if (requestIdToSearch !== key) {
+									requestDetailsMap[requestIdToSearch] = {
+										inputText: chatData.input_text || '',
+										outputText: chatData.output_text || '',
+										session_id: chatData.session_id || ''
+									}
 								}
 								
 								if (chatData.session_id) {
@@ -1487,20 +1501,24 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 										sessionRequestsMap[chatData.session_id] = []
 									}
 									sessionRequestsMap[chatData.session_id].push({
-										requestId: requestId,
-										id: requestId
+										requestId: key,
+										id: key
 									})
 								}
 							} else if (authToken) {
-								// Fallback to API
-								const detail = await fetchRequestDetail(authToken, requestId)
+								// Fallback to API - use actual request_id
+								const detail = await fetchRequestDetail(authToken, requestIdToSearch)
 								if (detail && detail.request) {
-									requestDetailsMap[requestId] = detail.request
+									requestDetailsMap[key] = detail.request
+									// Also store with actual request_id if different
+									if (requestIdToSearch !== key) {
+										requestDetailsMap[requestIdToSearch] = detail.request
+									}
 								}
 							}
 						}
 					} catch (error) {
-						console.warn(`Could not fetch data for ${requestId}:`, error)
+						console.warn(`Could not fetch data for ${key} (using ${requestIdToSearch}):`, error)
 					}
 				}))
 			}
@@ -3412,15 +3430,6 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 											<span className="refresh-btn-text">{language === 'ko' ? '새로고침' : 'Refresh'}</span>
 										</button>
 									</div>
-									{!isN8NRoute && (
-										<button 
-											className="btn btn-primary update-prompt-btn" 
-											onClick={handleUpdatePrompt}
-											disabled={isUpdatingPrompt}
-										>
-											{isUpdatingPrompt ? (language === 'ko' ? '업데이트 중...' : 'Updating...') : (language === 'ko' ? '프롬프트 업데이트' : 'Update Prompt')}
-										</button>
-									)}
 								</div>
 								{adminFeedbackLastRefreshed && (
 									<div className="last-refreshed">
@@ -3686,12 +3695,17 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 													const isEditing = editingAdminFeedback.has(requestId)
 													const editData = adminFeedbackEditData[requestId] || { text: feedback.feedback_text || '', correctedResponse: feedback.corrected_response || '' }
 													
-													// Find sessionId for this requestId
-													let sessionId = ''
-													for (const [sId, requests] of Object.entries(sessionRequests)) {
-														if (requests.some(r => (r.requestId || r.id) === requestId)) {
-															sessionId = sId
-															break
+													// Get actual chat_id/request_id from feedback
+													const actualChatId = (feedback as any)?.chat_id || feedback.request_id || (requestId.startsWith('feedback-') ? null : requestId)
+													
+													// Find sessionId from requestDetail or sessionRequests
+													let sessionId = requestDetail.session_id || ''
+													if (!sessionId) {
+														for (const [sId, requests] of Object.entries(sessionRequests)) {
+															if (requests.some(r => (r.requestId || r.id) === requestId || (r.requestId || r.id) === actualChatId)) {
+																sessionId = sId
+																break
+															}
 														}
 													}
 													
@@ -3707,20 +3721,20 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 																)}
 															</td>
 															<td>
-																{requestId.startsWith('feedback-') ? (
-																	<span>-</span>
-																) : (
+																{actualChatId ? (
 																	<button
 																		className="chat-id-link"
 																		onClick={() => {
-																			setConversationsSearch(requestId)
-																			setAdminFeedbackFilter(requestId)
-																			scrollToConversation(requestId)
+																			setConversationsSearch(actualChatId)
+																			setAdminFeedbackFilter(actualChatId)
+																			scrollToConversation(actualChatId)
 																		}}
-																		title={requestId}
+																		title={actualChatId}
 																	>
-																		<span className="chat-id-display">{formatChatId(requestId)}</span>
+																		<span className="chat-id-display">{formatChatId(actualChatId)}</span>
 																	</button>
+																) : (
+																	<span>-</span>
 																)}
 															</td>
 															<td>

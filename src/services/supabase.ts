@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 
-// Use the same Supabase project as n8n route
+// Use N8N Supabase (tecace service is stopped)
 const supabaseUrl = 'https://kvijybrfxukdttijgmwy.supabase.co'
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt2aWp5YnJmeHVrZHR0aWpnbXd5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI0NTAxOTksImV4cCI6MjA3ODAyNjE5OX0.UhCp33M2j9PImxtQC5L-hPoMUB2iFlCagEuOh1tcOZE'
 
