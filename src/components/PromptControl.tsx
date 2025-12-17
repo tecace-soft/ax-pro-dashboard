@@ -417,7 +417,7 @@ export default function PromptControl() {
 		
 		// 3. Feedback section from feedbackItems
 		if (feedbackItems.length > 0) {
-			const feedbackContent = feedbackItems.map((item, idx) => `F${idx + 1}. ${item}`).join('\n\n')
+			const feedbackContent = feedbackItems.map((item, idx) => `F${idx + 1}. ${item.text}`).join('\n\n')
 			sections.push(feedbackContent)
 		}
 		
