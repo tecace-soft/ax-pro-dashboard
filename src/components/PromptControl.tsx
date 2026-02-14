@@ -404,54 +404,64 @@ export default function PromptControl({ onNavigateToAdminFeedback }: PromptContr
 		setDeletePromptModal({ isOpen: false, promptId: null })
 	}
 
-	// Combine all sections into one prompt text for saving
-	const getCombinedPromptText = (): string => {
-		const sections: string[] = []
-		
-		// 1. Prompt
-		if (promptText.trim()) {
-			sections.push(promptText.trim())
-		}
-		
-		// 2. FAQ section from faqItems
-		if (faqItems.length > 0) {
-			const faqHeader = '🟦 [FAQ(High Priority FAQ)]\n\n'
-			const faqContent = faqItems.map((item, idx) => `Q${idx + 1}. ${item.question}\n답변: ${item.answer}`).join('\n\n')
-			sections.push(faqHeader + faqContent)
-		}
-		
-		// 3. Feedback section from feedbackItems
-		if (feedbackItems.length > 0) {
-			const feedbackContent = feedbackItems.map((item, idx) => `F${idx + 1}. ${item.text}`).join('\n\n')
-			sections.push(feedbackContent)
-		}
-		
-		return sections.join('\n\n')
-	}
-
 	// Handle Save (save to database/API and apply for legacy route)
 	const handleSave = async () => {
 		setIsSaving(true)
 		try {
-			const combinedText = getCombinedPromptText()
-			
 			if (isN8NRoute) {
-				// Save to Supabase for N8N route (only save, no apply needed)
-				await saveSystemPromptN8N(combinedText)
-				// Refresh to get the new prompt ID
+				// Section 1: Save only promptText to prompts table
+				await saveSystemPromptN8N(promptText.trim())
 				const allPrompts = await fetchAllPromptsN8N()
 				if (allPrompts.length > 0) {
 					setCurrentPromptId(allPrompts[0].id || null)
 				}
+
+				// Section 2 & 3: Save FAQ and Feedback items back to admin_feedback table
+				const { updateAdminFeedbackN8N } = await import('../services/adminFeedbackN8N')
+				
+				// Update FAQ items (corrected_message + corrected_response)
+				for (const item of faqItems) {
+					if (item.metadata && item.metadata.length > 0) {
+						const feedbackId = parseInt(item.metadata[0].feedbackId)
+						if (!isNaN(feedbackId)) {
+							await updateAdminFeedbackN8N(
+								feedbackId,
+								'bad',
+								'',
+								item.answer,
+								item.question,
+								feedbackId
+							)
+						}
+					}
+				}
+
+				// Update Feedback items (feedback_text)
+				for (const item of feedbackItems) {
+					if (item.metadata && item.metadata.length > 0) {
+						const feedbackId = parseInt(item.metadata[0].feedbackId)
+						if (!isNaN(feedbackId)) {
+							await updateAdminFeedbackN8N(
+								feedbackId,
+								'bad',
+								item.text,
+								undefined,
+								undefined,
+								feedbackId
+							)
+						}
+					}
+				}
+
 				setResponseModal({
 					isOpen: true,
-					message: language === 'ko' ? '프롬프트가 저장되었습니다.' : 'Prompt saved successfully.',
+					message: language === 'ko' ? '프롬프트와 피드백이 저장되었습니다.' : 'Prompt and feedback saved successfully.',
 					isSuccess: true
 				})
 			} else {
 				// For legacy route: save to API and then apply (force reload)
 				console.log('💾 Saving system prompt...')
-				await updateSystemPrompt(combinedText)
+				await updateSystemPrompt(promptText.trim())
 				console.log('✅ System prompt saved successfully')
 				
 				console.log('🔄 Force reloading chatbot...')
