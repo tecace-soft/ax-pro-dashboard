@@ -668,9 +668,27 @@ export default function BlobFiles({ language = 'en', onUploadComplete, syncRows 
             </div>
           ) : (
             <table>
+              <colgroup>
+                <col style={{ width: '40px' }} />
+                <col style={{ width: 'auto' }} />
+                <col style={{ width: '95px' }} />
+                <col style={{ width: '190px' }} />
+                <col style={{ width: '170px' }} />
+                <col style={{ width: '80px' }} />
+                <col style={{ width: '100px' }} />
+              </colgroup>
               <thead>
                 <tr>
-                  <th style={{ width: '40px', textAlign: 'center' }}>
+                  <th
+                    className="checkbox-col"
+                    style={{
+                      width: '40px',
+                      minWidth: '40px',
+                      maxWidth: '40px',
+                      padding: 0,
+                      textAlign: 'center'
+                    }}
+                  >
                     <SelectAllCheckbox
                       checked={isAllSelected}
                       indeterminate={isIndeterminate}
@@ -695,7 +713,16 @@ export default function BlobFiles({ language = 'en', onUploadComplete, syncRows 
                   }
                   return (
                     <tr key={blob.name}>
-                      <td style={{ textAlign: 'center' }}>
+                      <td
+                        className="checkbox-col"
+                        style={{
+                          width: '40px',
+                          minWidth: '40px',
+                          maxWidth: '40px',
+                          padding: 0,
+                          textAlign: 'center'
+                        }}
+                      >
                         <input
                           type="checkbox"
                           checked={isSelected}

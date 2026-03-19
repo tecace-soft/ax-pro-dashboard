@@ -243,6 +243,35 @@
 .files-table table {
   width: 100%;
   border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.files-table col.checkbox-col {
+  width: 40px !important;
+}
+
+.files-table col.filename-col {
+  width: 30% !important;
+}
+
+.files-table col.size-col {
+  width: 8% !important;
+}
+
+.files-table col.modified-col {
+  width: 18% !important;
+}
+
+.files-table col.type-col {
+  width: 18% !important;
+}
+
+.files-table col.sync-col {
+  width: 8% !important;
+}
+
+.files-table col.actions-col {
+  width: 8% !important;
 }
 
 .files-table th {
@@ -277,39 +306,46 @@
   width: 40px;
   min-width: 40px;
   max-width: 40px;
+  padding: 0;
   text-align: center;
+}
+
+.files-table th.checkbox-col,
+.files-table td.checkbox-col {
+  width: 40px !important;
+  min-width: 40px !important;
+  max-width: 40px !important;
+  padding: 0 !important;
+  text-align: center !important;
+}
+
+.files-table th:nth-child(1) input,
+.files-table td:nth-child(1) input {
+  margin: 0;
 }
 
 /* File Name column */
 .files-table th:nth-child(2),
 .files-table td:nth-child(2) {
-  width: 30%;
-  min-width: 180px;
-  max-width: 300px;
+  width: auto;
 }
 
 /* Size column - make it narrower */
 .files-table th:nth-child(3),
 .files-table td:nth-child(3) {
-  width: 8%;
-  min-width: 70px;
-  max-width: 90px;
+  width: auto;
 }
 
 /* Last Modified column - make it narrower */
 .files-table th:nth-child(4),
 .files-table td:nth-child(4) {
-  width: 18%;
-  min-width: 150px;
-  max-width: 180px;
+  width: auto;
 }
 
 /* Content Type column - make it narrower */
 .files-table th:nth-child(5),
 .files-table td:nth-child(5) {
-  width: 18%;
-  min-width: 140px;
-  max-width: 180px;
+  width: auto;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -318,17 +354,13 @@
 /* Sync Status column - fixed width */
 .files-table th:nth-child(6),
 .files-table td:nth-child(6) {
-  width: 8%;
-  min-width: 70px;
-  max-width: 90px;
+  width: auto;
 }
 
 /* Actions column - fixed width */
 .files-table th:nth-child(7),
 .files-table td:nth-child(7) {
-  width: 8%;
-  min-width: 70px;
-  max-width: 90px;
+  width: auto;
 }
 
 /* Sync Status Button */
@@ -399,6 +431,15 @@
   height: 32px;
 }
 
+.blob-files .action-buttons .action-btn {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  max-width: 32px;
+  max-height: 32px;
+}
+
 .action-btn:hover {
   background: rgba(124, 140, 255, 0.08);
   color: var(--text);
@@ -415,6 +456,11 @@
   background: rgba(239, 68, 68, 0.1);
   border-color: #ef4444;
   color: #ef4444;
+}
+
+.delete-btn svg {
+  width: 16px;
+  height: 16px;
 }
 
 /* No Files State */

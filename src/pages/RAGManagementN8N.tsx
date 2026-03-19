@@ -893,7 +893,12 @@ export default function RAGManagementN8N() {
                       <tbody>
                         {filteredSyncRows.map(row => {
                           const blob = row.blob || undefined
-                          const syncStatus: SyncStatus = computeSyncStatus(blob, row.indexDocs)
+                          // Sync status comes directly from files.is_indexed (mapped into row.status)
+                          const syncStatus: SyncStatus = {
+                            blobExists: !!blob,
+                            indexExists: row.status === 'synced',
+                            status: row.status
+                          }
                           return (
                             <tr key={row.key}>
                               <td title={row.key}>{blob?.name || row.key}</td>
@@ -903,9 +908,9 @@ export default function RAGManagementN8N() {
                                   : '❌ Not Exists'}
                               </td>
                               <td>
-                                {syncStatus.indexExists
-                                  ? `✅ ${row.indexCount} chunk${row.indexCount !== 1 ? 's' : ''}`
-                                  : '❌ Not Exists'}
+                                  {syncStatus.indexExists
+                                  ? '✅ Indexed'
+                                  : '⚠️ Not Indexed'}
                               </td>
                               <td>
                                 <div className="sync-status">
@@ -931,11 +936,10 @@ export default function RAGManagementN8N() {
                                       {isSyncing[row.key] ? '⏳' : <IconRefresh />}
                                     </button>
                                   )}
-                                  {syncStatus.indexExists && (
+                                  {syncStatus.status === 'synced' && (
                                     <button 
                                       onClick={() => {
-                                        const parentId = row.indexDocs[0]?.parent_id || row.key
-                                        handleUnsync(parentId)
+                                        handleUnsync(row.key)
                                       }} 
                                       title={currentT.unsyncAction}
                                       disabled={isSyncing[row.key]}
