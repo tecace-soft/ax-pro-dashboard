@@ -2510,7 +2510,7 @@ export default function Content({
 					feedback_verdict: updatedFeedbackN8N.feedback_verdict || existingFeedback.feedback_verdict,
 					feedback_text: updatedFeedbackN8N.feedback_text || '',
 					corrected_response: updatedFeedbackN8N.corrected_response || null,
-					corrected_message: updatedFeedbackN8N.corrected_message || null,
+					corrected_message: updatedFeedbackN8N.corrected_message?.trim() || undefined,
 					prompt_apply: updatedFeedbackN8N.apply !== undefined ? updatedFeedbackN8N.apply : existingFeedback.prompt_apply,
 					created_at: updatedFeedbackN8N.created_at,
 					updated_at: updatedFeedbackN8N.updated_at || undefined
@@ -2584,7 +2584,7 @@ export default function Content({
 					feedback_verdict: updatedFeedbackN8N.feedback_verdict || existingFeedback.feedback_verdict,
 					feedback_text: updatedFeedbackN8N.feedback_text || '',
 					corrected_response: updatedFeedbackN8N.corrected_response || null,
-					corrected_message: updatedFeedbackN8N.corrected_message || null,
+					corrected_message: updatedFeedbackN8N.corrected_message?.trim() || undefined,
 					prompt_apply: updatedFeedbackN8N.apply !== undefined ? updatedFeedbackN8N.apply : existingFeedback.prompt_apply,
 					created_at: updatedFeedbackN8N.created_at,
 					updated_at: updatedFeedbackN8N.updated_at || undefined
