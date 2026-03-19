@@ -441,13 +441,31 @@ export default function Sidebar({
 
   const handleUserFeedbackClick = () => {
     if (isDashboardPage) {
-      // Dashboard 페이지에서는 스크롤만 실행
       if (onScrollToSection) {
         onScrollToSection('user-feedback')
       }
     } else {
-      // 다른 페이지에서는 Dashboard로 이동 후 스크롤
       navigate(isN8NRoute ? '/dashboard-n8n?section=user-feedback' : '/dashboard?section=user-feedback')
+    }
+  }
+
+  const handleAdminFeedbackClick = () => {
+    if (isDashboardPage) {
+      if (onScrollToSection) {
+        onScrollToSection('admin-feedback')
+      }
+    } else {
+      navigate(isN8NRoute ? '/dashboard-n8n?section=admin-feedback' : '/dashboard?section=admin-feedback')
+    }
+  }
+
+  const handleAdminInstructionClick = () => {
+    if (isDashboardPage) {
+      if (onScrollToSection) {
+        onScrollToSection('admin-instruction')
+      }
+    } else {
+      navigate(isN8NRoute ? '/dashboard-n8n?section=admin-instruction' : '/dashboard?section=admin-instruction')
     }
   }
 
@@ -577,8 +595,7 @@ export default function Sidebar({
         <IconChevronRight className={`toggle-icon ${isCollapsed ? 'rotated' : ''}`} />
       </div>
       
-      {!isCollapsed && (
-        <>
+      <div className="sidebar-content">
           {/* AI Assistant Profile */}
           <div className="profile-section">
             <div className="profile-content">
@@ -632,6 +649,7 @@ export default function Sidebar({
                   </>
                 )}
                 
+                {/* Performance and Status hidden for now
                 <div className="profile-metrics">
                   <div className="profile-metric">
                     <span className="profile-metric-value">{performanceScore}%</span>
@@ -643,6 +661,7 @@ export default function Sidebar({
                     <span className="profile-metric-label">Status</span>
                   </div>
                 </div>
+                */}
               </div>
 
               <div className="profile-actions">
@@ -667,11 +686,6 @@ export default function Sidebar({
                       <IconCamera size={12} />
                       Photo
                     </button>
-                    {/* Style 버튼 주석 처리 */}
-                    {/* <button className="btn-small">
-                      <IconPalette size={12} />
-                      Style
-                    </button> */}
                   </>
                 )}
               </div>
@@ -691,36 +705,30 @@ export default function Sidebar({
             </div>
           </div> */}
 
-          {/* Search Section - 범위 선택 UI 추가 */}
+          {/* Search Section hidden for now
           <div className="search-section">
-            {/* 검색 범위 선택 */}
             <div className="search-scope-selector">
               <label className="scope-label">Search In:</label>
               <div className="scope-options">
                 <div className={`scope-option ${searchScope === 'all' ? 'active' : ''}`} onClick={() => setSearchScope('all')}>
                   <div className="scope-checkbox"></div>
-                  
                   <span className="scope-text">All Sources</span>
                 </div>
                 <div className={`scope-option ${searchScope === 'conversations' ? 'active' : ''}`} onClick={() => setSearchScope('conversations')}>
                   <div className="scope-checkbox"></div>
-                  
                   <span className="scope-text">Recent Conversations</span>
                 </div>
                 <div className={`scope-option ${searchScope === 'feedback' ? 'active' : ''}`} onClick={() => setSearchScope('feedback')}>
                   <div className="scope-checkbox"></div>
-                  
                   <span className="scope-text">User Feedback</span>
                 </div>
                 <div className={`scope-option ${searchScope === 'knowledge' ? 'active' : ''}`} onClick={() => setSearchScope('knowledge')}>
                   <div className="scope-checkbox"></div>
-                  
                   <span className="scope-text">Knowledge Base</span>
                 </div>
               </div>
             </div>
 
-            {/* 검색 입력 */}
             <form onSubmit={handleSearch} className="search-form">
               <div className="search-input-group">
                 <input
@@ -743,7 +751,6 @@ export default function Sidebar({
               </div>
             </form>
             
-            {/* Recent Searches */}
             {recentSearches.length > 0 && (
               <div className="recent-searches">
                 <h4 className="recent-title">Recent Searches</h4>
@@ -772,8 +779,9 @@ export default function Sidebar({
               </div>
             )}
           </div>
+          */}
 
-          {/* Search Results Popup */}
+          {/* Search Results Popup hidden for now
           {showSearchResults && (
             <div className="search-results-popup">
               <div className="popup-header">
@@ -837,6 +845,7 @@ export default function Sidebar({
               </div>
             </div>
           )}
+          */}
 
           {/* Filters
           <div className="filters-section">
@@ -890,6 +899,7 @@ export default function Sidebar({
 
           {/* 사이드바 메뉴 항목들 */}
           <div className="sidebar-menu">
+            {/* Dashboard menu section hidden for now
             <div className="menu-section">
               <h3 className="menu-title">Dashboard</h3>
               <ul className="menu-list">
@@ -919,72 +929,28 @@ export default function Sidebar({
                     <span className="menu-text">Daily Message Activity</span>
                   </button>
                 </li>
-                {/* System Status 주석 처리 */}
-                {/* <li className="menu-item">
-                  <button 
-                    className="menu-button"
-                    onClick={() => onScrollToSection('system-status')}
-                  >
-                    <svg className="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <circle cx="12" cy="12" r="3" />
-                      <path d="M12 1v6m0 6v6" />
-                      <path d="M3.6 3.6l4.2 4.2m8.4 8.4l4.2 4.2" />
-                    </svg>
-                    <span className="menu-text">System Status</span>
-                  </button>
-                </li> */}
-                {/* Environment Controls 주석 처리 */}
-                {/* <li className="menu-item">
-                  <button 
-                    className="menu-button"
-                    onClick={() => onScrollToSection('environment-controls')}
-                  >
-                    <svg className="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <circle cx="12" cy="12" r="3" />
-                      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-                    </svg>
-                    <span className="menu-text">Environment Controls</span>
-                  </button>
-                </li> */}
               </ul>
             </div>
+            */}
 
             <div className="menu-section">
-              {/* <h3 className="menu-title">Content</h3>
               <ul className="menu-list">
-                <li className="menu-item">
-                  <button 
-                    className="menu-button"
-                    onClick={() => onScrollToSection('content-module')}
-                  >
+                <li 
+                  className="menu-item"
+                  onClick={() => {
+                    navigate('/dashboard-n8n')
+                    setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100)
+                  }}
+                >
+                  <button className="menu-button">
                     <svg className="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                      <polyline points="14,2 14,8 20,8" />
-                      <line x1="16" y1="13" x2="8" y2="13" />
-                      <line x1="16" y1="17" x2="8" y2="17" />
-                      <polyline points="10,9 9,9 8,9" />
+                      <line x1="18" y1="20" x2="18" y2="10"/>
+                      <line x1="12" y1="20" x2="12" y2="4"/>
+                      <line x1="6" y1="20" x2="6" y2="14"/>
                     </svg>
-                    <span className="menu-text">Content Module</span>
+                    <span className="menu-text">Performance Overview</span>
                   </button>
                 </li>
-                <li className="menu-item">
-                  <button 
-                    className="menu-button"
-                    onClick={() => onScrollToSection('recent-conversations')}
-                  >
-                    <svg className="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                    </svg>
-                    <span className="menu-text">Recent Conversations</span>
-                  </button>
-                </li>
-              </ul> */}
-            </div>
-
-            {/* MANAGEMENT Section (기존 CONTENT를 변경) */}
-            <div className="menu-section">
-              <h3 className="menu-title">MANAGEMENT</h3>
-              <ul className="menu-list">
                 <li 
                   className="menu-item"
                   onClick={handleConversationsClick}
@@ -1002,10 +968,33 @@ export default function Sidebar({
                 </li>
                 <li 
                   className="menu-item"
+                  onClick={handleAdminFeedbackClick}
+                >
+                  <button className="menu-button">
+                    <svg className="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M9 11l3 3L22 4"/>
+                      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                    </svg>
+                    <span className="menu-text">Supervisor's Response</span>
+                  </button>
+                </li>
+                <li 
+                  className="menu-item"
+                  onClick={handleAdminInstructionClick}
+                >
+                  <button className="menu-button">
+                    <svg className="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M12 20h9"/>
+                      <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+                    </svg>
+                    <span className="menu-text">Admin Instruction</span>
+                  </button>
+                </li>
+                <li 
+                  className="menu-item"
                   onClick={handleUserFeedbackClick}
                 >
                   <button className="menu-button">
-                    {/* Chat Bubble Icon */}
                     <svg className="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
                     </svg>
@@ -1041,8 +1030,7 @@ export default function Sidebar({
               </ul>
             </div>
           </div>
-        </>
-      )}
+      </div>
     </aside>
   )
 }

@@ -137,6 +137,7 @@ export default function DashboardN8N() {
 	const [customStartDate, setCustomStartDate] = useState('')
 	const [customEndDate, setCustomEndDate] = useState('')
 	const [showScrollTop, setShowScrollTop] = useState(false)
+	const [showPerformanceDetail, setShowPerformanceDetail] = useState(false)
 
 	const [radarData, setRadarData] = useState<DailyRow[]>([])
 	const [selectedRadarDate, setSelectedRadarDate] = useState<string>('')
@@ -365,16 +366,30 @@ export default function DashboardN8N() {
 						block: 'start' 
 					})
 				}
-			} else if (sectionId === 'user-feedback') {
+			} else if (sectionId === 'admin-feedback') {
+				if (contentSections[1]) {
+					contentSections[1].scrollIntoView({ 
+						behavior: 'smooth', 
+						block: 'start' 
+					})
+				}
+			} else if (sectionId === 'admin-instruction') {
 				if (contentSections[2]) {
 					contentSections[2].scrollIntoView({ 
 						behavior: 'smooth', 
 						block: 'start' 
 					})
 				}
-			} else if (sectionId === 'prompt-control') {
+			} else if (sectionId === 'user-feedback') {
 				if (contentSections[3]) {
 					contentSections[3].scrollIntoView({ 
+						behavior: 'smooth', 
+						block: 'start' 
+					})
+				}
+			} else if (sectionId === 'prompt-control') {
+				if (contentSections[4]) {
+					contentSections[4].scrollIntoView({ 
 						behavior: 'smooth', 
 						block: 'start' 
 					})
@@ -431,38 +446,21 @@ export default function DashboardN8N() {
 				/>
 				
 				<main className="dashboard-main">
-					<div className="dashboard-grid">
-						<div className="grid-left">
-							<PerformanceRadar
-								relevance={radarProps.relevance}
-								tone={radarProps.tone}
-								length={radarProps.length}
-								accuracy={radarProps.accuracy}
-								toxicity={radarProps.toxicity}
-								promptInjection={radarProps.promptInjection}
-								timelineData={filteredRadarData}
-								selectedDate={selectedRadarDate}
-								onDateChange={setSelectedRadarDate}
-								includeSimulatedData={includeSimulatedData}
-								onIncludeSimulatedDataChange={setIncludeSimulatedData}
-								estimationMode={estimationMode}
-								onEstimationModeChange={setEstimationMode}
-							/>
-
-							<DailyMessageActivity 
-								startDate={startDate}
-								endDate={endDate}
-								sessions={sessions}
-								sessionRequests={sessionRequests}
-							/>
-						</div>
-					</div>
-
 					<div className="content-module">
 						<Content 
 							startDate={startDate}
 							endDate={endDate}
 							onDateChange={handleRangeChange}
+							showPerformanceDetail={showPerformanceDetail}
+							onTogglePerformanceDetail={() => setShowPerformanceDetail(!showPerformanceDetail)}
+							radarProps={radarProps}
+							radarTimelineData={filteredRadarData}
+							selectedRadarDate={selectedRadarDate}
+							onRadarDateChange={setSelectedRadarDate}
+							includeSimulatedData={includeSimulatedData}
+							onIncludeSimulatedDataChange={setIncludeSimulatedData}
+							estimationMode={estimationMode}
+							onEstimationModeChange={setEstimationMode}
 						/>
 					</div>
 				</main>

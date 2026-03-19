@@ -136,6 +136,9 @@ export async function uploadFilesToSupabase(files: File[]): Promise<FileUploadRe
     throw new Error('No user context available')
   }
   
+  // Get OpenAI API key from environment
+  const openaiApiKey = (import.meta as any).env?.VITE_OPENAI_API_KEY || ''
+  
   for (const file of files) {
     try {
       // 1. Validate file
@@ -182,8 +185,53 @@ export async function uploadFilesToSupabase(files: File[]): Promise<FileUploadRe
         continue
       }
       
-      // 4. File is now in storage - no database table needed
-      console.log(`✅ Successfully uploaded "${uniqueFileName}" to storage`)
+      console.log(`✅ Successfully uploaded "${uniqueFileName}" to Supabase storage`)
+      
+      // 4. Upload to OpenAI Files API
+      let openaiFileId: string | null = null
+      
+      if (openaiApiKey) {
+        try {
+          const formData = new FormData()
+          formData.append('purpose', 'assistants')
+          formData.append('file', file) // Use original file object
+          
+          const openaiResponse = await fetch('https://api.openai.com/v1/files', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${openaiApiKey}`
+            },
+            body: formData
+          })
+          
+          if (openaiResponse.ok) {
+            const openaiData = await openaiResponse.json()
+            openaiFileId = openaiData.id
+            console.log(`✅ Successfully uploaded "${uniqueFileName}" to OpenAI, file ID: ${openaiFileId}`)
+          } else {
+            const errorText = await openaiResponse.text()
+            console.warn(`⚠️ OpenAI upload failed for "${uniqueFileName}": ${errorText}`)
+          }
+        } catch (openaiError) {
+          console.warn(`⚠️ OpenAI upload failed for "${uniqueFileName}":`, openaiError)
+        }
+      } else {
+        console.warn('⚠️ OpenAI API key not configured, skipping OpenAI upload')
+      }
+      
+      // 5. Save file record to Supabase 'files' table
+      const { error: dbError } = await supabaseN8N
+        .from('files')
+        .insert({
+          file_name: uniqueFileName,
+          openai_file_id: openaiFileId
+        })
+      
+      if (dbError) {
+        console.warn(`⚠️ Failed to save file record to database: ${dbError.message}`)
+      } else {
+        console.log(`✅ Saved file record to database: ${uniqueFileName}, OpenAI ID: ${openaiFileId || 'N/A'}`)
+      }
       
       results.push({
         success: true,
@@ -241,56 +289,42 @@ export async function fetchFilesFromSupabase(): Promise<FileListResponse> {
     
     console.log('📋 Files found in storage:', filesList.length)
     
-    // Convert storage files to RAGFile format
-    const filesWithIndexStatus = await Promise.all(
-      filesList.map(async (file) => {
-        try {
-          // Check if file is indexed in documents table
-          // Use ILIKE for case-insensitive matching and handle potential whitespace
-          let docQuery = supabaseN8N
-            .from('documents')
-            .select('id, metadata')
-            .ilike('metadata->>fileName', file.name.trim())
-          
-          if (groupId) {
-            docQuery = docQuery.eq('metadata->>groupId', groupId)
-          }
-          
-          const { data: docsData, error: docError } = await docQuery.limit(1)
-          
-          if (docError) {
-            console.warn(`⚠️ Error checking index status for ${file.name}:`, docError.message)
-          }
-          
-          const isIndexed = docsData && docsData.length > 0
-          
-          console.log(`📊 File: ${file.name}, Indexed: ${isIndexed}, Docs found: ${docsData?.length || 0}`)
-          
-          return {
-            id: file.id || file.name,
-            name: file.name,
-            size: file.metadata?.size || 0,
-            type: file.metadata?.mimetype || 'application/octet-stream',
-            uploadedAt: file.created_at || new Date().toISOString(),
-            status: 'ready' as const,
-            lastModified: file.updated_at || file.created_at || new Date().toISOString(),
-            syncStatus: isIndexed ? 'synced' as const : 'pending' as const
-          }
-        } catch (fileError) {
-          console.error(`❌ Error processing storage file ${file.name}:`, fileError)
-          return {
-            id: file.id || file.name,
-            name: file.name,
-            size: file.metadata?.size || 0,
-            type: file.metadata?.mimetype || 'application/octet-stream',
-            uploadedAt: file.created_at || new Date().toISOString(),
-            status: 'ready' as const,
-            lastModified: file.updated_at || file.created_at || new Date().toISOString(),
-            syncStatus: 'pending' as const
-          }
-        }
+    // Get all file records from files table to check is_indexed status
+    const fileNames = filesList.map(f => f.name)
+    const { data: fileRecords, error: fileRecordsError } = await supabaseN8N
+      .from('files')
+      .select('file_name, is_indexed')
+      .in('file_name', fileNames)
+    
+    if (fileRecordsError) {
+      console.warn('⚠️ Error fetching file records:', fileRecordsError.message)
+    }
+    
+    // Create a map for quick lookup
+    const indexedMap = new Map<string, boolean>()
+    if (fileRecords) {
+      fileRecords.forEach(record => {
+        indexedMap.set(record.file_name, record.is_indexed === true)
       })
-    )
+    }
+    
+    // Convert storage files to RAGFile format
+    const filesWithIndexStatus = filesList.map((file) => {
+      const isIndexed = indexedMap.get(file.name) || false
+      
+      console.log(`📊 File: ${file.name}, is_indexed: ${isIndexed}`)
+      
+      return {
+        id: file.id || file.name,
+        name: file.name,
+        size: file.metadata?.size || 0,
+        type: file.metadata?.mimetype || 'application/octet-stream',
+        uploadedAt: file.created_at || new Date().toISOString(),
+        status: 'ready' as const,
+        lastModified: file.updated_at || file.created_at || new Date().toISOString(),
+        syncStatus: isIndexed ? 'synced' as const : 'pending' as const
+      }
+    })
     
     console.log('✅ Successfully processed', filesWithIndexStatus.length, 'files from storage')
     
@@ -316,6 +350,118 @@ export async function deleteFileFromSupabase(fileName: string): Promise<{ succes
   const { groupId } = await getSessionContext()
   
   try {
+    // 0. Lookup OpenAI IDs before deleting Supabase data
+    const { data: fileRecord, error: fileRecordError } = await supabaseN8N
+      .from('files')
+      .select('openai_file_id')
+      .eq('file_name', fileName)
+      .single()
+
+    if (fileRecordError) {
+      console.warn(`⚠️ Could not fetch files.openai_file_id for "${fileName}":`, fileRecordError.message)
+    }
+
+    const openaiFileId: string | null = fileRecord?.openai_file_id ?? null
+    const vectorStoreId = 'vs_69bc2e1a89308191bbc3d8de688b6ba8'
+    const openaiApiKey = (import.meta as any).env?.VITE_OPENAI_API_KEY || ''
+
+    // 1. Best-effort delete from OpenAI + vector store (do not block Supabase deletion)
+    if (openaiApiKey && openaiFileId) {
+      try {
+        // Removes the file from the vector store (file_id here is expected by OpenAI to be the vector store file id)
+        // If your DB stored a different id than OpenAI expects, this may fail; we log and continue.
+        const vectorStoreDeleteUrl = `https://api.openai.com/v1/vector_stores/${vectorStoreId}/files/${openaiFileId}`
+        const vectorStoreResp = await fetch(vectorStoreDeleteUrl, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${openaiApiKey}`,
+            'Content-Type': 'application/json'
+          }
+        })
+
+        if (!vectorStoreResp.ok) {
+          const errorText = await vectorStoreResp.text().catch(() => '')
+          console.warn(`⚠️ OpenAI vector store file delete failed for "${fileName}":`, vectorStoreResp.status, errorText)
+
+          // Fallback: list vector-store files and try to delete by the actual vector-store file id.
+          // We match by common fields where OpenAI returns the original file id.
+          try {
+            const listUrl = `https://api.openai.com/v1/vector_stores/${vectorStoreId}/files?limit=100`
+            const listResp = await fetch(listUrl, {
+              method: 'GET',
+              headers: {
+                'Authorization': `Bearer ${openaiApiKey}`,
+                'Content-Type': 'application/json'
+              }
+            })
+
+            if (listResp.ok) {
+              const listData = await listResp.json()
+              const dataArr: any[] = Array.isArray(listData?.data) ? listData.data : []
+
+              const match = dataArr.find(vsf => {
+                const id = (vsf?.id ?? '').toString()
+                const attrs = vsf?.attributes ?? {}
+                const attrsFileId =
+                  (attrs?.file_id ?? attrs?.fileId ?? attrs?.openai_file_id ?? attrs?.openaiFileId ?? '').toString()
+                return id === openaiFileId || attrsFileId === openaiFileId
+              })
+
+              const vectorStoreFileId = match?.id
+              if (vectorStoreFileId) {
+                const deleteByVectorStoreFileIdUrl = `https://api.openai.com/v1/vector_stores/${vectorStoreId}/files/${vectorStoreFileId}`
+                const delete2Resp = await fetch(deleteByVectorStoreFileIdUrl, {
+                  method: 'DELETE',
+                  headers: {
+                    'Authorization': `Bearer ${openaiApiKey}`,
+                    'Content-Type': 'application/json'
+                  }
+                })
+
+                if (!delete2Resp.ok) {
+                  const errorText2 = await delete2Resp.text().catch(() => '')
+                  console.warn(`⚠️ OpenAI vector store delete fallback failed for "${fileName}":`, delete2Resp.status, errorText2)
+                } else {
+                  console.log(`✅ Deleted from OpenAI vector store (fallback) for "${fileName}"`)
+                }
+              } else {
+                console.warn(`⚠️ Could not find matching vector-store file for "${fileName}" using openai_file_id.`)
+              }
+            } else {
+              const listErrorText = await listResp.text().catch(() => '')
+              console.warn(`⚠️ OpenAI vector store file list failed:`, listResp.status, listErrorText)
+            }
+          } catch (fallbackErr) {
+            console.warn(`⚠️ OpenAI vector store delete fallback threw for "${fileName}":`, fallbackErr)
+          }
+        } else {
+          console.log(`✅ Deleted from OpenAI vector store for "${fileName}"`)
+        }
+      } catch (e) {
+        console.warn(`⚠️ OpenAI vector store delete threw for "${fileName}":`, e)
+      }
+
+      try {
+        const openaiFileDeleteUrl = `https://api.openai.com/v1/files/${openaiFileId}`
+        const openaiResp = await fetch(openaiFileDeleteUrl, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${openaiApiKey}`,
+            'Content-Type': 'application/json'
+          }
+        })
+
+        if (!openaiResp.ok) {
+          const errorText = await openaiResp.text().catch(() => '')
+          console.warn(`⚠️ OpenAI file delete failed for "${fileName}":`, openaiResp.status, errorText)
+        } else {
+          console.log(`✅ Deleted OpenAI file for "${fileName}"`)
+        }
+      } catch (e) {
+        console.warn(`⚠️ OpenAI file delete threw for "${fileName}":`, e)
+      }
+    }
+
     // 1. Delete from Storage
     const filePath = `files/${fileName}`
     const { error: storageError } = await supabaseN8N.storage
@@ -343,6 +489,18 @@ export async function deleteFileFromSupabase(fileName: string): Promise<{ succes
     
     if (docError) {
       console.warn(`Failed to delete indexed documents: ${docError.message}`)
+    }
+    
+    // 3. Delete from files table
+    const { error: filesTableError } = await supabaseN8N
+      .from('files')
+      .delete()
+      .eq('file_name', fileName)
+    
+    if (filesTableError) {
+      console.warn(`Failed to delete file record from files table: ${filesTableError.message}`)
+    } else {
+      console.log(`✅ Deleted file record from files table: ${fileName}`)
     }
     
     return {
@@ -437,120 +595,121 @@ export async function fetchVectorDocuments(limit: number = 100, offset: number =
   }
 }
 
-// Task 5: Index file to vector via n8n webhook
+// Task 5: Index file to OpenAI Vector Store
 export async function indexFileToVector(fileName: string): Promise<{
   success: boolean
   message: string
-  workflowId?: string
-  estimatedTime?: string
+  vectorStoreFileId?: string
 }> {
-  const { groupId } = await getSessionContext()
-  
   try {
-    // 1. Get signed URL from Supabase Storage
-    const filePath = `files/${fileName}`
-    const { data: urlData, error: urlError } = await supabaseN8N.storage
-      .from(STORAGE_BUCKET)
-      .createSignedUrl(filePath, 3600) // 1 hour expiry
+    // 1. Get OpenAI file ID from files table
+    const { data: fileRecord, error: fileError } = await supabaseN8N
+      .from('files')
+      .select('openai_file_id')
+      .eq('file_name', fileName)
+      .single()
     
-    if (urlError || !urlData) {
+    if (fileError || !fileRecord) {
       return {
         success: false,
-        message: `Failed to get file URL: ${urlError?.message || 'Unknown error'}`
+        message: `File record not found in database: ${fileError?.message || 'Unknown error'}`
       }
     }
     
-    let fullFileUrl = urlData.signedUrl
+    const openaiFileId = fileRecord.openai_file_id
     
-    // Convert relative URL to full URL if needed
-    if (!fullFileUrl.startsWith('http')) {
-      const supabaseUrl = 'https://kvijybrfxukdttijgmwy.supabase.co'
-      if (fullFileUrl.startsWith('/object/')) {
-        fullFileUrl = `${supabaseUrl}/storage/v1${fullFileUrl}`
-      } else if (fullFileUrl.startsWith('/storage/')) {
-        fullFileUrl = `${supabaseUrl}${fullFileUrl}`
-      } else {
-        fullFileUrl = `${supabaseUrl}/storage/v1/object/public/${STORAGE_BUCKET}/${filePath}`
+    if (!openaiFileId) {
+      return {
+        success: false,
+        message: `No OpenAI file ID found for "${fileName}". The file may not have been uploaded to OpenAI.`
       }
     }
     
-    // 2. Get webhook ID
-    const UPLOAD_WEBHOOK_ID = (import.meta as any).env?.VITE_N8N_UPLOAD_WEBHOOK_ID || '31cc8349-fbf2-4f0d-b1dd-dd14070a9947'
+    // 2. Get OpenAI API key
+    const openaiApiKey = (import.meta as any).env?.VITE_OPENAI_API_KEY || ''
     
-    // 3. Determine dev/production mode
-    const isDevMode = ((import.meta as any).env?.VITE_N8N_DEV_MODE === 'true') || 
-                     localStorage.getItem('n8n-dev-mode') === 'true'
+    if (!openaiApiKey) {
+      return {
+        success: false,
+        message: 'OpenAI API key not configured'
+      }
+    }
     
-    // 4. Construct webhook URL
-    // const N8N_BASE_URL = 'https://n8n.srv978041.hstgr.cloud'
-    const N8N_BASE_URL = 'https://n8n.srv1153481.hstgr.cloud'
-    const n8nWebhookUrl = isDevMode 
-      ? `${N8N_BASE_URL}/webhook-test/${UPLOAD_WEBHOOK_ID}`
-      : ((import.meta as any).env?.VITE_N8N_BASE_URL 
-          ? `${(import.meta as any).env?.VITE_N8N_BASE_URL}/webhook/${UPLOAD_WEBHOOK_ID}`
-          : `${N8N_BASE_URL}/webhook/${UPLOAD_WEBHOOK_ID}`)
+    // 3. Call OpenAI Vector Store API
+    const vectorStoreId = 'vs_69bc2e1a89308191bbc3d8de688b6ba8'
+    const vectorStoreUrl = `https://api.openai.com/v1/vector_stores/${vectorStoreId}/files`
     
-    // 5. Construct payload (MUST be an array)
-    const payload = [{
-      fileUrl: fullFileUrl,
-      fileName: fileName,
-      source: 'supabase-storage',
-      groupId: groupId,
-    }]
+    console.log(`📤 Adding file to OpenAI Vector Store: ${openaiFileId}`)
     
-    console.log('📤 Sending to n8n webhook:', n8nWebhookUrl)
-    console.log('📦 Payload:', payload)
-    
-    // 6. Send POST request with dual fallback
-    try {
-      // First attempt: Use fetch with cors mode
-      const fetchResponse = await fetch(n8nWebhookUrl, {
-        method: 'POST',
-        mode: 'cors',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+    const response = await fetch(vectorStoreUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openaiApiKey}`,
+        'Content-Type': 'application/json',
+        'OpenAI-Beta': 'assistants=v2'
+      },
+      body: JSON.stringify({
+        file_id: openaiFileId
       })
-      
-      if (!fetchResponse.ok) {
-        throw new Error(`HTTP ${fetchResponse.status}: ${fetchResponse.statusText}`)
+    })
+    
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('❌ OpenAI Vector Store API error:', errorText)
+      return {
+        success: false,
+        message: `OpenAI Vector Store API error: ${response.status} - ${errorText}`
       }
+    }
+    
+    const responseData = await response.json()
+    console.log('✅ OpenAI Vector Store response:', responseData)
+    
+    // 4. Check if response contains an id (successful)
+    if (responseData.id) {
+      // 5. Update files table to mark as indexed
+      console.log(`📝 Updating is_indexed for file_name: "${fileName}"`)
       
-      const responseData = await fetchResponse.json().catch(() => ({}))
-      const workflowId = responseData?.workflowId || responseData?.executionId
-      const estimatedTime = responseData?.estimatedTime
+      const { data: updateData, error: updateError } = await supabaseN8N
+        .from('files')
+        .update({
+          is_indexed: true,
+          indexed_date: new Date().toISOString()
+        })
+        .eq('file_name', fileName)
+        .select()
+      
+      if (updateError) {
+        console.error(`❌ Failed to update is_indexed flag: ${updateError.message}`)
+        console.error('Update error details:', updateError)
+      } else if (!updateData || updateData.length === 0) {
+        console.warn(`⚠️ No rows updated for file_name: "${fileName}" - row may not exist or RLS policy blocking`)
+        
+        // Try to verify the row exists
+        const { data: checkData, error: checkError } = await supabaseN8N
+          .from('files')
+          .select('*')
+          .eq('file_name', fileName)
+        
+        console.log('Checking if row exists:', { checkData, checkError })
+      } else {
+        console.log(`✅ Updated is_indexed = true for "${fileName}"`, updateData)
+      }
       
       return {
         success: true,
-        message: `File indexing initiated for "${fileName}"`,
-        workflowId,
-        estimatedTime
+        message: `Successfully added "${fileName}" to vector store`,
+        vectorStoreFileId: responseData.id
       }
-    } catch (fetchError: any) {
-      console.warn('CORS fetch failed, trying no-cors mode:', fetchError)
-      
-      // Fallback: Use fetch with no-cors (can't read response but usually works)
-      try {
-        const noCorsResponse = await fetch(n8nWebhookUrl, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        })
-        
-        // In no-cors mode, we can't read the response, but status 0 usually means success
-        return {
-          success: true,
-          message: `File indexing initiated for "${fileName}" (no-cors mode)`
-        }
-      } catch (noCorsError) {
-        return {
-          success: false,
-          message: `Failed to call indexing webhook: ${fetchError instanceof Error ? fetchError.message : 'Unknown error'}`
-        }
+    } else {
+      return {
+        success: false,
+        message: `Unexpected response from OpenAI: ${JSON.stringify(responseData)}`
       }
     }
     
   } catch (error) {
+    console.error('❌ indexFileToVector error:', error)
     return {
       success: false,
       message: `Failed to index file: ${error instanceof Error ? error.message : 'Unknown error'}`

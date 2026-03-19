@@ -567,32 +567,30 @@ export default function PromptControl({ onNavigateToAdminFeedback }: PromptContr
 		<div className="card section" aria-labelledby="prompt-control-title">
 			<div className="section-header">
 				<div id="prompt-control-title" className="section-title">
-					{t('systemPromptControl')}
+					<span className="section-title-text">{t('systemPromptControl')}</span>
+					<button 
+						className="refresh-btn section-refresh-btn"
+						onClick={handleRefresh}
+						disabled={isRefreshing}
+						title={isN8NRoute ? (language === 'ko' ? 'Supabase에서 새로고침' : "Refresh prompt from Supabase") : (language === 'ko' ? 'API에서 새로고침' : "Refresh prompt from API")}
+					>
+						<svg 
+							viewBox="0 0 24 24" 
+							fill="none" 
+							stroke="currentColor" 
+							strokeWidth="2"
+							width="16"
+							height="16"
+							className={isRefreshing ? 'spinning' : ''}
+						>
+							<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+							<path d="M21 3v5h-5"/>
+							<path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
+							<path d="M3 21v-5h5"/>
+						</svg>
+					</button>
 				</div>
 				<div className="conversations-controls">
-					<div className="font-size-control">
-						<label>{t('fontSize')}</label>
-						<div className="font-size-buttons">
-							<button 
-								className={`font-size-btn ${promptFontSize === 'small' ? 'active' : ''}`}
-								onClick={() => setPromptFontSize('small')}
-							>
-								A
-							</button>
-							<button 
-								className={`font-size-btn ${promptFontSize === 'medium' ? 'active' : ''}`}
-								onClick={() => setPromptFontSize('medium')}
-							>
-								A
-							</button>
-							<button 
-								className={`font-size-btn ${promptFontSize === 'large' ? 'active' : ''}`}
-								onClick={() => setPromptFontSize('large')}
-							>
-								A
-							</button>
-						</div>
-					</div>
 					{isN8NRoute && (
 						<button
 							className="btn btn-ghost"
@@ -620,33 +618,6 @@ export default function PromptControl({ onNavigateToAdminFeedback }: PromptContr
 						</svg>
 						<span style={{ marginLeft: '6px' }}>{t('expand')}</span>
 					</button>
-					<div className="refresh-control">
-						{lastRefreshed && (
-							<span className="last-refreshed">
-								{t('lastRefreshed')} {lastRefreshed.toLocaleString()}
-							</span>
-						)}
-						<button 
-							className="refresh-btn"
-							onClick={handleRefresh}
-							disabled={isRefreshing}
-							title={isN8NRoute ? (language === 'ko' ? 'Supabase에서 새로고침' : "Refresh prompt from Supabase") : (language === 'ko' ? 'API에서 새로고침' : "Refresh prompt from API")}
-						>
-							<svg 
-								viewBox="0 0 24 24" 
-								fill="none" 
-								stroke="currentColor" 
-								strokeWidth="2"
-								className={isRefreshing ? 'spinning' : ''}
-							>
-								<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
-								<path d="M21 3v5h-5"/>
-								<path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
-								<path d="M3 21v-5h5"/>
-							</svg>
-							<span className="refresh-btn-text">{language === 'ko' ? '새로고침' : 'Refresh'}</span>
-						</button>
-					</div>
 				</div>
 			</div>
 			

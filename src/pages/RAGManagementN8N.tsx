@@ -433,105 +433,37 @@ export default function RAGManagementN8N() {
   const loadData = async () => {
     setIsLoading(true)
     try {
-      // Use Supabase for n8n route
+      // Fetch files from Supabase Storage with is_indexed status
       const filesResponse = await fetchFilesFromSupabase()
-      const files: SupabaseFile[] = filesResponse.success 
-        ? filesResponse.files.map(f => ({
-            id: f.id,
-            name: f.name,
-            size: f.size,
-            last_modified: f.lastModified,
-            url: undefined
-          }))
-        : []
-
-      const docsResponse = await fetchVectorDocuments(1000, 0)
-      const idxs: SupabaseIndexDocument[] = docsResponse.success
-        ? docsResponse.documents.map((doc) => {
-            // Extract fileName from metadata - use same logic as Knowledge Index
-            let fileName = doc.metadata?.fileName
-            if (!fileName || fileName.trim() === '' || fileName === 'Unknown') {
-              // Try to extract from other metadata fields
-              let altFileName = doc.metadata?.filepath || doc.metadata?.name || doc.metadata?.title || doc.metadata?.parent_id
-              
-              // If still not found, try to extract from content
-              if (!altFileName && doc.content) {
-                // Look for patterns like 'basic-text.pdf' or file extensions in content
-                const contentMatch = doc.content.match(/([a-zA-Z0-9_-]+\.(pdf|docx?|txt|md|json|csv|xml|html|css|js|ts|yml|yaml))/i)
-                if (contentMatch && contentMatch[1]) {
-                  altFileName = contentMatch[1]
-                } else {
-                  // Try to find 'blob' as a standalone word
-                  const blobMatch = doc.content.match(/\b(blob)\b/i)
-                  if (blobMatch && blobMatch[1]) {
-                    altFileName = 'blob'
-                  }
-                }
-              }
-              
-              // Check metadata.source or other fields
-              if (!altFileName && doc.metadata?.source) {
-                altFileName = doc.metadata.source
-              }
-              
-              // Check if metadata has blobType or other identifying info
-              if (!altFileName && doc.metadata?.blobType) {
-                if (doc.metadata?.source === 'blob' || doc.content?.includes('blob')) {
-                  altFileName = 'blob'
-                }
-              }
-              
-              // For truly unknown files, try to group by content similarity
-              if (!altFileName && doc.content) {
-                const contentStart = doc.content.substring(0, 200).toLowerCase()
-                // Check for 'basic-text' pattern
-                if (contentStart.includes('basic-text') || contentStart.includes('basic text')) {
-                  altFileName = 'basic-text.pdf'
-                } else if (contentStart.includes('blob') || doc.metadata?.blobType === 'application/json') {
-                  altFileName = 'blob'
-                }
-              }
-              
-              if (altFileName && altFileName !== 'Unknown' && altFileName.trim() !== '') {
-                // Clean up the filename - remove path if present
-                fileName = altFileName.split('/').pop() || altFileName.split('\\').pop() || altFileName
-              } else {
-                fileName = 'Unknown'
-              }
-            }
-            
-            return {
-              id: doc.id.toString(),
-              chunk_id: doc.id.toString(),
-              parent_id: fileName, // Use extracted fileName as parent_id for grouping
-              title: fileName, // Use fileName as title
-              filepath: fileName, // Use fileName as filepath
-              content: doc.content,
-              metadata: doc.metadata
-            }
-          })
-        : []
-
-      // Convert to Document format for compatibility
-      const blobs: Document[] = files.map(f => ({
+      
+      if (!filesResponse.success) {
+        console.error('Failed to fetch files:', filesResponse.message)
+        return
+      }
+      
+      // Build documents list for compatibility
+      const blobs: Document[] = filesResponse.files.map(f => ({
         name: f.name,
         size: f.size,
-        last_modified: f.last_modified,
-        url: f.url
+        last_modified: f.lastModified,
+        url: undefined
       }))
-
-      // Convert to IndexDocument format for compatibility
-      const indexDocs: IndexDocument[] = idxs.map(doc => ({
-        chunk_id: doc.chunk_id,
-        parent_id: doc.parent_id,
-        title: doc.title,
-        filepath: doc.filepath,
-        content: doc.content
-      }))
+      
+      // Build sync rows directly from file records using is_indexed (syncStatus)
+      const rows: SyncRow[] = filesResponse.files.map(f => {
+        const isIndexed = f.syncStatus === 'synced'
+        return {
+          key: f.name,
+          blob: { name: f.name, size: f.size, last_modified: f.lastModified },
+          indexDocs: [],
+          indexCount: isIndexed ? 1 : 0, // Use 1 to indicate indexed, 0 for not indexed
+          status: isIndexed ? 'synced' : 'needs_indexing'
+        }
+      })
 
       setDocuments(blobs)
-      setIndexDocuments(indexDocs)
-      setSyncRows(buildSyncRows(blobs, indexDocs))
+      setIndexDocuments([])
+      setSyncRows(rows)
     } catch (error) {
       console.error('Failed to load data:', error)
     } finally {
@@ -542,105 +474,37 @@ export default function RAGManagementN8N() {
   const refreshSync = async () => {
     setIsSyncLoading(true)
     try {
-      // Use Supabase for n8n route
+      // Fetch files from Supabase Storage with is_indexed status
       const filesResponse = await fetchFilesFromSupabase()
-      const files: SupabaseFile[] = filesResponse.success 
-        ? filesResponse.files.map(f => ({
-            id: f.id,
-            name: f.name,
-            size: f.size,
-            last_modified: f.lastModified,
-            url: undefined
-          }))
-        : []
-
-      const docsResponse = await fetchVectorDocuments(1000, 0)
-      const idxs: SupabaseIndexDocument[] = docsResponse.success
-        ? docsResponse.documents.map((doc) => {
-            // Extract fileName from metadata - use same logic as Knowledge Index
-            let fileName = doc.metadata?.fileName
-            if (!fileName || fileName.trim() === '' || fileName === 'Unknown') {
-              // Try to extract from other metadata fields
-              let altFileName = doc.metadata?.filepath || doc.metadata?.name || doc.metadata?.title || doc.metadata?.parent_id
-              
-              // If still not found, try to extract from content
-              if (!altFileName && doc.content) {
-                // Look for patterns like 'basic-text.pdf' or file extensions in content
-                const contentMatch = doc.content.match(/([a-zA-Z0-9_-]+\.(pdf|docx?|txt|md|json|csv|xml|html|css|js|ts|yml|yaml))/i)
-                if (contentMatch && contentMatch[1]) {
-                  altFileName = contentMatch[1]
-                } else {
-                  // Try to find 'blob' as a standalone word
-                  const blobMatch = doc.content.match(/\b(blob)\b/i)
-                  if (blobMatch && blobMatch[1]) {
-                    altFileName = 'blob'
-                  }
-                }
-              }
-              
-              // Check metadata.source or other fields
-              if (!altFileName && doc.metadata?.source) {
-                altFileName = doc.metadata.source
-              }
-              
-              // Check if metadata has blobType or other identifying info
-              if (!altFileName && doc.metadata?.blobType) {
-                if (doc.metadata?.source === 'blob' || doc.content?.includes('blob')) {
-                  altFileName = 'blob'
-                }
-              }
-              
-              // For truly unknown files, try to group by content similarity
-              if (!altFileName && doc.content) {
-                const contentStart = doc.content.substring(0, 200).toLowerCase()
-                // Check for 'basic-text' pattern
-                if (contentStart.includes('basic-text') || contentStart.includes('basic text')) {
-                  altFileName = 'basic-text.pdf'
-                } else if (contentStart.includes('blob') || doc.metadata?.blobType === 'application/json') {
-                  altFileName = 'blob'
-                }
-              }
-              
-              if (altFileName && altFileName !== 'Unknown' && altFileName.trim() !== '') {
-                // Clean up the filename - remove path if present
-                fileName = altFileName.split('/').pop() || altFileName.split('\\').pop() || altFileName
-              } else {
-                fileName = 'Unknown'
-              }
-            }
-            
-            return {
-              id: doc.id.toString(),
-              chunk_id: doc.id.toString(),
-              parent_id: fileName, // Use extracted fileName as parent_id for grouping
-              title: fileName, // Use fileName as title
-              filepath: fileName, // Use fileName as filepath
-              content: doc.content,
-              metadata: doc.metadata
-            }
-          })
-        : []
-
-      // Convert to Document format for compatibility
-      const blobs: Document[] = files.map(f => ({
+      
+      if (!filesResponse.success) {
+        console.error('Failed to fetch files:', filesResponse.message)
+        return
+      }
+      
+      // Build documents list for compatibility
+      const blobs: Document[] = filesResponse.files.map(f => ({
         name: f.name,
         size: f.size,
-        last_modified: f.last_modified,
-        url: f.url
+        last_modified: f.lastModified,
+        url: undefined
       }))
-
-      // Convert to IndexDocument format for compatibility
-      const indexDocs: IndexDocument[] = idxs.map(doc => ({
-        chunk_id: doc.chunk_id,
-        parent_id: doc.parent_id,
-        title: doc.title,
-        filepath: doc.filepath,
-        content: doc.content
-      }))
+      
+      // Build sync rows directly from file records using is_indexed (syncStatus)
+      const rows: SyncRow[] = filesResponse.files.map(f => {
+        const isIndexed = f.syncStatus === 'synced'
+        return {
+          key: f.name,
+          blob: { name: f.name, size: f.size, last_modified: f.lastModified },
+          indexDocs: [],
+          indexCount: isIndexed ? 1 : 0, // Use 1 to indicate indexed, 0 for not indexed
+          status: isIndexed ? 'synced' : 'needs_indexing'
+        }
+      })
 
       setDocuments(blobs)
-      setIndexDocuments(indexDocs)
-      setSyncRows(buildSyncRows(blobs, indexDocs))
+      setIndexDocuments([])
+      setSyncRows(rows)
       setLastSyncRefreshed(new Date())
     } catch (e) {
       console.error('Sync refresh failed:', e)
@@ -718,43 +582,19 @@ export default function RAGManagementN8N() {
     try {
       setIsSyncing(p => ({ ...p, [filepath]: true }))
       
-      // Use Supabase for n8n route - call n8n webhook to index
       const fileName = filepath.split('/').pop() || filepath
       
-      // First, delete existing indexed documents for this file
-      const { groupId } = await import('../services/ragManagementN8N').then(m => m.getSessionContext?.() || { groupId: null })
-      if (groupId) {
-        const { supabaseN8N } = await import('../services/supabaseN8N')
-        await supabaseN8N
-          .from('documents')
-          .delete()
-          .eq('metadata->>fileName', fileName)
-          .eq('metadata->>groupId', groupId)
-      } else {
-        const { supabaseN8N } = await import('../services/supabaseN8N')
-        await supabaseN8N
-          .from('documents')
-          .delete()
-          .eq('metadata->>fileName', fileName)
-      }
-      
-      // Call n8n webhook to index the file
+      // Call OpenAI Vector Store API to index the file
       const result = await indexFileToVector(fileName)
       
       if (result.success) {
-        // Wait a bit for indexing to start, then refresh
-        setTimeout(async () => {
-          await refreshSync()
-        }, 2000)
+        // Refresh to update sync status
+        await refreshSync()
         
-        let message = `Indexing initiated for: ${fileName}`
-        if (result.workflowId) {
-          message += `\nWorkflow ID: ${result.workflowId}`
+        let message = `Successfully indexed: ${fileName}`
+        if (result.vectorStoreFileId) {
+          message += `\nVector Store File ID: ${result.vectorStoreFileId}`
         }
-        if (result.estimatedTime) {
-          message += `\nEstimated time: ${result.estimatedTime}`
-        }
-        message += `\n\nSync status will update automatically once indexing completes.`
         alert(message)
       } else {
         throw new Error(result.message)
@@ -762,7 +602,7 @@ export default function RAGManagementN8N() {
       
     } catch (err) {
       console.error(err)
-      alert(`Failed to reindex: ${filepath}\n\nError: ${err instanceof Error ? err.message : 'Unknown error'}`)
+      alert(`Failed to index: ${filepath}\n\nError: ${err instanceof Error ? err.message : 'Unknown error'}`)
     } finally {
       setIsSyncing(p => ({ ...p, [filepath]: false }))
     }
@@ -773,41 +613,21 @@ export default function RAGManagementN8N() {
     try {
       setIsSyncing(p => ({ ...p, [filepath]: true }))
       
-      // Use Supabase for n8n route - delete documents from documents table
       const fileName = filepath.split('/').pop() || filepath
       const { supabaseN8N } = await import('../services/supabaseN8N')
-      const { groupId } = await import('../services/ragManagementN8N').then(m => m.getSessionContext?.() || { groupId: null })
-      
-      let query = supabaseN8N
-        .from('documents')
-        .delete()
-        .eq('metadata->>fileName', fileName)
-      
-      if (groupId) {
-        query = query.eq('metadata->>groupId', groupId)
-      }
-      
-      const { error } = await query
-      
-      if (error) {
-        throw new Error(error.message || 'Unsync failed')
-      }
       
       // Update files table to mark as not indexed
-      let fileQuery = supabaseN8N
+      const { error: updateError } = await supabaseN8N
         .from('files')
         .update({
           is_indexed: false,
-          indexed_at: null,
-          updated_at: new Date().toISOString()
+          indexed_date: null
         })
         .eq('file_name', fileName)
       
-      if (groupId) {
-        fileQuery = fileQuery.eq('group_id', groupId)
+      if (updateError) {
+        throw new Error(updateError.message || 'Unsync failed')
       }
-      
-      await fileQuery
       
       await refreshSync()
       alert(`Removed from index: ${filepath}`)

@@ -379,21 +379,27 @@ export async function saveManualAdminFeedbackN8N(
   correctedResponse?: string,
   correctedMessage?: string
 ): Promise<AdminFeedbackDataN8N> {
+  console.log('saveManualAdminFeedbackN8N called with:', { verdict, text, correctedResponse, correctedMessage })
   try {
+    const insertData = {
+      chat_id: null,
+      feedback_verdict: verdict,
+      feedback_text: text,
+      corrected_response: correctedResponse || null,
+      corrected_message: correctedMessage || null,
+      apply: true
+    }
+    console.log('Inserting data:', insertData)
+    
     // Create the admin feedback entry without chat_id (set to null)
     const { data, error } = await supabaseN8N
       .from('admin_feedback')
-      .insert({
-        chat_id: null,
-        feedback_verdict: verdict,
-        feedback_text: text,
-        corrected_response: correctedResponse || null,
-        corrected_message: correctedMessage || null,
-        apply: true
-      })
+      .insert(insertData)
       .select()
       .single()
 
+    console.log('Supabase response - data:', data, 'error:', error)
+    
     if (error) throw error
 
     return data

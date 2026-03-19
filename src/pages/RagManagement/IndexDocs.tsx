@@ -595,8 +595,7 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
               .from('files')
               .update({
                 is_indexed: false,
-                indexed_at: null,
-                updated_at: new Date().toISOString()
+                indexed_date: null
               })
               .eq('file_name', fileName)
             

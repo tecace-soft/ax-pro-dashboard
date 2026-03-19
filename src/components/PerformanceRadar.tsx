@@ -147,13 +147,6 @@ export default function PerformanceRadar({
 
   return (
     <div className="performance-radar-section">
-      <div className="radar-header">
-        <h2 className="radar-title">Performance Radar</h2>
-        <p className="radar-description">
-          AI 응답 품질과 보안 성능을 6가지 핵심 지표로 실시간 모니터링하여 최적의 사용자 경험을 제공합니다
-        </p>
-      </div>
-      
       <div className="radar-and-control-wrapper">
         <div className="radar-chart-section">
           <div className="radar-chart-large">
@@ -284,21 +277,6 @@ export default function PerformanceRadar({
           </div>
         </div>
       </div>
-      
-      {timelineData.length > 0 && (
-        <div className="timeline-section-wrapper">
-          <PerformanceTimeline
-            data={timelineData}
-            selectedDate={selectedDate}
-            onDateChange={onDateChange}
-            title="Performance Timeline"
-            includeSimulatedData={includeSimulatedData}
-            onIncludeSimulatedDataChange={onIncludeSimulatedDataChange}
-            estimationMode={estimationMode as any}
-            onEstimationModeChange={onEstimationModeChange as any}
-          />
-        </div>
-      )}
     </div>
   )
 }

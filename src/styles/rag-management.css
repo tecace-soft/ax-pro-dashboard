@@ -15,22 +15,23 @@
   flex: 1;
   padding: 24px;
   margin: 0;
-  transition: all 0.3s ease;
+  transition: margin-left 0.3s ease, width 0.3s ease;
   color: var(--text);
-  width: 100%;
+  width: calc(100% - 280px);
   max-width: none;
+  margin-left: 280px;
 }
 
 /* 사이드바가 있을 때 */
 .rag-management.with-sidebar {
-  margin-left: 0;
-  margin-right: 0;
+  margin-left: 280px;
+  width: calc(100% - 280px);
   max-width: none;
 }
 
 .rag-management.with-sidebar.collapsed {
-  margin-left: 0;
-  margin-right: 0;
+  margin-left: 60px;
+  width: calc(100% - 60px);
   max-width: none;
 }
 
@@ -266,11 +267,10 @@
 
 /* Content */
 .content {
-  background: linear-gradient(180deg, rgba(18,27,61,0.9), rgba(13,20,44,0.9));
-  border-radius: 14px;
-  border: 1px solid rgba(59, 230, 255, 0.06);
-  box-shadow: var(--card-shadow);
-  overflow: hidden;
+  background: none;
+  border: none;
+  box-shadow: none;
+  overflow: visible;
 }
 
 .loading {

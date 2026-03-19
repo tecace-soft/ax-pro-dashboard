@@ -68,7 +68,9 @@ const translations: Record<Language, Record<string, string>> = {
     'saveChanges': 'Save Changes',
     'promptHistory': 'Prompt History',
     'current': 'Current',
-    'load': 'Load'
+    'load': 'Load',
+    'page': 'Page',
+    'of': 'of'
   },
   ko: {
     'recentConversations': '최근 대화',
@@ -115,7 +117,9 @@ const translations: Record<Language, Record<string, string>> = {
     'saveChanges': '변경사항 저장',
     'promptHistory': '프롬프트 이력',
     'current': '현재',
-    'load': '불러오기'
+    'load': '불러오기',
+    'page': '페이지',
+    'of': '/'
   }
 }
 

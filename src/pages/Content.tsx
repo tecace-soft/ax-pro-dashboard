@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useLocation } from 'react-router-dom'
 import { IconX } from '../ui/icons'
+import PerformanceRadar from '../components/PerformanceRadar'
+import { DailyRow, EstimationMode } from '../services/dailyAggregates'
 import { useLanguage } from '../contexts/LanguageContext'
 import { useTheme } from '../contexts/ThemeContext'
 import { getAuthToken } from '../services/auth'
@@ -19,6 +21,7 @@ import { updatePromptWithFeedback } from '../services/promptUpdater'
 import { downloadAdminFeedbackData } from '../services/adminFeedbackExport'
 import { downloadConversationsData, ConversationExportData } from '../services/conversationsExport'
 import { conversationsCache } from '../services/conversationsCache'
+import { fetchFilesFromSupabase } from '../services/ragManagementN8N'
 
 interface CacheData {
 	sessions: any[]
@@ -106,13 +109,46 @@ function formatDateForAPI(d: Date, isEndDate: boolean = false): string {
 	return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
 }
 
+interface RadarProps {
+	relevance: number
+	tone: number
+	length: number
+	accuracy: number
+	toxicity: number
+	promptInjection: number
+}
+
 interface ContentProps {
 	startDate: string
 	endDate: string
 	onDateChange: (start: string, end: string) => void
+	showPerformanceDetail?: boolean
+	onTogglePerformanceDetail?: () => void
+	radarProps?: RadarProps
+	radarTimelineData?: DailyRow[]
+	selectedRadarDate?: string
+	onRadarDateChange?: (date: string) => void
+	includeSimulatedData?: boolean
+	onIncludeSimulatedDataChange?: (include: boolean) => void
+	estimationMode?: EstimationMode
+	onEstimationModeChange?: (mode: EstimationMode) => void
 }
 
-export default function Content({ startDate, endDate, onDateChange }: ContentProps) {
+export default function Content({ 
+	startDate, 
+	endDate, 
+	onDateChange, 
+	showPerformanceDetail = false, 
+	onTogglePerformanceDetail,
+	radarProps,
+	radarTimelineData = [],
+	selectedRadarDate = '',
+	onRadarDateChange,
+	includeSimulatedData = true,
+	onIncludeSimulatedDataChange,
+	estimationMode = 'simple',
+	onEstimationModeChange
+}: ContentProps) {
 	const location = useLocation()
 	const isN8NRoute = location.pathname === '/dashboard-n8n' || location.pathname === '/rag-n8n'
 	const { language, setLanguage, t } = useLanguage()
@@ -158,6 +194,13 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 	})
 	const [feedbackText, setFeedbackText] = useState<string>('')
 	const [adminFeedback, setAdminFeedback] = useState<Record<string, AdminFeedbackData>>({})
+	const [editingAdminInstruction, setEditingAdminInstruction] = useState<Set<string>>(new Set())
+	const [adminInstructionEditData, setAdminInstructionEditData] = useState<Record<string, string>>({})
+	const [submittingAdminInstructionEdits, setSubmittingAdminInstructionEdits] = useState<Set<string>>(new Set())
+	const [addAdminInstructionModal, setAddAdminInstructionModal] = useState<{ isOpen: boolean, text: string }>({ isOpen: false, text: '' })
+	const [adminInstructionCurrentPage, setAdminInstructionCurrentPage] = useState(1)
+	const [isSubmittingAdminInstruction, setIsSubmittingAdminInstruction] = useState(false)
+	const [documentsCount, setDocumentsCount] = useState<number>(0)
 	const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false)
 	const [expandedFeedbackForms, setExpandedFeedbackForms] = useState<Set<string>>(new Set())
 	const [closingFeedbackForms, setClosingFeedbackForms] = useState<Set<string>>(new Set())
@@ -183,16 +226,74 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 	const [adminFeedbackFilter, setAdminFeedbackFilter] = useState('')
 	const [adminFeedbackTypeFilter, setAdminFeedbackTypeFilter] = useState<'all' | 'good' | 'bad'>('all')
 	const [adminFeedbackFontSize, setAdminFeedbackFontSize] = useState<'small' | 'medium' | 'large'>('medium')
-	const [adminFeedbackDisplayLimit, setAdminFeedbackDisplayLimit] = useState(10)
+	const [adminFeedbackCurrentPage, setAdminFeedbackCurrentPage] = useState(1)
+	const ITEMS_PER_PAGE = 10
+
+	// Helper function to generate page numbers for pagination
+	const getPageNumbers = (currentPage: number, totalPages: number): (number | 'ellipsis')[] => {
+		if (totalPages <= 6) {
+			return Array.from({ length: totalPages }, (_, i) => i + 1)
+		}
+		
+		const pages: (number | 'ellipsis')[] = []
+		
+		// Always show first page
+		pages.push(1)
+		
+		if (currentPage <= 3) {
+			// Near the start: 1 2 3 ... last-2 last-1 last
+			pages.push(2, 3)
+			pages.push('ellipsis')
+			pages.push(totalPages - 2, totalPages - 1, totalPages)
+		} else if (currentPage >= totalPages - 2) {
+			// Near the end: 1 ... last-4 last-3 last-2 last-1 last
+			pages.push('ellipsis')
+			pages.push(totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages)
+		} else {
+			// In the middle: 1 ... prev current next ... last
+			pages.push('ellipsis')
+			pages.push(currentPage - 1, currentPage, currentPage + 1)
+			pages.push('ellipsis')
+			pages.push(totalPages)
+		}
+		
+		// Remove duplicates and filter
+		const uniquePages: (number | 'ellipsis')[] = []
+		let lastPage: number | 'ellipsis' | null = null
+		for (const page of pages) {
+			if (page === 'ellipsis') {
+				if (lastPage !== 'ellipsis') {
+					uniquePages.push(page)
+					lastPage = page
+				}
+			} else if (page !== lastPage && page >= 1 && page <= totalPages) {
+				uniquePages.push(page)
+				lastPage = page
+			}
+		}
+		
+		return uniquePages
+	}
+
+	// Reset admin feedback page when search/filter changes
+	useEffect(() => {
+		setAdminFeedbackCurrentPage(1)
+	}, [adminFeedbackFilter, adminFeedbackTypeFilter])
+
+	// Reset admin instruction page when data changes
+	useEffect(() => {
+		setAdminInstructionCurrentPage(1)
+	}, [adminFeedback])
+
 	const [editingAdminFeedback, setEditingAdminFeedback] = useState<Set<string>>(new Set())
-	const [adminFeedbackEditData, setAdminFeedbackEditData] = useState<Record<string, { text: string, correctedResponse: string }>>({})
+	const [adminFeedbackEditData, setAdminFeedbackEditData] = useState<Record<string, { text: string, correctedResponse: string, correctedMessage?: string }>>({})
 	const [submittingAdminFeedbackEdits, setSubmittingAdminFeedbackEdits] = useState<Set<string>>(new Set())
 	const [conversationsLastRefreshed, setConversationsLastRefreshed] = useState<Date | null>(null)
 	const [adminFeedbackLastRefreshed, setAdminFeedbackLastRefreshed] = useState<Date | null>(null)
 	const [isRefreshingConversations, setIsRefreshingConversations] = useState(false)
 	const [isRefreshingAdminFeedback, setIsRefreshingAdminFeedback] = useState(false)
 	const [conversationsAutoRefresh, setConversationsAutoRefresh] = useState<number | null>(null) // Off by default
-	const [adminFeedbackAutoRefresh, setAdminFeedbackAutoRefresh] = useState<number | null>(30) // 30 seconds default, null = off
+	const [adminFeedbackAutoRefresh, setAdminFeedbackAutoRefresh] = useState<number | null>(null) // Off by default
 	const [isBackgroundLoading, setIsBackgroundLoading] = useState(false)
 	const [backgroundLoadProgress, setBackgroundLoadProgress] = useState<string>('')
 	const [isUpdatingPrompt, setIsUpdatingPrompt] = useState(false)
@@ -210,10 +311,10 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 		isOpen: false
 	})
 	const [manualFeedbackData, setManualFeedbackData] = useState({
-		verdict: 'bad' as 'good' | 'bad',
+		userMessage: '',
+		aiResponse: '',
 		correctedMessage: '',
-		correctedResponse: '',
-		feedbackText: ''
+		correctedResponse: ''
 	})
 	const [isImporting, setIsImporting] = useState(false)
 	const [importFileInput, setImportFileInput] = useState<HTMLInputElement | null>(null)
@@ -254,21 +355,20 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 	// Handle Add Admin Feedback
 	const handleAddAdminFeedback = () => {
 		setManualFeedbackData({
-			verdict: 'bad',
+			userMessage: '',
+			aiResponse: '',
 			correctedMessage: '',
-			correctedResponse: '',
-			feedbackText: ''
+			correctedResponse: ''
 		})
 		setAddAdminFeedbackModal({ isOpen: true })
 	}
 
 	const handleSaveManualFeedback = async () => {
-		// Check if either Supervisor Feedback OR Corrected Response is filled (same validation as submit button)
-		const hasFeedbackText = manualFeedbackData.feedbackText.trim().length > 0
+		// Check if Corrected Supervisor Response is filled
 		const hasCorrectedResponse = manualFeedbackData.correctedResponse.trim().length > 0
 		
-		if (!hasFeedbackText && !hasCorrectedResponse) {
-			alert(language === 'ko' ? 'Supervisor Feedback 또는 Corrected Response 중 하나를 입력해주세요.' : 'Please fill in either Supervisor Feedback or Corrected Response.')
+		if (!hasCorrectedResponse) {
+			alert(language === 'ko' ? 'Corrected Supervisor Response를 입력해주세요.' : 'Please fill in Corrected Supervisor Response.')
 			return
 		}
 
@@ -276,8 +376,8 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 			let savedFeedback: AdminFeedbackData | AdminFeedbackDataN8N
 			if (isN8NRoute) {
 				savedFeedback = await saveManualAdminFeedbackN8N(
-					manualFeedbackData.verdict,
-					manualFeedbackData.feedbackText,
+					'bad', // Default verdict
+					'', // No feedback text
 					manualFeedbackData.correctedResponse,
 					manualFeedbackData.correctedMessage
 				)
@@ -287,7 +387,7 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 				const mappedFeedback: AdminFeedbackData = {
 					id: savedFeedback.id,
 					request_id: feedbackKey, // Use generated key since chat_id is null
-					feedback_verdict: savedFeedback.feedback_verdict || manualFeedbackData.verdict,
+					feedback_verdict: savedFeedback.feedback_verdict || 'bad',
 					feedback_text: savedFeedback.feedback_text || '',
 					corrected_response: savedFeedback.corrected_response || null,
 					prompt_apply: savedFeedback.apply !== undefined ? savedFeedback.apply : true,
@@ -300,10 +400,10 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 				}))
 			} else {
 				const savedFeedbackLegacy: AdminFeedbackData = await saveManualAdminFeedback(
-					manualFeedbackData.verdict,
-					manualFeedbackData.feedbackText,
-					'', // userMessage - not used for manual feedback
-					'', // aiResponse - not used for manual feedback
+					'bad', // Default verdict
+					'', // No feedback text
+					manualFeedbackData.userMessage,
+					manualFeedbackData.aiResponse,
 					manualFeedbackData.correctedResponse
 				)
 				setAdminFeedback(prev => ({
@@ -314,10 +414,10 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 
 			setAddAdminFeedbackModal({ isOpen: false })
 			setManualFeedbackData({
-				verdict: 'bad',
+				userMessage: '',
+				aiResponse: '',
 				correctedMessage: '',
-				correctedResponse: '',
-				feedbackText: ''
+				correctedResponse: ''
 			})
 			await refreshAdminFeedback()
 			alert(language === 'ko' ? '피드백이 추가되었습니다.' : 'Feedback added successfully.')
@@ -330,10 +430,10 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 	const handleCancelManualFeedback = () => {
 		setAddAdminFeedbackModal({ isOpen: false })
 		setManualFeedbackData({
-			verdict: 'bad',
+			userMessage: '',
+			aiResponse: '',
 			correctedMessage: '',
-			correctedResponse: '',
-			feedbackText: ''
+			correctedResponse: ''
 		})
 	}
 
@@ -1393,6 +1493,24 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 		}
 	}, [authToken, startDate, endDate, isN8NRoute])
 
+	// Fetch documents count for Performance Overview (N8N route only)
+	useEffect(() => {
+		if (!isN8NRoute) return
+		
+		async function loadDocumentsCount() {
+			try {
+				const filesResponse = await fetchFilesFromSupabase()
+				if (filesResponse.success) {
+					setDocumentsCount(filesResponse.total)
+				}
+			} catch (error) {
+				console.error('Failed to fetch documents count:', error)
+			}
+		}
+		
+		loadDocumentsCount()
+	}, [isN8NRoute])
+
 	// Keep requestDetailsRef in sync with requestDetails state
 	useEffect(() => {
 		requestDetailsRef.current = requestDetails
@@ -2383,15 +2501,16 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 					existingFeedback.feedback_verdict,
 					editData.text,
 					editData.correctedResponse.trim() || undefined,
-					undefined, // correctedMessage not available in table edit view
+					editData.correctedMessage?.trim() || undefined,
 					existingFeedback.id // Use id to avoid duplicate chat_id issues
 				)
-				const updatedFeedback: AdminFeedbackData = {
+				const updatedFeedback: AdminFeedbackData & { corrected_message?: string } = {
 					id: updatedFeedbackN8N.id,
 					request_id: requestId,
 					feedback_verdict: updatedFeedbackN8N.feedback_verdict || existingFeedback.feedback_verdict,
 					feedback_text: updatedFeedbackN8N.feedback_text || '',
 					corrected_response: updatedFeedbackN8N.corrected_response || null,
+					corrected_message: updatedFeedbackN8N.corrected_message || null,
 					prompt_apply: updatedFeedbackN8N.apply !== undefined ? updatedFeedbackN8N.apply : existingFeedback.prompt_apply,
 					created_at: updatedFeedbackN8N.created_at,
 					updated_at: updatedFeedbackN8N.updated_at || undefined
@@ -2436,6 +2555,94 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 				newSet.delete(requestId)
 				return newSet
 			})
+		}
+	}
+
+	// Submit inline edit for admin instruction
+	const submitAdminInstructionEdit = async (requestId: string) => {
+		const newText = adminInstructionEditData[requestId]
+		if (newText === undefined) return
+
+		setSubmittingAdminInstructionEdits(prev => new Set(prev).add(requestId))
+
+		try {
+			const existingFeedback = adminFeedback[requestId]
+			if (!existingFeedback) return
+
+			if (isN8NRoute) {
+				const updatedFeedbackN8N = await updateAdminFeedbackN8N(
+					requestId,
+					existingFeedback.feedback_verdict,
+					newText.trim(),
+					existingFeedback.corrected_response || undefined,
+					(existingFeedback as any).corrected_message || undefined,
+					existingFeedback.id
+				)
+				const updatedFeedback: AdminFeedbackData & { corrected_message?: string } = {
+					id: updatedFeedbackN8N.id,
+					request_id: requestId,
+					feedback_verdict: updatedFeedbackN8N.feedback_verdict || existingFeedback.feedback_verdict,
+					feedback_text: updatedFeedbackN8N.feedback_text || '',
+					corrected_response: updatedFeedbackN8N.corrected_response || null,
+					corrected_message: updatedFeedbackN8N.corrected_message || null,
+					prompt_apply: updatedFeedbackN8N.apply !== undefined ? updatedFeedbackN8N.apply : existingFeedback.prompt_apply,
+					created_at: updatedFeedbackN8N.created_at,
+					updated_at: updatedFeedbackN8N.updated_at || undefined
+				}
+				setAdminFeedback(prev => ({
+					...prev,
+					[requestId]: updatedFeedback
+				}))
+			}
+
+			// Close edit mode
+			setEditingAdminInstruction(prev => {
+				const newSet = new Set(prev)
+				newSet.delete(requestId)
+				return newSet
+			})
+			
+			// Refresh admin feedback table
+			await refreshAdminFeedback()
+		} catch (error) {
+			console.error('Failed to update admin instruction:', error)
+		} finally {
+			setSubmittingAdminInstructionEdits(prev => {
+				const newSet = new Set(prev)
+				newSet.delete(requestId)
+				return newSet
+			})
+		}
+	}
+
+	// Submit new admin instruction
+	const submitNewAdminInstruction = async () => {
+		if (!addAdminInstructionModal.text.trim()) return
+
+		setIsSubmittingAdminInstruction(true)
+		console.log('Creating new admin instruction:', addAdminInstructionModal.text.trim())
+
+		try {
+			if (isN8NRoute) {
+				// Use saveManualAdminFeedbackN8N to CREATE (not update) a new record
+				const result = await saveManualAdminFeedbackN8N(
+					'bad', // Default verdict
+					addAdminInstructionModal.text.trim(),
+					undefined, // No corrected response
+					undefined  // No corrected message
+				)
+				console.log('Admin instruction created successfully:', result)
+				
+				// Refresh admin feedback to get the new entry
+				await refreshAdminFeedback()
+				
+				// Close modal and reset
+				setAddAdminInstructionModal({ isOpen: false, text: '' })
+			}
+		} catch (error) {
+			console.error('Failed to add admin instruction:', error)
+		} finally {
+			setIsSubmittingAdminInstruction(false)
 		}
 	}
 
@@ -2559,7 +2766,12 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 	const [conversationsSortBy, setConversationsSortBy] = useState<'date' | 'session'>('date')
 	const [conversationsSearch, setConversationsSearch] = useState('')
 	const [conversationsFontSize, setConversationsFontSize] = useState<'small' | 'medium' | 'large'>('medium')
-	const [conversationsDisplayLimit, setConversationsDisplayLimit] = useState(10)
+	const [conversationsCurrentPage, setConversationsCurrentPage] = useState(1)
+
+	// Reset conversations page when search changes
+	useEffect(() => {
+		setConversationsCurrentPage(1)
+	}, [conversationsSearch])
 
 	// Flatten conversations for table view
 	const flattenedConversations = useMemo(() => {
@@ -2686,10 +2898,32 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 		return flattenedConversations.some(conv => conv.userId && conv.userId.trim() !== '')
 	}, [flattenedConversations])
 
-	// Filter and sort admin feedback - show ALL feedback
+	// Filter and sort admin instructions - only show feedback with feedback_text
+	const filteredAdminInstructions = useMemo(() => {
+		return Object.entries(adminFeedback)
+			.filter(([requestId, feedback]) => {
+				// Only show feedback where feedback_text is not empty or null
+				if (!feedback.feedback_text || feedback.feedback_text.trim() === '') {
+					return false;
+				}
+				return true;
+			})
+			.sort((a, b) => {
+				const dateA = a[1].created_at ? new Date(a[1].created_at).getTime() : 0
+				const dateB = b[1].created_at ? new Date(b[1].created_at).getTime() : 0
+				return dateB - dateA // Sort by newest first
+			})
+	}, [adminFeedback])
+
+	// Filter and sort admin feedback - only show feedback with corrected_response
 	const filteredAndSortedAdminFeedback = useMemo(() => {
 		const allFeedback = Object.entries(adminFeedback)
 			.filter(([requestId, feedback]) => {
+				// Only show feedback where corrected_response is not empty or null
+				if (!feedback.corrected_response || feedback.corrected_response.trim() === '') {
+					return false;
+				}
+				
 				// Filter by type (all/good/bad)
 				if (adminFeedbackTypeFilter === 'good' && feedback.feedback_verdict !== 'good') {
 					return false;
@@ -2821,50 +3055,178 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 		<div className="screen">
 			<main className="content">
 				<div className="content-sections">
-					{/* Recent Conversations Section */}
-					<div className="content-section">
-						<div className="card section" aria-labelledby="recent-conv-title">
-							<div className="section-header">
-								<div id="recent-conv-title" className="section-title conversations-title">
-									{language === 'ko' ? '최근 대화' : 'Recent Conversations'}
-									<span className="section-counter">({flattenedConversations.length})</span>
+					{/* Performance Overview Section - N8N only */}
+					{isN8NRoute && (
+						<div className="performance-overview-section">
+							{/* Stat Cards Row */}
+							<div className="overview-stats-bar">
+								{/* Conversations Card */}
+								<div className="performance-stat-card">
+									<div className="prof-overview-icon">
+										<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+											<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+										</svg>
+									</div>
+									<div className="prof-overview-content">
+										<div className="prof-overview-label">Conversations</div>
+										<div className="prof-overview-value">{flattenedConversations.length}</div>
+									</div>
 								</div>
-								<div className="date-controls">
-									<label className="date-field">
-										<span>Start Date</span>
-										<input type="date" className="input date-input" value={startDate} onChange={(e)=>onDateChange(e.target.value, endDate)} />
-									</label>
-									<label className="date-field">
-										<span>End Date</span>
-										<input type="date" className="input date-input" value={endDate} onChange={(e)=>onDateChange(startDate, e.target.value)} />
-									</label>
+								{/* Satisfaction Card */}
+								<div className="performance-stat-card">
+									<div className="prof-overview-icon">
+										<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+											<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+											<polyline points="22 4 12 14.01 9 11.01"/>
+										</svg>
+									</div>
+									<div className="prof-overview-content">
+										<div className="prof-overview-label">Satisfaction</div>
+										<div className="prof-overview-value">100%</div>
+									</div>
 								</div>
-								<div className="conversations-controls">
-									<div className="view-toggle">
+								{/* Documents Card */}
+								<div className="performance-stat-card">
+									<div className="prof-overview-icon">
+										<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+											<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+											<polyline points="14 2 14 8 20 8"/>
+										</svg>
+									</div>
+									<div className="prof-overview-content">
+										<div className="prof-overview-label">Documents</div>
+										<div className="prof-overview-value">{documentsCount}</div>
+									</div>
+								</div>
+								{/* Performance Card */}
+								<div className="performance-stat-card">
+									<div className="prof-overview-icon">
+										<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+											<line x1="18" y1="20" x2="18" y2="10"/>
+											<line x1="12" y1="20" x2="12" y2="4"/>
+											<line x1="6" y1="20" x2="6" y2="14"/>
+										</svg>
+									</div>
+									<div className="prof-overview-content">
+										<div className="prof-overview-label">Performance</div>
+										<div className="prof-overview-value">89%</div>
+									</div>
+								</div>
+							</div>
+
+							{/* Performance Metrics */}
+							<div className="card section performance-metrics-card">
+								<div className="section-header">
+									<div className="section-title">
+										<span className="section-title-text">{language === 'ko' ? '성능 개요' : 'Performance Overview'}</span>
 										<button 
-											className={`view-btn ${conversationsViewMode === 'grid' ? 'active' : ''}`}
-											onClick={() => setConversationsViewMode('grid')}
-											title="Grid View"
+											className="view-detail-btn"
+											onClick={onTogglePerformanceDetail}
 										>
-											<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-												<rect x="3" y="3" width="7" height="7"/>
-												<rect x="14" y="3" width="7" height="7"/>
-												<rect x="3" y="14" width="7" height="7"/>
-												<rect x="14" y="14" width="7" height="7"/>
-											</svg>
-										</button>
-										<button 
-											className={`view-btn ${conversationsViewMode === 'table' ? 'active' : ''}`}
-											onClick={() => setConversationsViewMode('table')}
-											title="Table View"
-										>
-											<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-												<line x1="3" y1="6" x2="21" y2="6"/>
-												<line x1="3" y1="12" x2="21" y2="12"/>
-												<line x1="3" y1="18" x2="21" y2="18"/>
+											{showPerformanceDetail 
+												? (language === 'ko' ? '상세 숨기기' : 'Hide Detail')
+												: (language === 'ko' ? '상세 보기' : 'View Detail')
+											}
+											<svg 
+												width="12" 
+												height="12" 
+												viewBox="0 0 24 24" 
+												fill="none" 
+												stroke="currentColor" 
+												strokeWidth="2" 
+												strokeLinecap="round" 
+												strokeLinejoin="round"
+												style={{ transform: showPerformanceDetail ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }}
+											>
+												<polyline points="6 9 12 15 18 9"></polyline>
 											</svg>
 										</button>
 									</div>
+								</div>
+								<div className="metrics-grid">
+									<div className="metric-item">
+										<div className="metric-name">Overall</div>
+										<div className="metric-value passing">89</div>
+									</div>
+									<div className="metric-item">
+										<div className="metric-name">관련성</div>
+										<div className="metric-sublabel">콘텐츠 매칭</div>
+										<div className="metric-value passing">87</div>
+									</div>
+									<div className="metric-item">
+										<div className="metric-name">톤</div>
+										<div className="metric-sublabel">응답 스타일</div>
+										<div className="metric-value passing">91</div>
+									</div>
+									<div className="metric-item">
+										<div className="metric-name">길이</div>
+										<div className="metric-sublabel">응답 크기</div>
+										<div className="metric-value passing">90</div>
+									</div>
+									<div className="metric-item">
+										<div className="metric-name">정확도</div>
+										<div className="metric-sublabel">정답률</div>
+										<div className="metric-value passing">88</div>
+									</div>
+									<div className="metric-item">
+										<div className="metric-name">유해성</div>
+										<div className="metric-sublabel">안전성 검사</div>
+										<div className="metric-value passing">92</div>
+									</div>
+									<div className="metric-item">
+										<div className="metric-name">프롬프트 주입</div>
+										<div className="metric-sublabel">보안 필터</div>
+										<div className="metric-value passing">87</div>
+									</div>
+								</div>
+
+								{/* Performance Radar - shown when View Detail is clicked */}
+								{showPerformanceDetail && radarProps && (
+									<div className="performance-radar-wrapper">
+										<PerformanceRadar
+											relevance={radarProps.relevance}
+											tone={radarProps.tone}
+											length={radarProps.length}
+											accuracy={radarProps.accuracy}
+											toxicity={radarProps.toxicity}
+											promptInjection={radarProps.promptInjection}
+											timelineData={radarTimelineData}
+											selectedDate={selectedRadarDate}
+											onDateChange={onRadarDateChange || (() => {})}
+											includeSimulatedData={includeSimulatedData}
+											onIncludeSimulatedDataChange={onIncludeSimulatedDataChange || (() => {})}
+											estimationMode={estimationMode}
+											onEstimationModeChange={onEstimationModeChange || (() => {})}
+										/>
+									</div>
+								)}
+							</div>
+						</div>
+					)}
+
+					{/* Recent Conversations Section */}
+					<div className="card section content-section" aria-labelledby="recent-conv-title">
+							<div className="section-header">
+								<div id="recent-conv-title" className="section-title conversations-title">
+									<span className="section-title-text">
+										{language === 'ko' ? '최근 대화' : 'Recent Conversations'}
+										<span className="section-counter">({flattenedConversations.length})</span>
+									</span>
+									<button 
+										className="refresh-btn section-refresh-btn"
+										onClick={refreshConversations}
+										disabled={isRefreshingConversations}
+										title={isRefreshingConversations ? (language === 'ko' ? '새로고침 중...' : 'Refreshing...') : (language === 'ko' ? '새로고침' : 'Refresh')}
+									>
+										<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={isRefreshingConversations ? 'spinning' : ''}>
+											<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+											<path d="M21 3v5h-5"/>
+											<path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
+											<path d="M3 21v-5h5"/>
+										</svg>
+									</button>
+								</div>
+								<div className="conversations-controls">
 									<div className="sort-control">
 										<label>{t('sort')}</label>
 										<select 
@@ -2899,29 +3261,6 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 											)}
 										</div>
 									</div>
-									<div className="font-size-control">
-										<label>{t('fontSize')}</label>
-										<div className="font-size-buttons">
-											<button 
-												className={`font-size-btn ${conversationsFontSize === 'small' ? 'active' : ''}`}
-												onClick={() => setConversationsFontSize('small')}
-											>
-												A
-											</button>
-											<button 
-												className={`font-size-btn ${conversationsFontSize === 'medium' ? 'active' : ''}`}
-												onClick={() => setConversationsFontSize('medium')}
-											>
-												A
-											</button>
-											<button 
-												className={`font-size-btn ${conversationsFontSize === 'large' ? 'active' : ''}`}
-												onClick={() => setConversationsFontSize('large')}
-											>
-												A
-											</button>
-										</div>
-									</div>
 									<div className="export-control">
 										<select 
 											value={conversationsExportFormat} 
@@ -2933,62 +3272,19 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 											<option value="json">JSON</option>
 										</select>
 									</div>
-									<button 
-										className="btn btn-primary export-btn" 
+									<button
+										className="btn btn-primary export-btn"
 										onClick={handleConversationsExport}
 										disabled={isExportingConversations || flattenedConversations.length === 0}
 									>
+										<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+											<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+											<polyline points="7 10 12 15 17 10"/>
+											<line x1="12" y1="15" x2="12" y2="3"/>
+										</svg>
 										{isExportingConversations ? (language === 'ko' ? '내보내는 중...' : 'Exporting...') : t('export')}
 									</button>
-									<div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-										<select
-											value={conversationsAutoRefresh === null ? 'off' : conversationsAutoRefresh.toString()}
-											onChange={(e) => {
-												const value = e.target.value
-												setConversationsAutoRefresh(value === 'off' ? null : parseInt(value))
-											}}
-											style={{
-												padding: '6px 8px',
-												borderRadius: '4px',
-												border: '1px solid var(--border-color)',
-												background: 'var(--bg-secondary)',
-												color: 'var(--text-primary)',
-												fontSize: '14px',
-												cursor: 'pointer'
-											}}
-										>
-											<option value="off">{language === 'ko' ? '자동 새로고침 끄기' : 'Auto-refresh Off'}</option>
-											<option value="30">{language === 'ko' ? '30초' : '30 seconds'}</option>
-											<option value="60">{language === 'ko' ? '1분' : '1 minute'}</option>
-											<option value="300">{language === 'ko' ? '5분' : '5 minutes'}</option>
-											<option value="600">{language === 'ko' ? '10분' : '10 minutes'}</option>
-										</select>
-										<button 
-											className="refresh-btn"
-											onClick={refreshConversations}
-											disabled={isRefreshingConversations}
-											title={isRefreshingConversations ? (language === 'ko' ? '새로고침 중...' : 'Refreshing...') : (language === 'ko' ? '새로고침' : 'Refresh')}
-										>
-											<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={isRefreshingConversations ? 'spinning' : ''}>
-												<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
-												<path d="M21 3v5h-5"/>
-												<path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
-												<path d="M3 21v-5h5"/>
-											</svg>
-											<span className="refresh-btn-text">{language === 'ko' ? '새로고침' : 'Refresh'}</span>
-										</button>
-									</div>
 								</div>
-								{conversationsLastRefreshed && (
-									<div className="last-refreshed">
-										{t('lastRefreshed')} {conversationsLastRefreshed.toLocaleString()}
-										{backgroundLoadProgress && (
-											<span style={{ marginLeft: '10px', fontSize: '0.9em', opacity: 0.8 }}>
-												• {backgroundLoadProgress}
-											</span>
-										)}
-									</div>
-								)}
 							</div>
 							
 							<div className={`conversations-table-container font-size-${conversationsFontSize}`}>
@@ -2998,7 +3294,7 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 									<>
 										{conversationsViewMode === 'grid' ? (
 											<div className="conversations-grid">
-												{flattenedConversations.slice(0, conversationsDisplayLimit).map((conv) => {
+												{flattenedConversations.slice((conversationsCurrentPage - 1) * ITEMS_PER_PAGE, conversationsCurrentPage * ITEMS_PER_PAGE).map((conv) => {
 													const date = conv.date ? new Date(conv.date) : null
 													const adminFb = conv.adminFeedback
 													
@@ -3020,67 +3316,75 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 																</div>
 															</div>
 															<div className="conversation-card-footer">
-																<span className="admin-label">{t('feedback')}:</span>
+																<span className="admin-label">{language === 'ko' ? '감독자 응답' : "Supervisor's Response"}:</span>
 																<div className="admin-actions">
-																	{adminFb?.feedback_verdict === 'good' ? (
-																		<svg fill="#22c55e" viewBox="0 0 24 24" width="20" height="20">
-																			<path d="M20 8h-5.612l1.123-3.367c.202-.608.1-1.282-.275-1.802S14.253 2 13.612 2H12c-.297 0-.578.132-.769.36L6.531 8H4c-1.103 0-2 .897-2 2v9c0 1.103.897 2 2 2h13.307a2.01 2.01 0 0 0 1.873-1.298l2.757-7.351A1 1 0 0 0 22 12v-2c0-1.103-.897-2-2-2zM4 10h2v9H4v-9zm16 1.819L17.307 19H8V9.362L12.468 4h1.146l-1.562 4.683A.998.998 0 0 0 13 10h7v1.819z"></path>
-																		</svg>
-																	) : adminFb?.feedback_verdict === 'bad' ? (
-																		<svg fill="#ef4444" viewBox="0 0 24 24" width="20" height="20">
-																			<path d="M20 3H6.693A2.01 2.01 0 0 0 4.82 4.298l-2.757 7.351A1 1 0 0 0 2 12v2c0 1.103.897 2 2 2h5.612L8.49 19.367a2.004 2.004 0 0 0 .274 1.802c.376.52.982.831 1.624.831H12c.297 0 .578-.132.769-.360l4.7-5.64H20c1.103 0 2-.897 2-2V5c0-1.103-.897-2-2-2zm-8.469 17h-1.145l1.562-4.684A1 1 0 0 0 11 14H4v-1.819L6.693 5H16v9.638L11.531 20zM18 14V5h2l.001 9H18z"></path>
-																		</svg>
-																	) : (
-																		<>
-																			<button 
-																				className="thumbs-btn thumbs-up"
-																				title="Good"
-																				onClick={(e) => {
-																					e.preventDefault()
-																					e.stopPropagation()
-																					handleFeedbackClick('positive', conv.requestId)
-																				}}
-																			>
-																				<svg fill="currentColor" viewBox="0 0 24 24" width="18" height="18">
-																					<path d="M20 8h-5.612l1.123-3.367c.202-.608.1-1.282-.275-1.802S14.253 2 13.612 2H12c-.297 0-.578.132-.769.36L6.531 8H4c-1.103 0-2 .897-2 2v9c0 1.103.897 2 2 2h13.307a2.01 2.01 0 0 0 1.873-1.298l2.757-7.351A1 1 0 0 0 22 12v-2c0-1.103-.897-2-2-2zM4 10h2v9H4v-9zm16 1.819L17.307 19H8V9.362L12.468 4h1.146l-1.562 4.683A.998.998 0 0 0 13 10h7v1.819z"></path>
-																				</svg>
-																			</button>
-																			<button 
-																				className="thumbs-btn thumbs-down"
-																				title="Bad"
-																				onClick={(e) => {
-																					e.preventDefault()
-																					e.stopPropagation()
-																					handleFeedbackClick('negative', conv.requestId)
-																				}}
-																			>
-																				<svg fill="currentColor" viewBox="0 0 24 24" width="18" height="18">
-																					<path d="M20 3H6.693A2.01 2.01 0 0 0 4.82 4.298l-2.757 7.351A1 1 0 0 0 2 12v2c0 1.103.897 2 2 2h5.612L8.49 19.367a2.004 2.004 0 0 0 .274 1.802c.376.52.982.831 1.624.831H12c.297 0 .578-.132.769-.360l4.7-5.64H20c1.103 0 2-.897 2-2V5c0-1.103-.897-2-2-2zm-8.469 17h-1.145l1.562-4.684A1 1 0 0 0 11 14H4v-1.819L6.693 5H16v9.638L11.531 20zM18 14V5h2l.001 9H18z"></path>
-																				</svg>
-																			</button>
-																		</>
-																	)}
-																	{adminFb && (
+																	{adminFb && adminFb.corrected_response ? (
 																		<button 
-																			className="btn btn-sm edit-btn"
-																			title="Edit"
+																			className="supervisor-response-btn completed"
+																			title={language === 'ko' ? '감독자 응답 수정' : "Edit Supervisor's Response"}
 																			onClick={(e) => {
 																				e.preventDefault()
 																				e.stopPropagation()
-																				const requestDetail = requestDetails[conv.requestId] || {}
-																				const userMessage = requestDetail.inputText || ''
-																				setExpandedFeedbackForms(prev => new Set(prev).add(conv.requestId))
-																				setFeedbackFormData(prev => ({
-																					...prev,
-																					[conv.requestId]: { 
-																						text: adminFb.feedback_text || '', 
-																						preferredResponse: adminFb.corrected_response || '',
-																						correctedMessage: userMessage
-																					}
-																				}))
+																				handleMessageClick(conv.requestId, false)
+																			}}
+																			onMouseEnter={(e) => {
+																				e.currentTarget.style.background = 'rgba(34, 197, 94, 0.3)'
+																				e.currentTarget.style.transform = 'scale(1.1)'
+																			}}
+																			onMouseLeave={(e) => {
+																				e.currentTarget.style.background = 'rgba(34, 197, 94, 0.15)'
+																				e.currentTarget.style.transform = 'scale(1)'
+																			}}
+																			style={{
+																				width: '28px',
+																				height: '28px',
+																				display: 'flex',
+																				alignItems: 'center',
+																				justifyContent: 'center',
+																				background: 'rgba(34, 197, 94, 0.15)',
+																				border: '1px solid #22c55e',
+																				borderRadius: '4px',
+																				cursor: 'pointer',
+																				transition: 'all 0.2s ease'
 																			}}
 																		>
-																			Edit
+																			<svg fill="#22c55e" viewBox="0 0 24 24" width="18" height="18">
+																				<path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
+																			</svg>
+																		</button>
+																	) : (
+																		<button 
+																			className="supervisor-response-btn add"
+																			title={language === 'ko' ? '감독자 응답 추가' : "Add Supervisor's Response"}
+																			onClick={(e) => {
+																				e.preventDefault()
+																				e.stopPropagation()
+																				handleFeedbackClick('negative', conv.requestId)
+																			}}
+																			onMouseEnter={(e) => {
+																				e.currentTarget.style.background = 'rgba(59, 130, 246, 0.3)'
+																				e.currentTarget.style.transform = 'scale(1.1)'
+																			}}
+																			onMouseLeave={(e) => {
+																				e.currentTarget.style.background = 'rgba(59, 130, 246, 0.15)'
+																				e.currentTarget.style.transform = 'scale(1)'
+																			}}
+																			style={{
+																				width: '28px',
+																				height: '28px',
+																				display: 'flex',
+																				alignItems: 'center',
+																				justifyContent: 'center',
+																				background: 'rgba(59, 130, 246, 0.15)',
+																				border: '1px solid rgba(59, 130, 246, 0.5)',
+																				borderRadius: '4px',
+																				cursor: 'pointer',
+																				transition: 'all 0.2s ease'
+																			}}
+																		>
+																			<svg fill="currentColor" viewBox="0 0 24 24" width="18" height="18" style={{ color: '#3b82f6' }}>
+																				<path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+																			</svg>
 																		</button>
 																	)}
 																</div>
@@ -3099,11 +3403,11 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 														<th>{t('sessionId')}</th>
 														<th>{t('userMessage')}</th>
 														<th>{t('aiResponse')}</th>
-														<th>{t('feedback')}</th>
+														<th style={{ textAlign: 'center' }}><span style={{ display: 'block' }}>{language === 'ko' ? "감독자" : "Supervisor's"}</span><span style={{ display: 'block' }}>{language === 'ko' ? '응답' : 'Response'}</span></th>
 													</tr>
 												</thead>
 												<tbody>
-													{flattenedConversations.slice(0, conversationsDisplayLimit).map((conv) => {
+													{flattenedConversations.slice((conversationsCurrentPage - 1) * ITEMS_PER_PAGE, conversationsCurrentPage * ITEMS_PER_PAGE).map((conv) => {
 														const date = conv.date ? new Date(conv.date) : null
 														const adminFb = conv.adminFeedback
 														
@@ -3159,57 +3463,75 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 																		{conv.aiResponse || ''}
 																	</div>
 																</td>
-																<td>
-																	<div className="admin-actions">
-																		{adminFb?.feedback_verdict === 'good' ? (
-																			<svg fill="#22c55e" viewBox="0 0 24 24" width="20" height="20">
-																				<path d="M20 8h-5.612l1.123-3.367c.202-.608.1-1.282-.275-1.802S14.253 2 13.612 2H12c-.297 0-.578.132-.769.36L6.531 8H4c-1.103 0-2 .897-2 2v9c0 1.103.897 2 2 2h13.307a2.01 2.01 0 0 0 1.873-1.298l2.757-7.351A1 1 0 0 0 22 12v-2c0-1.103-.897-2-2-2zM4 10h2v9H4v-9zm16 1.819L17.307 19H8V9.362L12.468 4h1.146l-1.562 4.683A.998.998 0 0 0 13 10h7v1.819z"></path>
-																			</svg>
-																		) : adminFb?.feedback_verdict === 'bad' ? (
-																			<svg fill="#ef4444" viewBox="0 0 24 24" width="20" height="20">
-																				<path d="M20 3H6.693A2.01 2.01 0 0 0 4.82 4.298l-2.757 7.351A1 1 0 0 0 2 12v2c0 1.103.897 2 2 2h5.612L8.49 19.367a2.004 2.004 0 0 0 .274 1.802c.376.52.982.831 1.624.831H12c.297 0 .578-.132.769-.360l4.7-5.64H20c1.103 0 2-.897 2-2V5c0-1.103-.897-2-2-2zm-8.469 17h-1.145l1.562-4.684A1 1 0 0 0 11 14H4v-1.819L6.693 5H16v9.638L11.531 20zM18 14V5h2l.001 9H18z"></path>
-																			</svg>
-																		) : (
-																			<>
-																				<button 
-																					className="thumbs-btn thumbs-up"
-																					title="Thumbs Up"
-																					onClick={(e) => {
-																						e.preventDefault()
-																						e.stopPropagation()
-																						handleFeedbackClick('positive', conv.requestId)
-																					}}
-																				>
-																					<svg fill="currentColor" viewBox="0 0 24 24" width="18" height="18">
-																						<path d="M20 8h-5.612l1.123-3.367c.202-.608.1-1.282-.275-1.802S14.253 2 13.612 2H12c-.297 0-.578.132-.769.36L6.531 8H4c-1.103 0-2 .897-2 2v9c0 1.103.897 2 2 2h13.307a2.01 2.01 0 0 0 1.873-1.298l2.757-7.351A1 1 0 0 0 22 12v-2c0-1.103-.897-2-2-2zM4 10h2v9H4v-9zm16 1.819L17.307 19H8V9.362L12.468 4h1.146l-1.562 4.683A.998.998 0 0 0 13 10h7v1.819z"></path>
-																					</svg>
-																				</button>
-																				<button 
-																					className="thumbs-btn thumbs-down"
-																					title="Thumbs Down"
-																					onClick={(e) => {
-																						e.preventDefault()
-																						e.stopPropagation()
-																						handleFeedbackClick('negative', conv.requestId)
-																					}}
-																				>
-																					<svg fill="currentColor" viewBox="0 0 24 24" width="18" height="18">
-																						<path d="M20 3H6.693A2.01 2.01 0 0 0 4.82 4.298l-2.757 7.351A1 1 0 0 0 2 12v2c0 1.103.897 2 2 2h5.612L8.49 19.367a2.004 2.004 0 0 0 .274 1.802c.376.52.982.831 1.624.831H12c.297 0 .578-.132.769-.360l4.7-5.64H20c1.103 0 2-.897 2-2V5c0-1.103-.897-2-2-2zm-8.469 17h-1.145l1.562-4.684A1 1 0 0 0 11 14H4v-1.819L6.693 5H16v9.638L11.531 20zM18 14V5h2l.001 9H18z"></path>
-																					</svg>
-																				</button>
-																			</>
-																		)}
-																		{adminFb && (
+																<td style={{ textAlign: 'center' }}>
+																	<div className="admin-actions" style={{ justifyContent: 'center' }}>
+																		{adminFb && adminFb.corrected_response ? (
 																			<button 
-																				className="btn btn-sm edit-btn"
-																				title="Edit"
+																				className="supervisor-response-btn completed"
+																				title={language === 'ko' ? '감독자 응답 수정' : "Edit Supervisor's Response"}
 																				onClick={(e) => {
 																					e.preventDefault()
 																					e.stopPropagation()
-																					handleMessageClick(conv.requestId, true)
+																					handleMessageClick(conv.requestId, false)
+																				}}
+																				onMouseEnter={(e) => {
+																					e.currentTarget.style.background = 'rgba(34, 197, 94, 0.3)'
+																					e.currentTarget.style.transform = 'scale(1.1)'
+																				}}
+																				onMouseLeave={(e) => {
+																					e.currentTarget.style.background = 'rgba(34, 197, 94, 0.15)'
+																					e.currentTarget.style.transform = 'scale(1)'
+																				}}
+																				style={{
+																					width: '28px',
+																					height: '28px',
+																					display: 'flex',
+																					alignItems: 'center',
+																					justifyContent: 'center',
+																					background: 'rgba(34, 197, 94, 0.15)',
+																					border: '1px solid #22c55e',
+																					borderRadius: '4px',
+																					cursor: 'pointer',
+																					transition: 'all 0.2s ease'
 																				}}
 																			>
-																				Edit
+																				<svg fill="#22c55e" viewBox="0 0 24 24" width="18" height="18">
+																					<path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
+																				</svg>
+																			</button>
+																		) : (
+																			<button 
+																				className="supervisor-response-btn add"
+																				title={language === 'ko' ? '감독자 응답 추가' : "Add Supervisor's Response"}
+																				onClick={(e) => {
+																					e.preventDefault()
+																					e.stopPropagation()
+																					handleFeedbackClick('negative', conv.requestId)
+																				}}
+																				onMouseEnter={(e) => {
+																					e.currentTarget.style.background = 'rgba(59, 130, 246, 0.3)'
+																					e.currentTarget.style.transform = 'scale(1.1)'
+																				}}
+																				onMouseLeave={(e) => {
+																					e.currentTarget.style.background = 'rgba(59, 130, 246, 0.15)'
+																					e.currentTarget.style.transform = 'scale(1)'
+																				}}
+																				style={{
+																					width: '28px',
+																					height: '28px',
+																					display: 'flex',
+																					alignItems: 'center',
+																					justifyContent: 'center',
+																					background: 'rgba(59, 130, 246, 0.15)',
+																					border: '1px solid rgba(59, 130, 246, 0.5)',
+																					borderRadius: '4px',
+																					cursor: 'pointer',
+																					transition: 'all 0.2s ease'
+																				}}
+																			>
+																				<svg fill="currentColor" viewBox="0 0 24 24" width="18" height="18" style={{ color: '#3b82f6' }}>
+																					<path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+																				</svg>
 																			</button>
 																		)}
 																	</div>
@@ -3220,13 +3542,42 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 												</tbody>
 											</table>
 										)}
-										{flattenedConversations.length > conversationsDisplayLimit && (
-											<div className="load-more-container">
+										{flattenedConversations.length > ITEMS_PER_PAGE && (
+											<div className="pagination-container">
 												<button 
-													className="btn btn-primary load-more-btn"
-													onClick={() => setConversationsDisplayLimit(prev => prev + 20)}
+													className="pagination-btn pagination-nav"
+													onClick={() => setConversationsCurrentPage(prev => Math.max(1, prev - 1))}
+													disabled={conversationsCurrentPage === 1}
+													title="Previous page"
 												>
-													{t('loadMore')} ({flattenedConversations.length - conversationsDisplayLimit} {t('remaining')})
+													<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+														<polyline points="15 18 9 12 15 6"></polyline>
+													</svg>
+												</button>
+												<div className="pagination-pages">
+													{getPageNumbers(conversationsCurrentPage, Math.ceil(flattenedConversations.length / ITEMS_PER_PAGE)).map((page, index) => 
+														page === 'ellipsis' ? (
+															<span key={`ellipsis-${index}`} className="pagination-ellipsis">...</span>
+														) : (
+															<button
+																key={page}
+																className={`pagination-btn pagination-page ${conversationsCurrentPage === page ? 'active' : ''}`}
+																onClick={() => setConversationsCurrentPage(page)}
+															>
+																{page}
+															</button>
+														)
+													)}
+												</div>
+												<button 
+													className="pagination-btn pagination-nav"
+													onClick={() => setConversationsCurrentPage(prev => Math.min(Math.ceil(flattenedConversations.length / ITEMS_PER_PAGE), prev + 1))}
+													disabled={conversationsCurrentPage >= Math.ceil(flattenedConversations.length / ITEMS_PER_PAGE)}
+													title="Next page"
+												>
+													<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+														<polyline points="9 18 15 12 9 6"></polyline>
+													</svg>
 												</button>
 											</div>
 										)}
@@ -3327,25 +3678,28 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 									</div>
 								)
 							})}
-						</div>
 					</div>
 
 					{/* Admin Feedback Section */}
-					<div className="content-section admin-feedback-section" data-section="admin-feedback">
-						<div className="card section" aria-labelledby="admin-feedback-title">
+					<div className="card section content-section admin-feedback-section" aria-labelledby="admin-feedback-title" data-section="admin-feedback">
 							<div className="section-header">
 								<div id="admin-feedback-title" className="section-title">
-									{language === 'ko' ? '관리자 피드백' : 'Administrator Feedback'} ({filteredAndSortedAdminFeedback.length} {t('feedbackItems')})
-								</div>
-								<div className="date-controls">
-									<label className="date-field">
-										<span>Start Date</span>
-										<input type="date" className="input date-input" value={startDate} onChange={(e)=>onDateChange(e.target.value, endDate)} />
-									</label>
-									<label className="date-field">
-										<span>End Date</span>
-										<input type="date" className="input date-input" value={endDate} onChange={(e)=>onDateChange(startDate, e.target.value)} />
-									</label>
+									<span className="section-title-text">
+										{language === 'ko' ? '감독자 응답' : "Supervisor's Response"} ({filteredAndSortedAdminFeedback.length} {t('feedbackItems')})
+									</span>
+									<button 
+										className="refresh-btn section-refresh-btn"
+										onClick={refreshAdminFeedback}
+										disabled={isRefreshingAdminFeedback}
+										title={isRefreshingAdminFeedback ? (language === 'ko' ? '새로고침 중...' : 'Refreshing...') : (language === 'ko' ? '새로고침' : 'Refresh')}
+									>
+										<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={isRefreshingAdminFeedback ? 'spinning' : ''}>
+											<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+											<path d="M21 3v5h-5"/>
+											<path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
+											<path d="M3 21v-5h5"/>
+										</svg>
+									</button>
 								</div>
 								<div className="conversations-controls">
 									<div className="sort-control">
@@ -3382,54 +3736,6 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 											)}
 										</div>
 									</div>
-									<div className="view-toggle">
-										<button 
-											className={`view-btn ${adminFeedbackViewMode === 'grid' ? 'active' : ''}`}
-											onClick={() => setAdminFeedbackViewMode('grid')}
-											title="Grid View"
-										>
-											<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-												<rect x="3" y="3" width="7" height="7"/>
-												<rect x="14" y="3" width="7" height="7"/>
-												<rect x="3" y="14" width="7" height="7"/>
-												<rect x="14" y="14" width="7" height="7"/>
-											</svg>
-										</button>
-										<button 
-											className={`view-btn ${adminFeedbackViewMode === 'table' ? 'active' : ''}`}
-											onClick={() => setAdminFeedbackViewMode('table')}
-											title="Table View"
-										>
-											<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-												<line x1="3" y1="6" x2="21" y2="6"/>
-												<line x1="3" y1="12" x2="21" y2="12"/>
-												<line x1="3" y1="18" x2="21" y2="18"/>
-											</svg>
-										</button>
-									</div>
-									<div className="font-size-control">
-										<label>{t('fontSize')}</label>
-										<div className="font-size-buttons">
-											<button 
-												className={`font-size-btn ${adminFeedbackFontSize === 'small' ? 'active' : ''}`}
-												onClick={() => setAdminFeedbackFontSize('small')}
-											>
-												A
-											</button>
-											<button 
-												className={`font-size-btn ${adminFeedbackFontSize === 'medium' ? 'active' : ''}`}
-												onClick={() => setAdminFeedbackFontSize('medium')}
-											>
-												A
-											</button>
-											<button 
-												className={`font-size-btn ${adminFeedbackFontSize === 'large' ? 'active' : ''}`}
-												onClick={() => setAdminFeedbackFontSize('large')}
-											>
-												A
-											</button>
-										</div>
-									</div>
 									<div className="export-control">
 										<select 
 											value={adminFeedbackExportFormat} 
@@ -3441,134 +3747,48 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 											<option value="json">JSON</option>
 										</select>
 									</div>
-									<button 
-										className="btn btn-primary export-btn" 
+									<button
+										className="btn btn-primary export-btn"
 										onClick={handleAdminFeedbackExport}
 										disabled={isExportingAdminFeedback || filteredAndSortedAdminFeedback.length === 0}
 									>
+										<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+											<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+											<polyline points="7 10 12 15 17 10"/>
+											<line x1="12" y1="15" x2="12" y2="3"/>
+										</svg>
 										{isExportingAdminFeedback ? (language === 'ko' ? '내보내는 중...' : 'Exporting...') : t('export')}
-									</button>
-									<button 
-										className="btn btn-primary"
-										onClick={handleAddAdminFeedback}
-										title={language === 'ko' ? '수동으로 피드백 추가' : 'Add Feedback Manually'}
-									>
-										{language === 'ko' ? '추가' : 'Add'}
-									</button>
-									<div className="import-control" style={{ position: 'relative' }}>
-										<input
-											type="file"
-											accept=".csv,.xlsx,.xls"
-											ref={(el) => setImportFileInput(el)}
-											onChange={handleImportFileChange}
-											style={{ display: 'none' }}
-										/>
-										<button 
-											className="btn btn-primary"
-											onClick={handleImportClick}
-											disabled={isImporting}
-											title={language === 'ko' ? '파일에서 가져오기' : 'Import from file'}
-										>
-											{isImporting ? (language === 'ko' ? '가져오는 중...' : 'Importing...') : (language === 'ko' ? '가져오기' : 'Import')}
-										</button>
-										<button 
-											className="btn btn-secondary"
-											onClick={() => handleDownloadTemplate('csv')}
-											title={language === 'ko' ? 'CSV 템플릿 다운로드' : 'Download CSV template'}
-											style={{ marginLeft: '4px' }}
-										>
-											{language === 'ko' ? '템플릿' : 'Template'}
-										</button>
-									</div>
-									<div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-										<select
-											value={adminFeedbackAutoRefresh === null ? 'off' : adminFeedbackAutoRefresh.toString()}
-											onChange={(e) => {
-												const value = e.target.value
-												setAdminFeedbackAutoRefresh(value === 'off' ? null : parseInt(value))
-											}}
-											style={{
-												padding: '6px 8px',
-												borderRadius: '4px',
-												border: '1px solid var(--border-color)',
-												background: 'var(--bg-secondary)',
-												color: 'var(--text-primary)',
-												fontSize: '14px',
-												cursor: 'pointer'
-											}}
-										>
-											<option value="off">{language === 'ko' ? '자동 새로고침 끄기' : 'Auto-refresh Off'}</option>
-											<option value="30">{language === 'ko' ? '30초' : '30 seconds'}</option>
-											<option value="60">{language === 'ko' ? '1분' : '1 minute'}</option>
-											<option value="300">{language === 'ko' ? '5분' : '5 minutes'}</option>
-											<option value="600">{language === 'ko' ? '10분' : '10 minutes'}</option>
-										</select>
-										<button 
-											className="refresh-btn"
-											onClick={refreshAdminFeedback}
-											disabled={isRefreshingAdminFeedback}
-											title={isRefreshingAdminFeedback ? (language === 'ko' ? '새로고침 중...' : 'Refreshing...') : (language === 'ko' ? '새로고침' : 'Refresh')}
-										>
-											<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={isRefreshingAdminFeedback ? 'spinning' : ''}>
-												<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
-												<path d="M21 3v5h-5"/>
-												<path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
-												<path d="M3 21v-5h5"/>
-											</svg>
-											<span className="refresh-btn-text">{language === 'ko' ? '새로고침' : 'Refresh'}</span>
-										</button>
-									</div>
-								</div>
-								{adminFeedbackLastRefreshed && (
-									<div className="last-refreshed">
-										{t('lastRefreshed')} {adminFeedbackLastRefreshed.toLocaleString()}
-									</div>
-								)}
-								<div className="admin-feedback-filters">
-									<button
-										className={`feedback-filter-btn ${adminFeedbackTypeFilter === 'all' ? 'active' : ''}`}
-										onClick={() => setAdminFeedbackTypeFilter('all')}
-									>
-										{t('total')} ({Object.keys(adminFeedback).length})
-									</button>
-									<button
-										className={`feedback-filter-btn ${adminFeedbackTypeFilter === 'good' ? 'active' : ''}`}
-										onClick={() => setAdminFeedbackTypeFilter('good')}
-									>
-										{t('good')} ({Object.values(adminFeedback).filter(f => f.feedback_verdict === 'good').length})
-									</button>
-									<button
-										className={`feedback-filter-btn ${adminFeedbackTypeFilter === 'bad' ? 'active' : ''}`}
-										onClick={() => setAdminFeedbackTypeFilter('bad')}
-									>
-										{t('bad')} ({Object.values(adminFeedback).filter(f => f.feedback_verdict === 'bad').length})
 									</button>
 								</div>
 							</div>
 							<div className={`admin-feedback-table-container font-size-${adminFeedbackFontSize}`}>
 								{filteredAndSortedAdminFeedback.length === 0 ? (
 									<p className="muted">
-										{Object.keys(adminFeedback).length === 0 
-											? (language === 'ko' ? '피드백이 없습니다.' : 'No admin feedback found.') 
-											: (language === 'ko' ? '필터 조건에 맞는 피드백이 없습니다.' : 'No feedback matches your filter criteria.')
-										}
+										{language === 'ko' ? '피드백이 없습니다.' : 'No admin feedback found.'}
 									</p>
 								) : (
 									<>
 										{adminFeedbackViewMode === 'grid' ? (
 											<div className="admin-feedback-grid">
-												{filteredAndSortedAdminFeedback.slice(0, adminFeedbackDisplayLimit).map(([requestId, feedback]) => {
+												{filteredAndSortedAdminFeedback.slice((adminFeedbackCurrentPage - 1) * ITEMS_PER_PAGE, adminFeedbackCurrentPage * ITEMS_PER_PAGE).map(([requestId, feedback]) => {
 													const date = feedback.created_at ? new Date(feedback.created_at) : null
-													const requestDetail = requestDetails[requestId] || {}
 													const isEditing = editingAdminFeedback.has(requestId)
-													const editData = adminFeedbackEditData[requestId] || { text: feedback.feedback_text || '', correctedResponse: feedback.corrected_response || '' }
+													const editData = adminFeedbackEditData[requestId] || { text: feedback.feedback_text || '', correctedResponse: feedback.corrected_response || '', correctedMessage: (feedback as any).corrected_message || '' }
+													
+													// Get actual chat_id from feedback
+													const actualChatId = (feedback as any)?.chat_id || feedback.request_id || (requestId.startsWith('feedback-') ? null : requestId)
+													
+													// Look up requestDetail using actualChatId
+													const requestDetail = requestDetails[actualChatId || ''] || requestDetails[requestId] || {}
 													
 													// Find sessionId for this requestId
-													let sessionId = ''
-													for (const [sId, requests] of Object.entries(sessionRequests)) {
-														if (requests.some(r => (r.requestId || r.id) === requestId)) {
-															sessionId = sId
-															break
+													let sessionId = requestDetail.session_id || ''
+													if (!sessionId) {
+														for (const [sId, requests] of Object.entries(sessionRequests)) {
+															if (requests.some(r => (r.requestId || r.id) === requestId || (r.requestId || r.id) === actualChatId)) {
+																sessionId = sId
+																break
+															}
 														}
 													}
 													
@@ -3691,14 +3911,42 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 																		</div>
 																	)}
 																</div>
-																<div className="admin-feedback-card-field">
-																	<strong>{language === 'ko' ? '수정된 메시지:' : 'Corrected Message:'}</strong>
-																	<div>
-																		{(feedback as any).corrected_message || '-'}
-																	</div>
+															<div className="admin-feedback-card-field">
+																<strong>{language === 'ko' ? '수정된 사용자 메시지:' : 'Corrected User Message:'}</strong>
+																{isEditing ? (
+																	<textarea
+																		className="feedback-edit-input"
+																		value={editData.correctedMessage || ''}
+																		onChange={(e) => setAdminFeedbackEditData(prev => ({
+																			...prev,
+																			[requestId]: {
+																				...prev[requestId],
+																				correctedMessage: e.target.value
+																			}
+																		}))}
+																		rows={3}
+																	/>
+																) : (
+																		<div
+																			onClick={() => {
+																				setEditingAdminFeedback(prev => new Set(prev).add(requestId))
+																				setAdminFeedbackEditData(prev => ({
+																					...prev,
+																					[requestId]: {
+																						text: feedback.feedback_text || '',
+																						correctedResponse: feedback.corrected_response || '',
+																						correctedMessage: (feedback as any).corrected_message || ''
+																					}
+																				}))
+																			}}
+																			style={{ cursor: 'pointer' }}
+																		>
+																			{(feedback as any).corrected_message || '-'}
+																		</div>
+																	)}
 																</div>
 																<div className="admin-feedback-card-field">
-																	<strong>{language === 'ko' ? '수정된 응답:' : 'Corrected Response:'}</strong>
+																	<strong>{language === 'ko' ? '수정된 감독자 응답:' : 'Corrected Supervisor Response:'}</strong>
 																	{isEditing ? (
 																		<textarea
 																			className="feedback-edit-input"
@@ -3720,7 +3968,8 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 																					...prev,
 																					[requestId]: {
 																						text: feedback.feedback_text || '',
-																						correctedResponse: feedback.corrected_response || ''
+																						correctedResponse: feedback.corrected_response || '',
+																						correctedMessage: (feedback as any).corrected_message || ''
 																					}
 																				}))
 																			}}
@@ -3729,62 +3978,60 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 																			{feedback.corrected_response || '-'}
 																		</div>
 																	)}
-																</div>
-																{isEditing && (
-																	<div className="admin-feedback-edit-actions">
-																		<button
-																			className="btn btn-sm btn-primary"
-																			onClick={() => submitAdminFeedbackEdit(requestId)}
-																			disabled={submittingAdminFeedbackEdits.has(requestId)}
-																		>
-																			{submittingAdminFeedbackEdits.has(requestId) ? 'Saving...' : 'Save'}
-																		</button>
-																		<button
-																			className="btn btn-sm btn-ghost"
-																			onClick={() => {
-																				setEditingAdminFeedback(prev => {
-																					const newSet = new Set(prev)
-																					newSet.delete(requestId)
-																					return newSet
-																				})
-																			}}
-																			disabled={submittingAdminFeedbackEdits.has(requestId)}
-																		>
-																			Cancel
-																		</button>
-																	</div>
-																)}
 															</div>
+															{isEditing && (
+																<div className="admin-feedback-edit-actions" style={{ marginTop: '8px' }}>
+																	<button
+																		className="btn btn-sm btn-primary"
+																		onClick={() => submitAdminFeedbackEdit(requestId)}
+																		disabled={submittingAdminFeedbackEdits.has(requestId)}
+																	>
+																		{submittingAdminFeedbackEdits.has(requestId) ? '...' : 'Save'}
+																	</button>
+																	<button
+																		className="btn btn-sm btn-ghost"
+																		onClick={() => {
+																			setEditingAdminFeedback(prev => {
+																				const newSet = new Set(prev)
+																				newSet.delete(requestId)
+																				return newSet
+																			})
+																		}}
+																		disabled={submittingAdminFeedbackEdits.has(requestId)}
+																	>
+																		✕
+																	</button>
+																</div>
+															)}
 														</div>
-													)
-												})}
-											</div>
-										) : (
-											<table className="admin-feedback-table">
+													</div>
+												)
+											})}
+										</div>
+									) : (
+										<table className="admin-feedback-table">
 												<thead>
 													<tr>
 														<th>{t('date')}</th>
-														<th>{t('chatId')}</th>
-														<th>{t('sessionId')}</th>
-														<th>{t('rating')}</th>
 														<th>{t('userMessage')}</th>
-														<th>{t('aiResponse')}</th>
-														<th>{t('feedback')}</th>
-														<th>{language === 'ko' ? '수정된 메시지' : 'Corrected Message'}</th>
-														<th>{language === 'ko' ? '수정된 응답' : 'Corrected Response'}</th>
+														<th>{language === 'ko' ? '챗봇 응답' : 'Chatbot Response'}</th>
+														<th>{language === 'ko' ? '수정된 사용자 메시지' : 'Corrected User Message'}</th>
+														<th>{language === 'ko' ? '수정된 감독자 응답' : 'Corrected Supervisor Response'}</th>
 														<th>{t('applied')}</th>
 														<th>{t('delete')}</th>
 													</tr>
 												</thead>
 												<tbody>
-												{filteredAndSortedAdminFeedback.slice(0, adminFeedbackDisplayLimit).map(([requestId, feedback]) => {
+												{filteredAndSortedAdminFeedback.slice((adminFeedbackCurrentPage - 1) * ITEMS_PER_PAGE, adminFeedbackCurrentPage * ITEMS_PER_PAGE).map(([requestId, feedback]) => {
 													const date = feedback.created_at ? new Date(feedback.created_at) : null
-													const requestDetail = requestDetails[requestId] || {}
 													const isEditing = editingAdminFeedback.has(requestId)
-													const editData = adminFeedbackEditData[requestId] || { text: feedback.feedback_text || '', correctedResponse: feedback.corrected_response || '' }
+													const editData = adminFeedbackEditData[requestId] || { text: feedback.feedback_text || '', correctedResponse: feedback.corrected_response || '', correctedMessage: (feedback as any).corrected_message || '' }
 													
 													// Get actual chat_id/request_id from feedback
 													const actualChatId = (feedback as any)?.chat_id || feedback.request_id || (requestId.startsWith('feedback-') ? null : requestId)
+													
+													// Look up requestDetail using actualChatId (chat_id is the key in requestDetails)
+													const requestDetail = requestDetails[actualChatId || ''] || requestDetails[requestId] || {}
 													
 													// Find sessionId from requestDetail or sessionRequests
 													let sessionId = requestDetail.session_id || ''
@@ -3813,50 +4060,6 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 																	<span>Unknown date</span>
 																)}
 															</td>
-															<td>
-																{actualChatId ? (
-																	<button
-																		className="chat-id-link"
-																		onClick={() => {
-																			setConversationsSearch(actualChatId)
-																			setAdminFeedbackFilter(actualChatId)
-																			scrollToConversation(actualChatId)
-																		}}
-																		title={actualChatId}
-																	>
-																		<span className="chat-id-display">{formatChatId(actualChatId)}</span>
-																	</button>
-																) : (
-																	<span>-</span>
-																)}
-															</td>
-															<td>
-																{sessionId ? (
-																	<button
-																		className="session-id-link"
-																		onClick={() => {
-																			setConversationsSearch(sessionId)
-																			setAdminFeedbackFilter(sessionId)
-																		}}
-																		title={sessionId}
-																	>
-																		<span className="session-id-display">{formatSessionId(sessionId)}</span>
-																	</button>
-																) : (
-																	<span>-</span>
-																)}
-															</td>
-															<td>
-																{feedback.feedback_verdict === 'good' ? (
-																	<svg fill="#22c55e" viewBox="0 0 24 24" width="20" height="20">
-																		<path d="M20 8h-5.612l1.123-3.367c.202-.608.1-1.282-.275-1.802S14.253 2 13.612 2H12c-.297 0-.578.132-.769.36L6.531 8H4c-1.103 0-2 .897-2 2v9c0 1.103.897 2 2 2h13.307a2.01 2.01 0 0 0 1.873-1.298l2.757-7.351A1 1 0 0 0 22 12v-2c0-1.103-.897-2-2-2zM4 10h2v9H4v-9zm16 1.819L17.307 19H8V9.362L12.468 4h1.146l-1.562 4.683A.998.998 0 0 0 13 10h7v1.819z"></path>
-																	</svg>
-																) : (
-																	<svg fill="#ef4444" viewBox="0 0 24 24" width="20" height="20">
-																		<path d="M20 3H6.693A2.01 2.01 0 0 0 4.82 4.298l-2.757 7.351A1 1 0 0 0 2 12v2c0 1.103.897 2 2 2h5.612L8.49 19.367a2.004 2.004 0 0 0 .274 1.802c.376.52.982.831 1.624.831H12c.297 0 .578-.132.769-.360l4.7-5.64H20c1.103 0 2-.897 2-2V5c0-1.103-.897-2-2-2zm-8.469 17h-1.145l1.562-4.684A1 1 0 0 0 11 14H4v-1.819L6.693 5H16v9.638L11.531 20zM18 14V5h2l.001 9H18z"></path>
-																	</svg>
-																)}
-															</td>
 															<td className="message-cell">
 																<div 
 																	className="message-text-truncated" 
@@ -3879,49 +4082,41 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 																	{requestDetail.outputText || '-'}
 																</div>
 															</td>
-															<td className="feedback-cell">
-																{isEditing ? (
-																	<textarea
-																		className="feedback-edit-input"
-																		value={editData.text}
-																		onChange={(e) => setAdminFeedbackEditData(prev => ({
-																			...prev,
-																			[requestId]: {
-																				...prev[requestId],
-																				text: e.target.value
-																			}
-																		}))}
-																		rows={2}
-																	/>
-																) : (
+														<td className="feedback-cell">
+															{isEditing ? (
+																<textarea
+																	className="feedback-edit-input"
+																	value={editData.correctedMessage || ''}
+																	onChange={(e) => setAdminFeedbackEditData(prev => ({
+																		...prev,
+																		[requestId]: {
+																			...prev[requestId],
+																			correctedMessage: e.target.value
+																		}
+																	}))}
+																	rows={3}
+																/>
+															) : (
 																	<div 
 																		className="message-text-truncated" 
-																		title={feedback.feedback_text || '-'}
-																		data-full-text={feedback.feedback_text || ''}
+																		title={(feedback as any).corrected_message || '-'}
+																		data-full-text={(feedback as any).corrected_message || ''}
 																		onClick={() => {
 																			setEditingAdminFeedback(prev => new Set(prev).add(requestId))
 																			setAdminFeedbackEditData(prev => ({
 																				...prev,
 																				[requestId]: {
 																					text: feedback.feedback_text || '',
-																					correctedResponse: feedback.corrected_response || ''
+																					correctedResponse: feedback.corrected_response || '',
+																					correctedMessage: (feedback as any).corrected_message || ''
 																				}
 																			}))
 																		}}
 																		style={{ cursor: 'pointer' }}
 																	>
-																		{feedback.feedback_text || '-'}
+																		{(feedback as any).corrected_message || '-'}
 																	</div>
 																)}
-															</td>
-															<td className="feedback-cell">
-																<div 
-																	className="message-text-truncated" 
-																	title={(feedback as any).corrected_message || '-'}
-																	data-full-text={(feedback as any).corrected_message || ''}
-																>
-																	{(feedback as any).corrected_message || '-'}
-																</div>
 															</td>
 															<td className="feedback-cell">
 																{isEditing ? (
@@ -3948,7 +4143,8 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 																				...prev,
 																				[requestId]: {
 																					text: feedback.feedback_text || '',
-																					correctedResponse: feedback.corrected_response || ''
+																					correctedResponse: feedback.corrected_response || '',
+																					correctedMessage: (feedback as any).corrected_message || ''
 																				}
 																			}))
 																		}}
@@ -3958,33 +4154,33 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 																	</div>
 																)}
 															</td>
-															<td>
-																{isEditing ? (
-																	<div className="admin-feedback-edit-actions">
-																		<button
-																			className="btn btn-sm btn-primary"
-																			onClick={() => submitAdminFeedbackEdit(requestId)}
-																			disabled={submittingAdminFeedbackEdits.has(requestId)}
-																		>
-																			{submittingAdminFeedbackEdits.has(requestId) ? 'Saving...' : 'Save'}
-																		</button>
-																		<button
-																			className="btn btn-sm btn-ghost"
-																			onClick={() => {
-																				setEditingAdminFeedback(prev => {
-																					const newSet = new Set(prev)
-																					newSet.delete(requestId)
-																					return newSet
-																				})
-																			}}
-																			disabled={submittingAdminFeedbackEdits.has(requestId)}
-																		>
-																			Cancel
-																		</button>
-																	</div>
-																) : (
+														<td style={{ verticalAlign: 'bottom' }}>
+															{isEditing ? (
+																<div className="admin-feedback-edit-actions">
 																	<button
-																		className={`toggle-btn ${feedback.prompt_apply !== false ? 'active' : ''}`}
+																		className="btn btn-sm btn-primary"
+																		onClick={() => submitAdminFeedbackEdit(requestId)}
+																		disabled={submittingAdminFeedbackEdits.has(requestId)}
+																	>
+																		{submittingAdminFeedbackEdits.has(requestId) ? '...' : 'Save'}
+																	</button>
+																	<button
+																		className="btn btn-sm btn-ghost"
+																		onClick={() => {
+																			setEditingAdminFeedback(prev => {
+																				const newSet = new Set(prev)
+																				newSet.delete(requestId)
+																				return newSet
+																			})
+																		}}
+																		disabled={submittingAdminFeedbackEdits.has(requestId)}
+																	>
+																		✕
+																	</button>
+																</div>
+															) : (
+																<button
+																	className={`toggle-btn ${feedback.prompt_apply !== false ? 'active' : ''}`}
 																		onClick={(e) => {
 																			e.preventDefault()
 																			e.stopPropagation()
@@ -4023,19 +4219,249 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 											</tbody>
 										</table>
 										)}
-										{filteredAndSortedAdminFeedback.length > adminFeedbackDisplayLimit && (
-											<div className="load-more-container">
+										{filteredAndSortedAdminFeedback.length > ITEMS_PER_PAGE && (
+											<div className="pagination-container">
 												<button 
-													className="btn btn-primary load-more-btn"
-													onClick={() => setAdminFeedbackDisplayLimit(prev => prev + 20)}
+													className="pagination-btn pagination-nav"
+													onClick={() => setAdminFeedbackCurrentPage(prev => Math.max(1, prev - 1))}
+													disabled={adminFeedbackCurrentPage === 1}
+													title="Previous page"
 												>
-													{t('loadMore')} ({filteredAndSortedAdminFeedback.length - adminFeedbackDisplayLimit} {t('remaining')})
+													<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+														<polyline points="15 18 9 12 15 6"></polyline>
+													</svg>
+												</button>
+												<div className="pagination-pages">
+													{getPageNumbers(adminFeedbackCurrentPage, Math.ceil(filteredAndSortedAdminFeedback.length / ITEMS_PER_PAGE)).map((page, index) => 
+														page === 'ellipsis' ? (
+															<span key={`ellipsis-${index}`} className="pagination-ellipsis">...</span>
+														) : (
+															<button
+																key={page}
+																className={`pagination-btn pagination-page ${adminFeedbackCurrentPage === page ? 'active' : ''}`}
+																onClick={() => setAdminFeedbackCurrentPage(page)}
+															>
+																{page}
+															</button>
+														)
+													)}
+												</div>
+												<button 
+													className="pagination-btn pagination-nav"
+													onClick={() => setAdminFeedbackCurrentPage(prev => Math.min(Math.ceil(filteredAndSortedAdminFeedback.length / ITEMS_PER_PAGE), prev + 1))}
+													disabled={adminFeedbackCurrentPage >= Math.ceil(filteredAndSortedAdminFeedback.length / ITEMS_PER_PAGE)}
+													title="Next page"
+												>
+													<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+														<polyline points="9 18 15 12 9 6"></polyline>
+													</svg>
 												</button>
 											</div>
 										)}
 									</>
 								)}
 							</div>
+					</div>
+
+					{/* Admin Instruction Section */}
+					<div className="card section content-section" aria-labelledby="admin-instruction-title" data-section="admin-instruction">
+						<div className="section-header">
+							<div id="admin-instruction-title" className="section-title" style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+								{language === 'ko' ? '관리자 지침' : 'Admin Instruction'} ({filteredAdminInstructions.length})
+								<button 
+									className="btn-outline-light"
+									onClick={() => setAddAdminInstructionModal({ isOpen: true, text: '' })}
+									title={language === 'ko' ? '관리자 지침 추가' : 'Add Admin Instruction'}
+									style={{
+										background: 'transparent',
+										border: '1px solid rgba(255, 255, 255, 0.3)',
+										color: 'rgba(255, 255, 255, 0.7)',
+										padding: '8px 12px',
+										borderRadius: '4px',
+										fontSize: '0.7em',
+										cursor: 'pointer',
+										transition: 'all 0.2s ease'
+									}}
+									onMouseEnter={(e) => {
+										e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.6)';
+										e.currentTarget.style.color = 'rgba(255, 255, 255, 0.9)';
+										e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+									}}
+									onMouseLeave={(e) => {
+										e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.3)';
+										e.currentTarget.style.color = 'rgba(255, 255, 255, 0.7)';
+										e.currentTarget.style.background = 'transparent';
+									}}
+								>
+									{language === 'ko' ? '+ 추가' : '+ Add'}
+								</button>
+							</div>
+						</div>
+						<div className={`admin-feedback-table-container font-size-${adminFeedbackFontSize}`}>
+							{filteredAdminInstructions.length === 0 ? (
+								<p className="muted">
+									{language === 'ko' ? '관리자 지침이 없습니다.' : 'No admin instructions found.'}
+								</p>
+							) : (
+								<>
+								<table className="admin-instruction-table">
+									<thead>
+										<tr>
+											<th>{t('date')}</th>
+											<th>{language === 'ko' ? '지침 내용' : 'Instruction'}</th>
+											<th>{t('applied')}</th>
+											<th>{t('delete')}</th>
+										</tr>
+									</thead>
+									<tbody>
+										{filteredAdminInstructions.slice((adminInstructionCurrentPage - 1) * ITEMS_PER_PAGE, adminInstructionCurrentPage * ITEMS_PER_PAGE).map(([requestId, feedback]) => {
+											const date = feedback.created_at ? new Date(feedback.created_at) : null
+											const isEditing = editingAdminInstruction.has(requestId)
+											const editText = adminInstructionEditData[requestId] ?? feedback.feedback_text ?? ''
+											return (
+												<tr key={requestId}>
+													<td>
+														{date ? (
+															<>
+																<div>{date.toLocaleDateString()}</div>
+																<div className="time-display">{date.toLocaleTimeString()}</div>
+															</>
+														) : '-'}
+													</td>
+													<td className="message-cell">
+														{isEditing ? (
+															<textarea
+																className="feedback-edit-input"
+																value={editText}
+																onChange={(e) => setAdminInstructionEditData(prev => ({
+																	...prev,
+																	[requestId]: e.target.value
+																}))}
+																rows={3}
+																autoFocus
+															/>
+														) : (
+															<div 
+																className="message-text-truncated" 
+																title={feedback.feedback_text || ''}
+																onClick={() => {
+																	setEditingAdminInstruction(prev => new Set(prev).add(requestId))
+																	setAdminInstructionEditData(prev => ({
+																		...prev,
+																		[requestId]: feedback.feedback_text || ''
+																	}))
+																}}
+																style={{ cursor: 'pointer' }}
+															>
+																{feedback.feedback_text || '-'}
+															</div>
+														)}
+													</td>
+													<td style={{ textAlign: 'center', verticalAlign: 'bottom' }}>
+														{isEditing ? (
+															<div className="admin-feedback-edit-actions" style={{ justifyContent: 'center' }}>
+																<button
+																	className="btn btn-sm btn-primary"
+																	onClick={() => submitAdminInstructionEdit(requestId)}
+																	disabled={submittingAdminInstructionEdits.has(requestId)}
+																>
+																	{submittingAdminInstructionEdits.has(requestId) ? '...' : 'Save'}
+																</button>
+																<button
+																	className="btn btn-sm btn-ghost"
+																	onClick={() => {
+																		setEditingAdminInstruction(prev => {
+																			const newSet = new Set(prev)
+																			newSet.delete(requestId)
+																			return newSet
+																		})
+																	}}
+																	disabled={submittingAdminInstructionEdits.has(requestId)}
+																>
+																	✕
+																</button>
+															</div>
+														) : (
+															<button
+																className={`toggle-btn ${feedback.prompt_apply !== false ? 'active' : ''}`}
+																onClick={(e) => {
+																	e.preventDefault()
+																	e.stopPropagation()
+																	handleTogglePromptApply(requestId, feedback.prompt_apply !== false)
+																}}
+																title={feedback.prompt_apply !== false ? 'Remove from prompt updates' : 'Include in prompt updates'}
+															>
+																<div className="toggle-slider"></div>
+															</button>
+														)}
+													</td>
+													<td style={{ textAlign: 'center' }}>
+														{!isEditing && (
+															<button 
+																className="admin-feedback-delete-btn"
+																title="Delete instruction"
+																onClick={(e) => {
+																	e.preventDefault()
+																	e.stopPropagation()
+																	setDeleteAdminFeedbackModal({
+																		isOpen: true,
+																		requestId: requestId,
+																		feedbackText: feedback.feedback_text || ''
+																	})
+																}}
+															>
+																<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+																	<path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+																</svg>
+															</button>
+														)}
+													</td>
+												</tr>
+											)
+										})}
+									</tbody>
+								</table>
+								{filteredAdminInstructions.length > ITEMS_PER_PAGE && (
+									<div className="pagination-container">
+										<button 
+											className="pagination-btn pagination-nav"
+											onClick={() => setAdminInstructionCurrentPage(prev => Math.max(1, prev - 1))}
+											disabled={adminInstructionCurrentPage === 1}
+											title="Previous page"
+										>
+											<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+												<polyline points="15 18 9 12 15 6"></polyline>
+											</svg>
+										</button>
+										<div className="pagination-pages">
+											{getPageNumbers(adminInstructionCurrentPage, Math.ceil(filteredAdminInstructions.length / ITEMS_PER_PAGE)).map((page, index) => 
+												page === 'ellipsis' ? (
+													<span key={`ellipsis-${index}`} className="pagination-ellipsis">...</span>
+												) : (
+													<button
+														key={page}
+														className={`pagination-btn pagination-page ${adminInstructionCurrentPage === page ? 'active' : ''}`}
+														onClick={() => setAdminInstructionCurrentPage(page)}
+													>
+														{page}
+													</button>
+												)
+											)}
+										</div>
+										<button 
+											className="pagination-btn pagination-nav"
+											onClick={() => setAdminInstructionCurrentPage(prev => Math.min(Math.ceil(filteredAdminInstructions.length / ITEMS_PER_PAGE), prev + 1))}
+											disabled={adminInstructionCurrentPage >= Math.ceil(filteredAdminInstructions.length / ITEMS_PER_PAGE)}
+											title="Next page"
+										>
+											<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+												<polyline points="9 18 15 12 9 6"></polyline>
+											</svg>
+										</button>
+									</div>
+								)}
+								</>
+							)}
 						</div>
 					</div>
 
@@ -4081,7 +4507,7 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 				<div className="modal-backdrop" onClick={closeFeedbackModal}>
 					<div className="modal card feedback-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '800px', width: '90%', zIndex: 9999 }}>
 						<div className="modal-header">
-							<h2 className="h1 modal-title">{language === 'ko' ? '관리자 피드백' : 'Admin Feedback'}</h2>
+							<h2 className="h1 modal-title">{feedbackModal.mode === 'edit' ? (language === 'ko' ? '감독자 응답 수정' : "Edit Supervisor's Response") : (language === 'ko' ? '감독자 응답 추가' : "Add Supervisor's Response")}</h2>
 							<button className="icon-btn" onClick={closeFeedbackModal}>
 								<IconX />
 							</button>
@@ -4098,7 +4524,7 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 										background: 'rgba(9, 14, 34, 0.6)', 
 										border: '1px solid rgba(59, 230, 255, 0.12)', 
 										borderRadius: '8px',
-										color: 'var(--text)',
+										color: '#e2e8f0',
 										whiteSpace: 'pre-wrap',
 										wordWrap: 'break-word',
 										maxHeight: '200px',
@@ -4155,7 +4581,7 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 										background: 'rgba(9, 14, 34, 0.6)', 
 										border: '1px solid rgba(59, 230, 255, 0.12)', 
 										borderRadius: '8px',
-										color: 'var(--text)',
+										color: '#e2e8f0',
 										whiteSpace: 'pre-wrap',
 										wordWrap: 'break-word',
 										maxHeight: '200px',
@@ -4205,68 +4631,6 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 								</div>
 							</div>
 
-							{/* Rating (Thumbs Up/Down) Selection */}
-							{feedbackModal.mode !== 'view' && feedbackModal.showThumbsButtons && (
-								<div style={{ marginBottom: '24px' }}>
-									<label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: 'var(--text)' }}>
-										{t('rating')}:
-									</label>
-									<div style={{ display: 'flex', gap: '12px' }}>
-										<button
-											className={`thumbs-btn thumbs-up ${feedbackModal.type === 'positive' ? 'submitted' : ''}`}
-											onClick={() => {
-												const existingFeedback = adminFeedback[feedbackModal.requestId!]
-												if (existingFeedback && existingFeedback.feedback_verdict === 'bad') {
-													// Show confirmation if switching from negative to positive
-													setConfirmationModal({
-														isOpen: true,
-														type: 'switchToPositive',
-														requestId: feedbackModal.requestId,
-														onConfirm: () => {
-															setFeedbackModal(prev => ({ ...prev, type: 'positive' }))
-															setConfirmationModal({ isOpen: false, type: null, requestId: null, onConfirm: null })
-														}
-													})
-												} else {
-													setFeedbackModal(prev => ({ ...prev, type: 'positive' }))
-												}
-											}}
-											style={{ width: '48px', height: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-											title={language === 'ko' ? '좋음' : 'Good'}
-										>
-											<svg fill="currentColor" viewBox="0 0 24 24" width="24" height="24">
-												<path d="M20 8h-5.612l1.123-3.367c.202-.608.1-1.282-.275-1.802S14.253 2 13.612 2H12c-.297 0-.578.132-.769.36L6.531 8H4c-1.103 0-2 .897-2 2v9c0 1.103.897 2 2 2h13.307a2.01 2.01 0 0 0 1.873-1.298l2.757-7.351A1 1 0 0 0 22 12v-2c0-1.103-.897-2-2-2zM4 10h2v9H4v-9zm16 1.819L17.307 19H8V9.362L12.468 4h1.146l-1.562 4.683A.998.998 0 0 0 13 10h7v1.819z"></path>
-											</svg>
-										</button>
-										<button
-											className={`thumbs-btn thumbs-down ${feedbackModal.type === 'negative' ? 'submitted' : ''}`}
-											onClick={() => {
-												const existingFeedback = adminFeedback[feedbackModal.requestId!]
-												if (existingFeedback && existingFeedback.feedback_verdict === 'good') {
-													// Show confirmation if switching from positive to negative
-													setConfirmationModal({
-														isOpen: true,
-														type: 'switchToNegative',
-														requestId: feedbackModal.requestId,
-														onConfirm: () => {
-															setFeedbackModal(prev => ({ ...prev, type: 'negative' }))
-															setConfirmationModal({ isOpen: false, type: null, requestId: null, onConfirm: null })
-														}
-													})
-												} else {
-													setFeedbackModal(prev => ({ ...prev, type: 'negative' }))
-												}
-											}}
-											style={{ width: '48px', height: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-											title={language === 'ko' ? '나쁨' : 'Bad'}
-										>
-											<svg fill="currentColor" viewBox="0 0 24 24" width="24" height="24">
-												<path d="M20 3H6.693A2.01 2.01 0 0 0 4.82 4.298l-2.757 7.351A1 1 0 0 0 2 12v2c0 1.103.897 2 2 2h5.612L8.49 19.367a2.004 2.004 0 0 0 .274 1.802c.376.52.982.831 1.624.831H12c.297 0 .578-.132.769-.360l4.7-5.64H20c1.103 0 2-.897 2-2V5c0-1.103-.897-2-2-2zm-8.469 17h-1.145l1.562-4.684A1 1 0 0 0 11 14H4v-1.819L6.693 5H16v9.638L11.531 20zM18 14V5h2l.001 9H18z"></path>
-											</svg>
-										</button>
-									</div>
-								</div>
-							)}
 
 							{feedbackModal.mode === 'view' ? (
 								<>
@@ -4301,20 +4665,9 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 								</>
 							) : (
 								<>
-									<p className="feedback-prompt">
-										{feedbackModal.mode === 'edit' ? (
-											<>
-												<strong>{language === 'ko' ? '피드백 수정' : 'Edit Feedback'}</strong> ({feedbackModal.existingFeedback?.feedback_verdict === 'good' ? (language === 'ko' ? '긍정' : 'Positive') : (language === 'ko' ? '부정' : 'Negative')})
-											</>
-										) : (
-											feedbackModal.type === 'positive' 
-												? (language === 'ko' ? '이 응답의 긍정적인 점을 설명해주세요' : 'Please explain what was positive about this chat response')
-												: (language === 'ko' ? '이 응답의 부정적인 점을 설명해주세요' : 'Please explain what was negative about this chat response')
-										)}
-									</p>
 									<div style={{ marginBottom: '16px' }}>
 										<label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: 'var(--text)' }}>
-											{language === 'ko' ? '수정된 메시지' : 'Corrected Message'}:
+											{language === 'ko' ? '수정된 사용자 메시지' : 'Corrected User Message'}:
 										</label>
 										<textarea
 											className="feedback-textarea"
@@ -4333,64 +4686,8 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 										/>
 									</div>
 									<div style={{ marginBottom: '16px' }}>
-										<label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', fontWeight: 'bold', color: 'var(--text)' }}>
-											<span>{language === 'ko' ? '수정된 응답' : 'Corrected Response'}:</span>
-											<button
-												type="button"
-												onClick={() => {
-													if (!feedbackModal.requestId) return
-													const aiResponse = feedbackModal.aiResponse || (() => {
-														const requestId = feedbackModal.requestId
-														if (!requestId) return ''
-														const normalizedId = String(requestId).trim()
-														let detail = requestDetails[normalizedId] || requestDetails[requestId] || requestDetails[String(requestId)] || {}
-														let response = detail.outputText || ''
-														if (!response) {
-															for (const [sessionId, requests] of Object.entries(sessionRequests)) {
-																const request = requests.find((r: any) => {
-																	const rId = String(r.requestId || r.id)
-																	return rId === normalizedId || rId === String(requestId) || rId === requestId
-																})
-																if (request) {
-																	response = request.response || ''
-																	break
-																}
-															}
-														}
-														return response
-													})()
-													if (aiResponse && aiResponse !== '-') {
-														setFeedbackFormData(prev => ({
-															...prev,
-															[feedbackModal.requestId!]: {
-																...prev[feedbackModal.requestId!],
-																preferredResponse: aiResponse
-															}
-														}))
-													}
-												}}
-												style={{
-													display: 'inline-flex',
-													alignItems: 'center',
-													justifyContent: 'center',
-													padding: '4px',
-													background: 'transparent',
-													border: 'none',
-													cursor: 'pointer',
-													color: 'var(--text)',
-													opacity: 0.7,
-													transition: 'opacity 0.2s'
-												}}
-												onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
-												onMouseLeave={(e) => e.currentTarget.style.opacity = '0.7'}
-												title={language === 'ko' ? 'AI 응답으로 채우기' : 'Fill with AI Response'}
-												disabled={isSubmittingFeedback}
-											>
-												<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-													<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-													<path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-												</svg>
-											</button>
+										<label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: 'var(--text)' }}>
+											{language === 'ko' ? '수정된 감독자 응답' : 'Corrected Supervisor Response'}:
 										</label>
 										<textarea
 											className="feedback-textarea"
@@ -4408,20 +4705,6 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 											style={{ width: '100%', resize: 'vertical' }}
 										/>
 									</div>
-									<div style={{ marginBottom: '16px' }}>
-										<label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: 'var(--text)' }}>
-											{language === 'ko' ? '관리자 피드백' : 'Supervisor Feedback'}:
-										</label>
-										<textarea
-											className="feedback-textarea"
-											value={feedbackText}
-											onChange={(e) => setFeedbackText(e.target.value)}
-											placeholder={language === 'ko' ? '피드백을 입력하세요...' : 'Explain what was wrong with this response...'}
-											rows={4}
-											disabled={isSubmittingFeedback}
-											style={{ width: '100%', resize: 'vertical' }}
-										/>
-									</div>
 									<div className="feedback-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
 										<button 
 											className="btn btn-ghost" 
@@ -4431,17 +4714,12 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 											{language === 'ko' ? '취소' : 'Cancel'}
 										</button>
 										{(() => {
-											const hasFeedbackText = feedbackText.trim().length > 0
 											const requestId = feedbackModal.requestId?.trim() || ''
 											const preferredResponse = requestId ? (feedbackFormData[requestId]?.preferredResponse || '') : ''
 											const hasPreferredResponse = preferredResponse.trim().length > 0
-											const isDisabled = !feedbackModal.type || isSubmittingFeedback || (!hasFeedbackText && !hasPreferredResponse)
-											const tooltipText = isDisabled 
-												? (!feedbackModal.type 
-													? (language === 'ko' ? '평가를 선택해주세요 (좋음/나쁨)' : 'Please select a rating (Good/Bad)')
-													: (!hasFeedbackText && !hasPreferredResponse
-														? (language === 'ko' ? 'Supervisor Feedback 또는 Corrected Response 중 하나를 입력해주세요' : 'Please fill in either Supervisor Feedback or Corrected Response')
-														: ''))
+											const isDisabled = isSubmittingFeedback || !hasPreferredResponse
+											const tooltipText = isDisabled && !isSubmittingFeedback
+												? (language === 'ko' ? 'Corrected Supervisor Response를 입력해주세요' : 'Please fill in Corrected Supervisor Response')
 												: ''
 											
 											return (
@@ -4703,7 +4981,7 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 				<div className="modal-backdrop" onClick={handleCancelManualFeedback}>
 					<div className="modal card feedback-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '800px', width: '90%', zIndex: 9999 }}>
 						<div className="modal-header">
-							<h2 className="h1 modal-title">{language === 'ko' ? '피드백 추가' : 'Add Feedback'}</h2>
+							<h2 className="h1 modal-title">{language === 'ko' ? '감독자 응답 추가' : "Add Supervisor's Response"}</h2>
 							<button className="icon-btn" onClick={handleCancelManualFeedback}>
 								<IconX />
 							</button>
@@ -4711,66 +4989,52 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 						<div className="feedback-content" style={{ padding: '20px' }}>
 							<div style={{ marginBottom: '16px' }}>
 								<label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: 'var(--text)' }}>
-									{language === 'ko' ? '피드백 평가' : 'Feedback Verdict'}:
+									{language === 'ko' ? '사용자 메시지' : 'User Message'}:
 								</label>
-								<div style={{ display: 'flex', gap: '12px' }}>
-									<button
-										className={`thumbs-btn thumbs-up ${manualFeedbackData.verdict === 'good' ? 'submitted' : ''}`}
-										onClick={() => setManualFeedbackData(prev => ({ ...prev, verdict: 'good' }))}
-										style={{ width: '48px', height: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-										title={language === 'ko' ? '좋음' : 'Good'}
-									>
-										<svg fill="currentColor" viewBox="0 0 24 24" width="24" height="24">
-											<path d="M20 8h-5.612l1.123-3.367c.202-.608.1-1.282-.275-1.802S14.253 2 13.612 2H12c-.297 0-.578.132-.769.36L6.531 8H4c-1.103 0-2 .897-2 2v9c0 1.103.897 2 2 2h13.307a2.01 2.01 0 0 0 1.873-1.298l2.757-7.351A1 1 0 0 0 22 12v-2c0-1.103-.897-2-2-2zM4 10h2v9H4v-9zm16 1.819L17.307 19H8V9.362L12.468 4h1.146l-1.562 4.683A.998.998 0 0 0 13 10h7v1.819z"></path>
-										</svg>
-									</button>
-									<button
-										className={`thumbs-btn thumbs-down ${manualFeedbackData.verdict === 'bad' ? 'submitted' : ''}`}
-										onClick={() => setManualFeedbackData(prev => ({ ...prev, verdict: 'bad' }))}
-										style={{ width: '48px', height: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-										title={language === 'ko' ? '나쁨' : 'Bad'}
-									>
-										<svg fill="currentColor" viewBox="0 0 24 24" width="24" height="24">
-											<path d="M20 3H6.693A2.01 2.01 0 0 0 4.82 4.298l-2.757 7.351A1 1 0 0 0 2 12v2c0 1.103.897 2 2 2h5.612L8.49 19.367a2.004 2.004 0 0 0 .274 1.802c.376.52.982.831 1.624.831H12c.297 0 .578-.132.769-.360l4.7-5.64H20c1.103 0 2-.897 2-2V5c0-1.103-.897-2-2-2zm-8.469 17h-1.145l1.562-4.684A1 1 0 0 0 11 14H4v-1.819L6.693 5H16v9.638L11.531 20zM18 14V5h2l.001 9H18z"></path>
-										</svg>
-									</button>
-								</div>
+								<textarea
+									className="feedback-textarea"
+									value={manualFeedbackData.userMessage}
+									onChange={(e) => setManualFeedbackData(prev => ({ ...prev, userMessage: e.target.value }))}
+									placeholder={language === 'ko' ? '사용자 메시지를 입력하세요...' : 'Enter the user message...'}
+									rows={3}
+									style={{ width: '100%', resize: 'vertical' }}
+								/>
 							</div>
 							<div style={{ marginBottom: '16px' }}>
 								<label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: 'var(--text)' }}>
-									{language === 'ko' ? '수정된 메시지' : 'Corrected Message'}:
+									{language === 'ko' ? 'AI 응답' : 'AI Response'}:
+								</label>
+								<textarea
+									className="feedback-textarea"
+									value={manualFeedbackData.aiResponse}
+									onChange={(e) => setManualFeedbackData(prev => ({ ...prev, aiResponse: e.target.value }))}
+									placeholder={language === 'ko' ? 'AI 응답을 입력하세요...' : 'Enter the AI response...'}
+									rows={3}
+									style={{ width: '100%', resize: 'vertical' }}
+								/>
+							</div>
+							<div style={{ marginBottom: '16px' }}>
+								<label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: 'var(--text)' }}>
+									{language === 'ko' ? '수정된 사용자 메시지' : 'Corrected User Message'}:
 								</label>
 								<textarea
 									className="feedback-textarea"
 									value={manualFeedbackData.correctedMessage}
 									onChange={(e) => setManualFeedbackData(prev => ({ ...prev, correctedMessage: e.target.value }))}
-									placeholder={language === 'ko' ? '수정된 메시지를 입력하세요...' : 'Enter the corrected message...'}
-									rows={4}
+									placeholder={language === 'ko' ? '수정된 사용자 메시지를 입력하세요...' : 'Enter the corrected user message...'}
+									rows={3}
 									style={{ width: '100%', resize: 'vertical' }}
 								/>
 							</div>
 							<div style={{ marginBottom: '16px' }}>
 								<label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: 'var(--text)' }}>
-									{language === 'ko' ? '수정된 응답' : 'Corrected Response'}:
+									{language === 'ko' ? '수정된 감독자 응답' : 'Corrected Supervisor Response'}: <span style={{ color: '#ef4444' }}>*</span>
 								</label>
 								<textarea
 									className="feedback-textarea"
 									value={manualFeedbackData.correctedResponse}
 									onChange={(e) => setManualFeedbackData(prev => ({ ...prev, correctedResponse: e.target.value }))}
-									placeholder={language === 'ko' ? '수정된 응답을 입력하세요...' : 'Enter the corrected response...'}
-									rows={4}
-									style={{ width: '100%', resize: 'vertical' }}
-								/>
-							</div>
-							<div style={{ marginBottom: '16px' }}>
-								<label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: 'var(--text)' }}>
-									{language === 'ko' ? '관리자 피드백' : 'Supervisor Feedback'}:
-								</label>
-								<textarea
-									className="feedback-textarea"
-									value={manualFeedbackData.feedbackText}
-									onChange={(e) => setManualFeedbackData(prev => ({ ...prev, feedbackText: e.target.value }))}
-									placeholder={language === 'ko' ? '피드백을 입력하세요...' : 'Explain what was wrong with this response...'}
+									placeholder={language === 'ko' ? '수정된 감독자 응답을 입력하세요...' : 'Enter the corrected supervisor response...'}
 									rows={4}
 									style={{ width: '100%', resize: 'vertical' }}
 								/>
@@ -4780,15 +5044,10 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 									{language === 'ko' ? '취소' : 'Cancel'}
 								</button>
 								{(() => {
-									const hasFeedbackText = manualFeedbackData.feedbackText.trim().length > 0
 									const hasCorrectedResponse = manualFeedbackData.correctedResponse.trim().length > 0
-									const isDisabled = !manualFeedbackData.verdict || (!hasFeedbackText && !hasCorrectedResponse)
+									const isDisabled = !hasCorrectedResponse
 									const tooltipText = isDisabled 
-										? (!manualFeedbackData.verdict 
-											? (language === 'ko' ? '평가를 선택해주세요 (좋음/나쁨)' : 'Please select a rating (Good/Bad)')
-											: (!hasFeedbackText && !hasCorrectedResponse
-												? (language === 'ko' ? 'Supervisor Feedback 또는 Corrected Response 중 하나를 입력해주세요' : 'Please fill in either Supervisor Feedback or Corrected Response')
-												: ''))
+										? (language === 'ko' ? 'Corrected Supervisor Response를 입력해주세요' : 'Please fill in Corrected Supervisor Response')
 										: ''
 									
 									return (
@@ -4811,6 +5070,57 @@ export default function Content({ startDate, endDate, onDateChange }: ContentPro
 					</div>
 				</div>
 			)}
+
+			{/* Add Admin Instruction Modal */}
+			{addAdminInstructionModal.isOpen && (
+				<div className="modal-backdrop" onClick={() => setAddAdminInstructionModal({ isOpen: false, text: '' })}>
+					<div className="modal card feedback-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px', width: '90%', zIndex: 9999 }}>
+						<div className="modal-header">
+							<h2 className="h1 modal-title">{language === 'ko' ? '관리자 지침 추가' : 'Add Admin Instruction'}</h2>
+							<button className="icon-btn" onClick={() => setAddAdminInstructionModal({ isOpen: false, text: '' })}>
+								<IconX />
+							</button>
+						</div>
+						<div className="feedback-content" style={{ padding: '20px' }}>
+							<div style={{ marginBottom: '16px' }}>
+								<label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: 'var(--text)' }}>
+									{language === 'ko' ? '지침' : 'Instruction'}: <span style={{ color: '#ef4444' }}>*</span>
+								</label>
+								<textarea
+									className="feedback-textarea"
+									value={addAdminInstructionModal.text}
+									onChange={(e) => setAddAdminInstructionModal(prev => ({ ...prev, text: e.target.value }))}
+									placeholder={language === 'ko' ? '관리자 지침을 입력하세요...' : 'Enter admin instruction...'}
+									rows={5}
+									style={{ width: '100%', resize: 'vertical' }}
+									autoFocus
+								/>
+							</div>
+							<div className="feedback-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+								<button 
+									className="btn btn-ghost" 
+									onClick={() => setAddAdminInstructionModal({ isOpen: false, text: '' })}
+									disabled={isSubmittingAdminInstruction}
+								>
+									{language === 'ko' ? '취소' : 'Cancel'}
+								</button>
+								<button 
+									className="btn btn-primary" 
+									onClick={submitNewAdminInstruction}
+									disabled={isSubmittingAdminInstruction || !addAdminInstructionModal.text.trim()}
+									style={{ 
+										cursor: (!addAdminInstructionModal.text.trim() || isSubmittingAdminInstruction) ? 'not-allowed' : 'pointer',
+										opacity: (!addAdminInstructionModal.text.trim() || isSubmittingAdminInstruction) ? 0.5 : 1
+									}}
+								>
+									{isSubmittingAdminInstruction ? (language === 'ko' ? '저장 중...' : 'Saving...') : (language === 'ko' ? '저장' : 'Save')}
+								</button>
+							</div>
+						</div>
+					</div>
+				</div>
+			)}
+
 			{showUpdatePromptModal && (
 				<div className="modal-backdrop" role="dialog" aria-modal="true">
 					<div className="confirmation-modal card">

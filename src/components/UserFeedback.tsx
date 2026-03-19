@@ -74,10 +74,63 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 	const [userFeedbackSortBy, setUserFeedbackSortBy] = useState<'date' | 'userId' | 'chatId'>('date')
 	const [userFeedbackSearch, setUserFeedbackSearch] = useState('')
 	const [userFeedbackFontSize, setUserFeedbackFontSize] = useState<'small' | 'medium' | 'large'>('medium')
-	const [userFeedbackDisplayLimit, setUserFeedbackDisplayLimit] = useState(10)
+	const [userFeedbackCurrentPage, setUserFeedbackCurrentPage] = useState(1)
+	const ITEMS_PER_PAGE = 10
+
+	// Helper function to generate page numbers for pagination
+	const getPageNumbers = (currentPage: number, totalPages: number): (number | 'ellipsis')[] => {
+		if (totalPages <= 6) {
+			return Array.from({ length: totalPages }, (_, i) => i + 1)
+		}
+		
+		const pages: (number | 'ellipsis')[] = []
+		
+		// Always show first page
+		pages.push(1)
+		
+		if (currentPage <= 3) {
+			// Near the start: 1 2 3 ... last-2 last-1 last
+			pages.push(2, 3)
+			pages.push('ellipsis')
+			pages.push(totalPages - 2, totalPages - 1, totalPages)
+		} else if (currentPage >= totalPages - 2) {
+			// Near the end: 1 ... last-4 last-3 last-2 last-1 last
+			pages.push('ellipsis')
+			pages.push(totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages)
+		} else {
+			// In the middle: 1 ... prev current next ... last
+			pages.push('ellipsis')
+			pages.push(currentPage - 1, currentPage, currentPage + 1)
+			pages.push('ellipsis')
+			pages.push(totalPages)
+		}
+		
+		// Remove duplicates and filter
+		const uniquePages: (number | 'ellipsis')[] = []
+		let lastPage: number | 'ellipsis' | null = null
+		for (const page of pages) {
+			if (page === 'ellipsis') {
+				if (lastPage !== 'ellipsis') {
+					uniquePages.push(page)
+					lastPage = page
+				}
+			} else if (page !== lastPage && page >= 1 && page <= totalPages) {
+				uniquePages.push(page)
+				lastPage = page
+			}
+		}
+		
+		return uniquePages
+	}
+
+	// Reset page when search or filter changes
+	useEffect(() => {
+		setUserFeedbackCurrentPage(1)
+	}, [userFeedbackSearch, feedbackFilter])
+
 	const [userFeedbackLastRefreshed, setUserFeedbackLastRefreshed] = useState<Date | null>(null)
 	const [isRefreshingUserFeedback, setIsRefreshingUserFeedback] = useState(false)
-	const [userFeedbackAutoRefresh, setUserFeedbackAutoRefresh] = useState<number | null>(30) // 30 seconds default, null = off
+	const [userFeedbackAutoRefresh, setUserFeedbackAutoRefresh] = useState<number | null>(null) // Off by default
 	const [userFeedbackExportFormat, setUserFeedbackExportFormat] = useState<'csv' | 'excel' | 'json'>('csv')
 	const [isExportingUserFeedback, setIsExportingUserFeedback] = useState(false)
 
@@ -496,20 +549,29 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 		<div className="card section" aria-labelledby="user-feedback-title">
 			<div className="section-header">
 				<div id="user-feedback-title" className="section-title">
-					{t('userFeedback')} ({filteredAndSortedUserFeedback.length} {t('feedbackItems')})
+					<span className="section-title-text">
+						{t('userFeedback')} ({filteredAndSortedUserFeedback.length} {t('feedbackItems')})
+					</span>
+					<button 
+						className="refresh-btn section-refresh-btn"
+						onClick={refreshUserFeedback}
+						disabled={isRefreshingUserFeedback}
+						title={language === 'ko' ? '새로고침' : 'Refresh'}
+					>
+						<svg 
+							viewBox="0 0 24 24" 
+							fill="none" 
+							stroke="currentColor" 
+							strokeWidth="2"
+							className={isRefreshingUserFeedback ? 'spinning' : ''}
+						>
+							<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+							<path d="M21 3v5h-5"/>
+							<path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
+							<path d="M3 21v-5h5"/>
+						</svg>
+					</button>
 				</div>
-				{startDate && endDate && onDateChange && (
-					<div className="date-controls">
-						<label className="date-field">
-							<span>Start Date</span>
-							<input type="date" className="input date-input" value={startDate} onChange={(e)=>onDateChange(e.target.value, endDate || '')} />
-						</label>
-						<label className="date-field">
-							<span>End Date</span>
-							<input type="date" className="input date-input" value={endDate} onChange={(e)=>onDateChange(startDate || '', e.target.value)} />
-						</label>
-					</div>
-				)}
 				<div className="conversations-controls">
 					<div className="sort-control">
 						<label>{t('sort')}</label>
@@ -546,54 +608,6 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 							)}
 						</div>
 					</div>
-					<div className="view-toggle">
-						<button 
-							className={`view-btn ${userFeedbackViewMode === 'grid' ? 'active' : ''}`}
-							onClick={() => setUserFeedbackViewMode('grid')}
-							title="Grid View"
-						>
-							<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-								<rect x="3" y="3" width="7" height="7"/>
-								<rect x="14" y="3" width="7" height="7"/>
-								<rect x="3" y="14" width="7" height="7"/>
-								<rect x="14" y="14" width="7" height="7"/>
-							</svg>
-						</button>
-						<button 
-							className={`view-btn ${userFeedbackViewMode === 'table' ? 'active' : ''}`}
-							onClick={() => setUserFeedbackViewMode('table')}
-							title="Table View"
-						>
-							<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-								<line x1="3" y1="6" x2="21" y2="6"/>
-								<line x1="3" y1="12" x2="21" y2="12"/>
-								<line x1="3" y1="18" x2="21" y2="18"/>
-							</svg>
-						</button>
-					</div>
-					<div className="font-size-control">
-						<label>{t('fontSize')}</label>
-						<div className="font-size-buttons">
-							<button 
-								className={`font-size-btn ${userFeedbackFontSize === 'small' ? 'active' : ''}`}
-								onClick={() => setUserFeedbackFontSize('small')}
-							>
-								A
-							</button>
-							<button 
-								className={`font-size-btn ${userFeedbackFontSize === 'medium' ? 'active' : ''}`}
-								onClick={() => setUserFeedbackFontSize('medium')}
-							>
-								A
-							</button>
-							<button 
-								className={`font-size-btn ${userFeedbackFontSize === 'large' ? 'active' : ''}`}
-								onClick={() => setUserFeedbackFontSize('large')}
-							>
-								A
-							</button>
-						</div>
-					</div>
 					<div className="export-control">
 						<select 
 							value={userFeedbackExportFormat} 
@@ -605,82 +619,18 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 							<option value="json">JSON</option>
 						</select>
 						<button 
-							className="btn btn-primary"
+							className="btn btn-primary export-btn"
 							onClick={handleUserFeedbackExport}
 							disabled={isExportingUserFeedback || filteredAndSortedUserFeedback.length === 0}
 						>
+							<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+								<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+								<polyline points="7 10 12 15 17 10"/>
+								<line x1="12" y1="15" x2="12" y2="3"/>
+							</svg>
 							{isExportingUserFeedback ? (language === 'ko' ? '내보내는 중...' : 'Exporting...') : t('export')}
 						</button>
 					</div>
-					<div className="refresh-control" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-						<select
-							value={userFeedbackAutoRefresh === null ? 'off' : userFeedbackAutoRefresh.toString()}
-							onChange={(e) => {
-								const value = e.target.value
-								setUserFeedbackAutoRefresh(value === 'off' ? null : parseInt(value))
-							}}
-							style={{
-								padding: '6px 8px',
-								borderRadius: '4px',
-								border: '1px solid var(--border-color)',
-								background: 'var(--bg-secondary)',
-								color: 'var(--text-primary)',
-								fontSize: '14px',
-								cursor: 'pointer'
-							}}
-						>
-							<option value="off">{language === 'ko' ? '자동 새로고침 끄기' : 'Auto-refresh Off'}</option>
-							<option value="30">{language === 'ko' ? '30초' : '30 seconds'}</option>
-							<option value="60">{language === 'ko' ? '1분' : '1 minute'}</option>
-							<option value="300">{language === 'ko' ? '5분' : '5 minutes'}</option>
-							<option value="600">{language === 'ko' ? '10분' : '10 minutes'}</option>
-						</select>
-						<button 
-							className="refresh-btn"
-							onClick={refreshUserFeedback}
-							disabled={isRefreshingUserFeedback}
-							title={language === 'ko' ? '새로고침' : 'Refresh'}
-						>
-							<svg 
-								viewBox="0 0 24 24" 
-								fill="none" 
-								stroke="currentColor" 
-								strokeWidth="2"
-								className={isRefreshingUserFeedback ? 'spinning' : ''}
-							>
-								<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
-								<path d="M21 3v5h-5"/>
-								<path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
-								<path d="M3 21v-5h5"/>
-							</svg>
-							<span className="refresh-btn-text">{language === 'ko' ? '새로고침' : 'Refresh'}</span>
-						</button>
-					</div>
-				</div>
-				{userFeedbackLastRefreshed && (
-					<div className="last-refreshed">
-						{t('lastRefreshed')} {userFeedbackLastRefreshed.toLocaleString()}
-					</div>
-				)}
-				<div className="user-feedback-filters">
-					<button
-						className={`feedback-filter-btn ${feedbackFilter === 'all' ? 'active' : ''}`}
-						onClick={() => setFeedbackFilter('all')}
-					>
-						{t('total')} ({userFeedbacks.length})
-					</button>
-					<button
-						className={`feedback-filter-btn ${feedbackFilter === 'positive' ? 'active' : ''}`}
-						onClick={() => setFeedbackFilter('positive')}
-					>
-						{t('good')} ({positiveCount})
-					</button>
-					<button
-						className={`feedback-filter-btn ${feedbackFilter === 'negative' ? 'active' : ''}`}
-						onClick={() => setFeedbackFilter('negative')}
-					>
-						{t('bad')} ({negativeCount})
-					</button>
 				</div>
 			</div>
 			<div className={`user-feedback-table-container font-size-${userFeedbackFontSize}`}>
@@ -690,16 +640,13 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 					<p className="muted">{error}</p>
 				) : filteredAndSortedUserFeedback.length === 0 ? (
 					<p className="muted">
-						{userFeedbacks.length === 0 
-							? (language === 'ko' ? '피드백이 없습니다.' : 'No user feedback found.') 
-							: (language === 'ko' ? '필터 조건에 맞는 피드백이 없습니다.' : 'No feedback matches your filter criteria.')
-						}
+						{language === 'ko' ? '피드백이 없습니다.' : 'No user feedback found.'}
 					</p>
 				) : (
 					<>
 						{userFeedbackViewMode === 'grid' ? (
 							<div className="user-feedback-grid">
-								{filteredAndSortedUserFeedback.slice(0, userFeedbackDisplayLimit).map((feedback) => {
+								{filteredAndSortedUserFeedback.slice((userFeedbackCurrentPage - 1) * ITEMS_PER_PAGE, userFeedbackCurrentPage * ITEMS_PER_PAGE).map((feedback) => {
 									const feedbackId = feedback.id || feedback.request_id || `feedback-${Math.random()}`
 									const date = feedback.created_at || feedback.timestamp ? new Date(feedback.created_at || feedback.timestamp || '') : null
 									const userId = feedback.user_id || ''
@@ -847,7 +794,7 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 									</tr>
 								</thead>
 								<tbody>
-									{filteredAndSortedUserFeedback.slice(0, userFeedbackDisplayLimit).map((feedback) => {
+									{filteredAndSortedUserFeedback.slice((userFeedbackCurrentPage - 1) * ITEMS_PER_PAGE, userFeedbackCurrentPage * ITEMS_PER_PAGE).map((feedback) => {
 										const feedbackId = feedback.id || feedback.request_id || `feedback-${Math.random()}`
 										const date = feedback.created_at || feedback.timestamp ? new Date(feedback.created_at || feedback.timestamp || '') : null
 										const userId = feedback.user_id || ''
@@ -988,13 +935,42 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 								</tbody>
 							</table>
 						)}
-						{filteredAndSortedUserFeedback.length > userFeedbackDisplayLimit && (
-							<div className="load-more-container">
+						{filteredAndSortedUserFeedback.length > ITEMS_PER_PAGE && (
+							<div className="pagination-container">
 								<button 
-									className="btn btn-primary load-more-btn"
-									onClick={() => setUserFeedbackDisplayLimit(prev => prev + 20)}
+									className="pagination-btn pagination-nav"
+									onClick={() => setUserFeedbackCurrentPage(prev => Math.max(1, prev - 1))}
+									disabled={userFeedbackCurrentPage === 1}
+									title="Previous page"
 								>
-									{t('loadMore')} ({filteredAndSortedUserFeedback.length - userFeedbackDisplayLimit} {t('remaining')})
+									<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+										<polyline points="15 18 9 12 15 6"></polyline>
+									</svg>
+								</button>
+								<div className="pagination-pages">
+									{getPageNumbers(userFeedbackCurrentPage, Math.ceil(filteredAndSortedUserFeedback.length / ITEMS_PER_PAGE)).map((page, index) => 
+										page === 'ellipsis' ? (
+											<span key={`ellipsis-${index}`} className="pagination-ellipsis">...</span>
+										) : (
+											<button
+												key={page}
+												className={`pagination-btn pagination-page ${userFeedbackCurrentPage === page ? 'active' : ''}`}
+												onClick={() => setUserFeedbackCurrentPage(page)}
+											>
+												{page}
+											</button>
+										)
+									)}
+								</div>
+								<button 
+									className="pagination-btn pagination-nav"
+									onClick={() => setUserFeedbackCurrentPage(prev => Math.min(Math.ceil(filteredAndSortedUserFeedback.length / ITEMS_PER_PAGE), prev + 1))}
+									disabled={userFeedbackCurrentPage >= Math.ceil(filteredAndSortedUserFeedback.length / ITEMS_PER_PAGE)}
+									title="Next page"
+								>
+									<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+										<polyline points="9 18 15 12 9 6"></polyline>
+									</svg>
 								</button>
 							</div>
 						)}
