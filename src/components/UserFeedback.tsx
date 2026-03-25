@@ -71,7 +71,7 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 	const chatDataMapRef = useRef<Record<string, { inputText: string, outputText: string }>>({})
 	const [feedbackFilter, setFeedbackFilter] = useState<'all' | 'positive' | 'negative'>('all')
 	const [userFeedbackViewMode, setUserFeedbackViewMode] = useState<'grid' | 'table'>('table')
-	const [userFeedbackSortBy, setUserFeedbackSortBy] = useState<'date' | 'userId' | 'chatId'>('date')
+	const [userFeedbackSortBy, setUserFeedbackSortBy] = useState<'date' | 'dateAsc' | 'userId' | 'chatId'>('date')
 	const [userFeedbackSearch, setUserFeedbackSearch] = useState('')
 	const [userFeedbackFontSize, setUserFeedbackFontSize] = useState<'small' | 'medium' | 'large'>('medium')
 	const [userFeedbackCurrentPage, setUserFeedbackCurrentPage] = useState(1)
@@ -123,10 +123,9 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 		return uniquePages
 	}
 
-	// Reset page when search or filter changes
 	useEffect(() => {
 		setUserFeedbackCurrentPage(1)
-	}, [userFeedbackSearch, feedbackFilter])
+	}, [userFeedbackSearch, feedbackFilter, userFeedbackSortBy])
 
 	const [userFeedbackLastRefreshed, setUserFeedbackLastRefreshed] = useState<Date | null>(null)
 	const [isRefreshingUserFeedback, setIsRefreshingUserFeedback] = useState(false)
@@ -415,17 +414,23 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 			})
 		}
 
-		// Sort
 		filtered = [...filtered].sort((a, b) => {
 			if (userFeedbackSortBy === 'date') {
 				const dateA = new Date(a.created_at || a.timestamp || 0).getTime()
 				const dateB = new Date(b.created_at || b.timestamp || 0).getTime()
-				return dateB - dateA // Most recent first
-			} else if (userFeedbackSortBy === 'userId') {
+				return dateB - dateA
+			}
+			if (userFeedbackSortBy === 'dateAsc') {
+				const dateA = new Date(a.created_at || a.timestamp || 0).getTime()
+				const dateB = new Date(b.created_at || b.timestamp || 0).getTime()
+				return dateA - dateB
+			}
+			if (userFeedbackSortBy === 'userId') {
 				const userIdA = (a.user_id || '').toLowerCase()
 				const userIdB = (b.user_id || '').toLowerCase()
 				return userIdA.localeCompare(userIdB)
-			} else if (userFeedbackSortBy === 'chatId') {
+			}
+			if (userFeedbackSortBy === 'chatId') {
 				const chatIdA = ((a.chat_id || a.request_id || '')).toLowerCase()
 				const chatIdB = ((b.chat_id || b.request_id || '')).toLowerCase()
 				return chatIdA.localeCompare(chatIdB)
@@ -550,7 +555,8 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 			<div className="section-header">
 				<div id="user-feedback-title" className="section-title">
 					<span className="section-title-text">
-						{t('userFeedback')} ({filteredAndSortedUserFeedback.length} {t('feedbackItems')})
+						{t('userFeedback')}
+						<span className="section-count-badge">{filteredAndSortedUserFeedback.length}</span>
 					</span>
 					<button 
 						className="refresh-btn section-refresh-btn"
@@ -578,9 +584,10 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 						<select 
 							className="input select-input"
 							value={userFeedbackSortBy}
-							onChange={(e) => setUserFeedbackSortBy(e.target.value as 'date' | 'userId' | 'chatId')}
+							onChange={(e) => setUserFeedbackSortBy(e.target.value as 'date' | 'dateAsc' | 'userId' | 'chatId')}
 						>
 							<option value="date">{t('dateTimeNewest')}</option>
+							<option value="dateAsc">{t('dateTimeOldest')}</option>
 							<option value="userId">{t('userId')}</option>
 							<option value="chatId">{t('chatId')}</option>
 						</select>

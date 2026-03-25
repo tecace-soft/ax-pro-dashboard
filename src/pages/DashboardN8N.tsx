@@ -373,6 +373,7 @@ export default function DashboardN8N() {
 						block: 'start' 
 					})
 				}
+			/* Administrator Instruction section hidden in Content — restore branch when section returns
 			} else if (sectionId === 'admin-instruction') {
 				if (contentSections[2]) {
 					contentSections[2].scrollIntoView({ 
@@ -380,16 +381,17 @@ export default function DashboardN8N() {
 						block: 'start' 
 					})
 				}
+			*/
 			} else if (sectionId === 'user-feedback') {
-				if (contentSections[3]) {
-					contentSections[3].scrollIntoView({ 
+				if (contentSections[2]) {
+					contentSections[2].scrollIntoView({ 
 						behavior: 'smooth', 
 						block: 'start' 
 					})
 				}
 			} else if (sectionId === 'prompt-control') {
-				if (contentSections[4]) {
-					contentSections[4].scrollIntoView({ 
+				if (contentSections[3]) {
+					contentSections[3].scrollIntoView({ 
 						behavior: 'smooth', 
 						block: 'start' 
 					})

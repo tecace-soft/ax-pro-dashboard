@@ -464,6 +464,10 @@
 .section-header-with-toggle .prompt-section-label {
   margin-bottom: 0;
   flex: 1;
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0;
 }
 
 .collapse-toggle-btn {

@@ -4956,12 +4956,26 @@ input:checked + .toggle-slider::before {
   white-space: nowrap;
 }
 
-/* 섹션 제목 옆 카운터 스타일 */
-.section-counter {
-  font-size: 14px;
-  color: rgba(255, 255, 255, 0.6);
-  font-weight: 400;
-  margin-left: 12px;
+/* Section header count badge (number only) */
+.section-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 6px;
+  padding: 1px 8px 3px;
+  min-width: 28px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: inherit;
+  background: rgba(30, 42, 74, 0.5);
+  backdrop-filter: blur(8px);
+  color: #3b82f6;
+  border: 1px solid rgba(37, 99, 235, 0.22);
+  box-shadow: 0 1px 3px #00000026;
+  vertical-align: middle;
+  line-height: 1.2;
+  box-sizing: border-box;
 }
 
 .conversations-title {
@@ -6328,7 +6342,7 @@ input:checked + .toggle-slider::before {
   position: relative;
 }
 
-/* Admin Feedback table (Supervisor's Response) - Column widths */
+/* Admin Feedback table (FAQ / High Priority FAQ) - Column widths */
 /* Column 1: Date - fixed width */
 .admin-feedback-table th:nth-child(1),
 .admin-feedback-table td:nth-child(1) {
@@ -6400,7 +6414,7 @@ input:checked + .toggle-slider::before {
   vertical-align: middle !important;
 }
 
-/* Admin Instruction table */
+/* Administrator Instruction table */
 .admin-instruction-table {
   width: 100%;
   border-collapse: collapse;
@@ -6454,7 +6468,7 @@ input:checked + .toggle-slider::before {
   background: rgba(59, 230, 255, 0.08);
 }
 
-/* Admin Instruction table - Date column */
+/* Administrator Instruction table - Date column */
 .admin-instruction-table th:nth-child(1),
 .admin-instruction-table td:nth-child(1) {
   width: 120px;
@@ -6462,13 +6476,13 @@ input:checked + .toggle-slider::before {
   max-width: 120px;
 }
 
-/* Admin Instruction table - Instruction column (takes remaining space) */
+/* Administrator Instruction table - Instruction column (takes remaining space) */
 .admin-instruction-table th:nth-child(2),
 .admin-instruction-table td:nth-child(2) {
   width: auto;
 }
 
-/* Admin Instruction table - Applied column */
+/* Administrator Instruction table - Applied column */
 .admin-instruction-table th:nth-child(3),
 .admin-instruction-table td:nth-child(3) {
   width: 80px !important;
@@ -6477,7 +6491,7 @@ input:checked + .toggle-slider::before {
   text-align: center !important;
 }
 
-/* Admin Instruction table - Delete column */
+/* Administrator Instruction table - Delete column */
 .admin-instruction-table th:nth-child(4),
 .admin-instruction-table td:nth-child(4) {
   width: 80px !important;
@@ -8076,7 +8090,7 @@ button.export-btn:active {
 .section-title-text {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 0;
 }
 
 /* Section refresh button - inline with title */

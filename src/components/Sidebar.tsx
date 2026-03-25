@@ -459,6 +459,7 @@ export default function Sidebar({
     }
   }
 
+  /* Hidden: Administrator Instruction nav — restore this handler with the menu <li> below
   const handleAdminInstructionClick = () => {
     if (isDashboardPage) {
       if (onScrollToSection) {
@@ -468,6 +469,7 @@ export default function Sidebar({
       navigate(isN8NRoute ? '/dashboard-n8n?section=admin-instruction' : '/dashboard?section=admin-instruction')
     }
   }
+  */
 
   const handlePromptControlClick = () => {
     if (isDashboardPage) {
@@ -975,21 +977,24 @@ export default function Sidebar({
                       <path d="M9 11l3 3L22 4"/>
                       <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
                     </svg>
-                    <span className="menu-text">Supervisor's Response</span>
+                    <span className="menu-text">FAQ (High Priority FAQ)</span>
                   </button>
                 </li>
+                {/* Administrator Instruction menu item — hidden; restore with handleAdminInstructionClick above */}
+                {false && (
                 <li 
                   className="menu-item"
-                  onClick={handleAdminInstructionClick}
+                  onClick={() => {}}
                 >
                   <button className="menu-button">
                     <svg className="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M12 20h9"/>
                       <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
                     </svg>
-                    <span className="menu-text">Admin Instruction</span>
+                    <span className="menu-text">Administrator Instruction</span>
                   </button>
                 </li>
+                )}
                 <li 
                   className="menu-item"
                   onClick={handleUserFeedbackClick}

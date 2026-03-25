@@ -13,22 +13,23 @@ export interface AdminFeedbackWithDetails extends AdminFeedbackData {
 
 export async function downloadAdminFeedbackData(
   adminFeedbacks: AdminFeedbackWithDetails[],
-  format: ExportFormat
+  format: ExportFormat,
+  baseFilename: string = 'admin-feedback'
 ): Promise<void> {
   switch (format) {
     case 'csv':
-      return downloadAsCSV(adminFeedbacks)
+      return downloadAsCSV(adminFeedbacks, baseFilename)
     case 'excel':
-      return downloadAsExcel(adminFeedbacks)
+      return downloadAsExcel(adminFeedbacks, baseFilename)
     case 'json':
-      return downloadAsJSON(adminFeedbacks)
+      return downloadAsJSON(adminFeedbacks, baseFilename)
     default:
       throw new Error(`Unsupported format: ${format}`)
   }
 }
 
 // CSV 다운로드
-function downloadAsCSV(data: AdminFeedbackWithDetails[]): void {
+function downloadAsCSV(data: AdminFeedbackWithDetails[], baseFilename: string): void {
   const headers = [
     'Request ID', 'Feedback Verdict', 'Feedback Text', 'Corrected Response', 
     'User Message', 'AI Response', 'Created At', 'Updated At', 'Prompt Apply'
@@ -49,17 +50,15 @@ function downloadAsCSV(data: AdminFeedbackWithDetails[]): void {
     ].join(','))
   ].join('\n')
 
-  downloadFile(csvContent, 'admin-feedback.csv', 'text/csv')
+  downloadFile(csvContent, `${baseFilename}.csv`, 'text/csv')
 }
 
-// JSON 다운로드
-function downloadAsJSON(data: AdminFeedbackWithDetails[]): void {
+function downloadAsJSON(data: AdminFeedbackWithDetails[], baseFilename: string): void {
   const jsonContent = JSON.stringify(data, null, 2)
-  downloadFile(jsonContent, 'admin-feedback.json', 'application/json')
+  downloadFile(jsonContent, `${baseFilename}.json`, 'application/json')
 }
 
-// Excel 다운로드
-async function downloadAsExcel(data: AdminFeedbackWithDetails[]): Promise<void> {
+async function downloadAsExcel(data: AdminFeedbackWithDetails[], baseFilename: string): Promise<void> {
   const XLSX = await import('xlsx')
   
   // 데이터를 Excel 형식에 맞게 변환
@@ -82,7 +81,7 @@ async function downloadAsExcel(data: AdminFeedbackWithDetails[]): Promise<void> 
   const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' })
   const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
   
-  downloadBlob(blob, 'admin-feedback.xlsx')
+  downloadBlob(blob, `${baseFilename}.xlsx`)
 }
 
 // 공통 다운로드 함수들

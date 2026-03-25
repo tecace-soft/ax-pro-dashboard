@@ -193,18 +193,27 @@ export async function updateAdminFeedbackN8N(
   }
 }
 
-// Update apply field for admin feedback
-export async function updateAdminFeedbackApplyN8N(chatId: string, apply: boolean): Promise<AdminFeedbackDataN8N> {
+// Update apply field for admin feedback (row key feedback-{id} or legacy chat_id)
+export async function updateAdminFeedbackApplyN8N(chatIdOrRowKey: string, apply: boolean): Promise<AdminFeedbackDataN8N> {
   try {
-    const { data, error } = await supabaseN8N
-      .from('admin_feedback')
-      .update({
-        apply: apply,
-        updated_at: new Date().toISOString()
-      })
-      .eq('chat_id', chatId)
-      .select()
-      .single()
+    const updatePayload = {
+      apply,
+      updated_at: new Date().toISOString()
+    }
+    let query = supabaseN8N.from('admin_feedback').update(updatePayload)
+
+    if (chatIdOrRowKey.startsWith('feedback-')) {
+      const id = parseInt(chatIdOrRowKey.replace('feedback-', ''), 10)
+      if (!isNaN(id)) {
+        query = query.eq('id', id)
+      } else {
+        throw new Error(`Invalid admin feedback row key: ${chatIdOrRowKey}`)
+      }
+    } else {
+      query = query.eq('chat_id', chatIdOrRowKey)
+    }
+
+    const { data, error } = await query.select().single()
 
     if (error) throw error
 
@@ -294,15 +303,18 @@ export async function getAllAdminFeedbackN8N(startDate?: string, endDate?: strin
 
     if (error) throw error
 
-    // Convert array to object keyed by chat_id (or feedback ID if chat_id is null)
+    // Key by primary key so multiple rows per chat_id are not overwritten
     const feedbackMap: Record<string, AdminFeedbackDataN8N> = {}
     data?.forEach(feedback => {
+      if (feedback.id != null) {
+        feedbackMap[`feedback-${feedback.id}`] = feedback
+        return
+      }
       if (feedback.chat_id) {
         feedbackMap[feedback.chat_id] = feedback
-      } else if (feedback.id) {
-        // Use feedback ID as key for entries without chat_id
-        feedbackMap[`feedback-${feedback.id}`] = feedback
+        return
       }
+      console.warn('Skipping admin_feedback row with no id and no chat_id:', feedback)
     })
 
     return feedbackMap

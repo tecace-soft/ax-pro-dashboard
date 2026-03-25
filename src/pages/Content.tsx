@@ -30,6 +30,73 @@ interface CacheData {
 	adminFeedback: Record<string, any>
 }
 
+type AdminFeedbackRow = AdminFeedbackData & { chat_id?: string | null; corrected_message?: string | null }
+
+function resolveAdminFeedbackChatId(feedback: AdminFeedbackRow | undefined): string | null {
+	if (!feedback) return null
+	const raw = feedback.chat_id ?? feedback.request_id ?? null
+	if (raw == null || String(raw).trim() === '' || String(raw) === 'undefined') return null
+	return String(raw).trim()
+}
+
+function getAdminFeedbackForChatRow(
+	adminFeedback: Record<string, AdminFeedbackRow>,
+	chatOrRequestId: string
+): AdminFeedbackRow | null {
+	const trimmed = String(chatOrRequestId).trim()
+	const direct = adminFeedback[trimmed]
+	if (direct) return direct
+	const matches = Object.values(adminFeedback).filter((f) => {
+		const cid = resolveAdminFeedbackChatId(f)
+		const rid = f.request_id ? String(f.request_id).trim() : ''
+		return cid === trimmed || rid === trimmed
+	})
+	if (matches.length === 0) return null
+	return [...matches].sort(
+		(a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+	)[0]
+}
+
+function findAdminFeedbackMapKey(
+	map: Record<string, AdminFeedbackRow>,
+	chatOrRequestId: string
+): string | null {
+	const trimmed = String(chatOrRequestId).trim()
+	if (map[trimmed]) return trimmed
+	const hit = Object.entries(map).find(([, f]) => {
+		const cid = resolveAdminFeedbackChatId(f)
+		const rid = f.request_id ? String(f.request_id).trim() : ''
+		return cid === trimmed || rid === trimmed
+	})
+	return hit ? hit[0] : null
+}
+
+function n8nAdminFeedbackDeleteArg(requestId: string, map: Record<string, AdminFeedbackRow>): string {
+	const mapKey = findAdminFeedbackMapKey(map, requestId) || requestId
+	const row = map[mapKey]
+	if (row?.id != null) return `feedback-${row.id}`
+	return requestId
+}
+
+function mapN8nAdminFeedbackMapToUi(allFeedbackN8N: Record<string, AdminFeedbackDataN8N>): Record<string, AdminFeedbackRow> {
+	const mapped: Record<string, AdminFeedbackRow> = {}
+	Object.entries(allFeedbackN8N).forEach(([rowKey, feedback]) => {
+		mapped[rowKey] = {
+			id: feedback.id,
+			request_id: feedback.chat_id ?? rowKey,
+			chat_id: feedback.chat_id ?? null,
+			feedback_verdict: feedback.feedback_verdict || 'good',
+			feedback_text: feedback.feedback_text ?? '',
+			corrected_response: feedback.corrected_response ?? null,
+			corrected_message: feedback.corrected_message ?? null,
+			prompt_apply: feedback.apply !== undefined ? feedback.apply : true,
+			created_at: feedback.created_at,
+			updated_at: feedback.updated_at || undefined
+		}
+	})
+	return mapped
+}
+
 import PromptControl from '../components/PromptControl'
 import UserFeedback from '../components/UserFeedback'
 import '../styles/dashboard.css'
@@ -199,6 +266,8 @@ export default function Content({
 	const [submittingAdminInstructionEdits, setSubmittingAdminInstructionEdits] = useState<Set<string>>(new Set())
 	const [addAdminInstructionModal, setAddAdminInstructionModal] = useState<{ isOpen: boolean, text: string }>({ isOpen: false, text: '' })
 	const [adminInstructionCurrentPage, setAdminInstructionCurrentPage] = useState(1)
+	const [adminInstructionSortBy, setAdminInstructionSortBy] = useState<'requestId' | 'date' | 'dateAsc'>('date')
+	const [adminInstructionFilter, setAdminInstructionFilter] = useState('')
 	const [isSubmittingAdminInstruction, setIsSubmittingAdminInstruction] = useState(false)
 	const [documentsCount, setDocumentsCount] = useState<number>(0)
 	const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false)
@@ -222,7 +291,7 @@ export default function Content({
 	// Add state to trigger prompt refresh
 	const [promptRefreshTrigger, setPromptRefreshTrigger] = useState(0)
 	const [adminFeedbackViewMode, setAdminFeedbackViewMode] = useState<'grid' | 'table'>('table')
-	const [adminFeedbackSortBy, setAdminFeedbackSortBy] = useState<'requestId' | 'date'>('date')
+	const [adminFeedbackSortBy, setAdminFeedbackSortBy] = useState<'requestId' | 'date' | 'dateAsc'>('date')
 	const [adminFeedbackFilter, setAdminFeedbackFilter] = useState('')
 	const [adminFeedbackTypeFilter, setAdminFeedbackTypeFilter] = useState<'all' | 'good' | 'bad'>('all')
 	const [adminFeedbackFontSize, setAdminFeedbackFontSize] = useState<'small' | 'medium' | 'large'>('medium')
@@ -275,15 +344,15 @@ export default function Content({
 		return uniquePages
 	}
 
-	// Reset admin feedback page when search/filter changes
+	// Reset admin feedback page when search/filter/sort changes
 	useEffect(() => {
 		setAdminFeedbackCurrentPage(1)
-	}, [adminFeedbackFilter, adminFeedbackTypeFilter])
+	}, [adminFeedbackFilter, adminFeedbackTypeFilter, adminFeedbackSortBy])
 
-	// Reset admin instruction page when data changes
+	// Reset admin instruction page when data / search / sort changes
 	useEffect(() => {
 		setAdminInstructionCurrentPage(1)
-	}, [adminFeedback])
+	}, [adminFeedback, adminInstructionFilter, adminInstructionSortBy])
 
 	const [editingAdminFeedback, setEditingAdminFeedback] = useState<Set<string>>(new Set())
 	const [adminFeedbackEditData, setAdminFeedbackEditData] = useState<Record<string, { text: string, correctedResponse: string, correctedMessage?: string }>>({})
@@ -462,9 +531,13 @@ export default function Content({
 				if (isN8NRoute) {
 					// Get the newly imported feedback to get their chat_ids
 					const allFeedbackN8N = await getAllAdminFeedbackN8N()
-					const importedChatIds = Object.keys(allFeedbackN8N).filter(chatId => 
-						chatId.startsWith('manual-')
-					)
+					const importedChatIds = [
+						...new Set(
+							Object.values(allFeedbackN8N)
+								.map((f) => f.chat_id)
+								.filter((id): id is string => !!id && id.startsWith('manual-'))
+						)
+					]
 					
 					// Fetch chat data for imported entries
 					if (importedChatIds.length > 0) {
@@ -670,27 +743,11 @@ export default function Content({
 		setIsRefreshingAdminFeedback(true)
 		try {
 			if (isN8NRoute) {
-				const allFeedbackN8N = await getAllAdminFeedbackN8N(startDate, endDate)
-				// Map n8n feedback format (chat_id, apply) to UI format (request_id, prompt_apply)
-				// Preserve corrected_message field for editing
-				const mappedFeedback: Record<string, AdminFeedbackData & { corrected_message?: string | null }> = {}
-				Object.entries(allFeedbackN8N).forEach(([chatId, feedback]) => {
-					mappedFeedback[chatId] = {
-						id: feedback.id,
-						request_id: chatId,
-						feedback_verdict: feedback.feedback_verdict || 'good',
-						feedback_text: feedback.feedback_text || '',
-						corrected_response: feedback.corrected_response || null,
-						corrected_message: feedback.corrected_message || null,
-						prompt_apply: feedback.apply !== undefined ? feedback.apply : true,
-						created_at: feedback.created_at,
-						updated_at: feedback.updated_at || undefined
-					}
-				})
-				setAdminFeedback(mappedFeedback)
+				const allFeedbackN8N = await getAllAdminFeedbackN8N()
+				setAdminFeedback(mapN8nAdminFeedbackMapToUi(allFeedbackN8N))
 			} else if (authToken) {
-				const allFeedback = await getAllAdminFeedback(startDate, endDate)
-				setAdminFeedback(allFeedback)
+				const allFeedback = await getAllAdminFeedback()
+				setAdminFeedback(allFeedback as Record<string, AdminFeedbackRow>)
 			}
 			setAdminFeedbackLastRefreshed(new Date())
 		} catch (error: any) {
@@ -705,7 +762,7 @@ export default function Content({
 		} finally {
 			setIsRefreshingAdminFeedback(false)
 		}
-	}, [isN8NRoute, authToken, startDate, endDate])
+	}, [isN8NRoute, authToken])
 
 	// 최적화된 데이터 로딩 함수
 	const loadConversationsOptimized = async (bypassCache: boolean = false) => {
@@ -1315,43 +1372,29 @@ export default function Content({
 			
 			async function loadAllAdminFeedbackN8N() {
 				try {
-					const allFeedbackN8N = await getAllAdminFeedbackN8N(startDate, endDate)
+					const allFeedbackN8N = await getAllAdminFeedbackN8N()
 					if (!cancelled) {
-						// Map n8n feedback format (chat_id, apply) to UI format (request_id, prompt_apply)
-						// Preserve corrected_message field for editing
-						const mappedFeedback: Record<string, AdminFeedbackData & { corrected_message?: string | null }> = {}
-						Object.entries(allFeedbackN8N).forEach(([chatId, feedback]) => {
-							mappedFeedback[chatId] = {
-								id: feedback.id,
-								request_id: chatId, // Use chat_id as request_id for UI compatibility
-								feedback_verdict: feedback.feedback_verdict || 'good',
-								feedback_text: feedback.feedback_text || '',
-								corrected_response: feedback.corrected_response || null,
-								corrected_message: feedback.corrected_message || null,
-								prompt_apply: feedback.apply !== undefined ? feedback.apply : true, // Map apply to prompt_apply
-								created_at: feedback.created_at,
-								updated_at: feedback.updated_at || undefined
-							}
-						})
+						const mappedFeedback = mapN8nAdminFeedbackMapToUi(allFeedbackN8N)
 						setAdminFeedback(mappedFeedback)
 						setAdminFeedbackLastRefreshed(new Date())
-						
-						// Load chat data for all feedback entries (for N8N route)
-						// This ensures User Message, AI Response, and Session ID are available even if not in current date range
-						// Only load chat data for entries that have a chat_id (skip entries with feedback-{id} keys)
-						const chatIds = Object.keys(mappedFeedback).filter(key => !key.startsWith('feedback-'))
+
+						const chatIds = [
+							...new Set(
+								Object.values(mappedFeedback)
+									.map((f) => resolveAdminFeedbackChatId(f))
+									.filter((id): id is string => !!id && id.trim() !== '')
+							)
+						]
 						const requestDetailsMap: Record<string, any> = {}
 						const sessionRequestsMap: Record<string, any[]> = {}
 						
-						// Load chat data in batches to avoid overwhelming the API
 						for (let i = 0; i < chatIds.length; i += 10) {
 							if (cancelled) break
 							const batch = chatIds.slice(i, i + 10)
 							
 							await Promise.all(batch.map(async (chatId) => {
-								// Always try to fetch to ensure we have the data
 								try {
-									const trimmedChatId = chatId.trim() // Trim whitespace
+									const trimmedChatId = chatId.trim()
 									const detail = await fetchRequestDetailN8N(trimmedChatId)
 									if (detail && detail.request) {
 										// Store in requestDetails (use both trimmed and original as keys for lookup)
@@ -1414,9 +1457,9 @@ export default function Content({
 		
 		async function loadAllAdminFeedback() {
 			try {
-				const allFeedback = await getAllAdminFeedback(startDate, endDate)
+				const allFeedback = await getAllAdminFeedback()
 				if (!cancelled) {
-					setAdminFeedback(allFeedback)
+					setAdminFeedback(allFeedback as Record<string, AdminFeedbackRow>)
 					setAdminFeedbackLastRefreshed(new Date())
 					
 					// Load chat data for all feedback entries (for tecace route)
@@ -1491,7 +1534,7 @@ export default function Content({
 		return () => {
 			cancelled = true
 		}
-	}, [authToken, startDate, endDate, isN8NRoute])
+	}, [authToken, isN8NRoute])
 
 	// Fetch documents count for Performance Overview (N8N route only)
 	useEffect(() => {
@@ -1529,19 +1572,19 @@ export default function Content({
 			const currentRequestDetails = requestDetailsRef.current
 			const missingIds: string[] = []
 			
-			// Find requestIds that don't have requestDetails or have empty/dash values
-			requestIds.forEach(requestId => {
-				const detail = currentRequestDetails[requestId]
-				// Check if detail is missing, empty, or shows dash
-				if (!detail || !detail.inputText || detail.inputText.trim() === '' || detail.inputText === '-' || 
-				    !detail.outputText || detail.outputText.trim() === '' || detail.outputText === '-') {
-					missingIds.push(requestId)
+			requestIds.forEach(mapKey => {
+				const feedback = adminFeedback[mapKey]
+				const cid = resolveAdminFeedbackChatId(feedback as AdminFeedbackRow)
+				const detail =
+					(cid && currentRequestDetails[cid]) ||
+					currentRequestDetails[mapKey]
+				if (!detail || !detail.inputText || detail.inputText.trim() === '' || detail.inputText === '-' ||
+					!detail.outputText || detail.outputText.trim() === '' || detail.outputText === '-') {
+					missingIds.push(mapKey)
 				}
 			})
 			
 			if (missingIds.length === 0) return
-			
-			console.log('Loading missing data for admin feedback:', missingIds)
 			
 			const requestDetailsMap: Record<string, any> = {}
 			const sessionRequestsMap: Record<string, any[]> = {}
@@ -1590,8 +1633,8 @@ export default function Content({
 										sessionRequestsMap[detail.request.sessionId] = []
 									}
 									sessionRequestsMap[detail.request.sessionId].push({
-										requestId: key,
-										id: key
+										requestId: trimmedRequestId,
+										id: trimmedRequestId
 									})
 								}
 							}
@@ -1619,8 +1662,8 @@ export default function Content({
 										sessionRequestsMap[chatData.session_id] = []
 									}
 									sessionRequestsMap[chatData.session_id].push({
-										requestId: key,
-										id: key
+										requestId: requestIdToSearch,
+										id: requestIdToSearch
 									})
 								}
 							} else if (authToken) {
@@ -1643,7 +1686,6 @@ export default function Content({
 			
 			if (!cancelled) {
 				if (Object.keys(requestDetailsMap).length > 0) {
-					console.log('Updating requestDetails with:', Object.keys(requestDetailsMap))
 					setRequestDetails(prev => ({ ...prev, ...requestDetailsMap }))
 				}
 				if (Object.keys(sessionRequestsMap).length > 0) {
@@ -1676,7 +1718,9 @@ export default function Content({
 	const handleFeedbackClick = async (type: 'positive' | 'negative', requestId: string) => {
 		// Normalize requestId - ensure it's a string and trim whitespace
 		const normalizedRequestId = String(requestId).trim()
-		const existingFeedback = adminFeedback[normalizedRequestId] || adminFeedback[requestId]
+		const existingFeedback =
+			getAdminFeedbackForChatRow(adminFeedback as Record<string, AdminFeedbackRow>, normalizedRequestId) ||
+			getAdminFeedbackForChatRow(adminFeedback as Record<string, AdminFeedbackRow>, requestId)
 		
 		// Try to get data from requestDetails first - check multiple key formats
 		let requestDetail = requestDetails[normalizedRequestId] || requestDetails[requestId] || requestDetails[String(requestId)] || {}
@@ -1750,7 +1794,9 @@ export default function Content({
 	const handleMessageClick = (requestId: string, showThumbsButtons: boolean = true) => {
 		// Normalize requestId - ensure it's a string and trim whitespace
 		const normalizedRequestId = String(requestId).trim()
-		const existingFeedback = adminFeedback[normalizedRequestId] || adminFeedback[requestId]
+		const existingFeedback =
+			getAdminFeedbackForChatRow(adminFeedback as Record<string, AdminFeedbackRow>, normalizedRequestId) ||
+			getAdminFeedbackForChatRow(adminFeedback as Record<string, AdminFeedbackRow>, requestId)
 		
 		// Try to get data from requestDetails first - check multiple key formats
 		let requestDetail = requestDetails[normalizedRequestId] || requestDetails[requestId] || requestDetails[String(requestId)] || {}
@@ -1873,33 +1919,33 @@ export default function Content({
 	}
 
 	const removePositiveFeedback = async (requestId: string) => {
-		// Optimistically remove feedback from state immediately
-		const previousFeedback = adminFeedback[requestId]
-		setAdminFeedback(prev => {
+		const af = adminFeedback as Record<string, AdminFeedbackRow>
+		const mapKey = findAdminFeedbackMapKey(af, requestId) || requestId
+		const row = af[mapKey]
+		const deleteArg = isN8NRoute ? n8nAdminFeedbackDeleteArg(requestId, af) : requestId
+		const previousFeedback = row
+
+		setAdminFeedback((prev) => {
 			const newState = { ...prev }
-			delete newState[requestId]
+			delete newState[mapKey]
 			return newState
 		})
-		
+
 		try {
 			if (isN8NRoute) {
-				await deleteAdminFeedbackN8N(requestId) // requestId is chat_id for n8n
+				await deleteAdminFeedbackN8N(deleteArg)
 			} else {
 				await deleteAdminFeedback(requestId)
 			}
-			
-			// Update system prompt to reflect the deletion
+
 			await updatePromptWithFeedback()
-			
-			// Trigger prompt refresh in PromptControl component
 			triggerPromptRefresh()
 		} catch (error) {
 			console.error('Failed to remove positive feedback:', error)
-			// Revert optimistic update on error
 			if (previousFeedback) {
-				setAdminFeedback(prev => ({
+				setAdminFeedback((prev) => ({
 					...prev,
-					[requestId]: previousFeedback
+					[mapKey]: previousFeedback
 				}))
 			}
 		}
@@ -1909,11 +1955,10 @@ export default function Content({
 		setSubmittingFeedbackRequests(prev => new Set(prev).add(requestId))
 		
 		try {
-			// Delete existing negative feedback and save positive
 			if (isN8NRoute) {
-				await deleteAdminFeedbackN8N(requestId) // requestId is chat_id for n8n
-				
-				// Get sessionId and message data for ensuring chat exists
+				const af = adminFeedback as Record<string, AdminFeedbackRow>
+				await deleteAdminFeedbackN8N(n8nAdminFeedbackDeleteArg(requestId, af))
+
 				const requestDetail = requestDetails[requestId] || {}
 				const userMessage = requestDetail.inputText || ''
 				const aiResponse = requestDetail.outputText || ''
@@ -1935,10 +1980,12 @@ export default function Content({
 					userMessage || undefined,
 					aiResponse || undefined
 				)
-				// Map n8n format to UI format
-				const savedFeedback: AdminFeedbackData = {
+				const rowKey =
+					savedFeedbackN8N.id != null ? `feedback-${savedFeedbackN8N.id}` : requestId
+				const savedFeedback: AdminFeedbackRow = {
 					id: savedFeedbackN8N.id,
 					request_id: requestId,
+					chat_id: requestId,
 					feedback_verdict: savedFeedbackN8N.feedback_verdict || 'good',
 					feedback_text: savedFeedbackN8N.feedback_text || '',
 					corrected_response: savedFeedbackN8N.corrected_response || null,
@@ -1946,9 +1993,9 @@ export default function Content({
 					created_at: savedFeedbackN8N.created_at,
 					updated_at: savedFeedbackN8N.updated_at || undefined
 				}
-				setAdminFeedback(prev => ({
+				setAdminFeedback((prev) => ({
 					...prev,
-					[requestId]: savedFeedback
+					[rowKey]: savedFeedback
 				}))
 			} else {
 				await deleteAdminFeedback(requestId)
@@ -2006,26 +2053,23 @@ export default function Content({
 		setSubmittingFeedbackRequests(prev => new Set(prev).add(requestId))
 		
 		try {
+			const af = adminFeedback as Record<string, AdminFeedbackRow>
+			const mapKey = findAdminFeedbackMapKey(af, requestId) || requestId
 			if (isN8NRoute) {
-				await deleteAdminFeedbackN8N(requestId) // requestId is chat_id for n8n
+				await deleteAdminFeedbackN8N(n8nAdminFeedbackDeleteArg(requestId, af))
 			} else {
 				await deleteAdminFeedback(requestId)
 			}
-			
-			// Update local state
-			setAdminFeedback(prev => {
+
+			setAdminFeedback((prev) => {
 				const newState = { ...prev }
-				delete newState[requestId]
+				delete newState[mapKey]
 				return newState
 			})
-			
-			// Update system prompt to reflect the deletion
+
 			await updatePromptWithFeedback()
-			
-			// Trigger prompt refresh in PromptControl component
 			triggerPromptRefresh()
-			
-			// Close the form and modal
+
 			closeFeedbackForm(requestId)
 			setConfirmationModal({
 				isOpen: false,
@@ -2053,11 +2097,10 @@ export default function Content({
 		setSubmittingFeedbackRequests(prev => new Set(prev).add(requestId))
 		
 		try {
-			// Delete existing positive feedback and save negative
 			if (isN8NRoute) {
-				await deleteAdminFeedbackN8N(requestId) // requestId is chat_id for n8n
-				
-				// Get sessionId and message data for ensuring chat exists
+				const af = adminFeedback as Record<string, AdminFeedbackRow>
+				await deleteAdminFeedbackN8N(n8nAdminFeedbackDeleteArg(requestId, af))
+
 				const requestDetail = requestDetails[requestId] || {}
 				const userMessage = requestDetail.inputText || ''
 				const aiResponse = requestDetail.outputText || ''
@@ -2070,7 +2113,7 @@ export default function Content({
 				}
 				
 				const savedFeedbackN8N = await saveAdminFeedbackN8N(
-					requestId, // chat_id
+					requestId,
 					'bad', 
 					formData.text,
 					formData.preferredResponse.trim() || undefined,
@@ -2079,20 +2122,23 @@ export default function Content({
 					userMessage || undefined,
 					aiResponse || undefined
 				)
-				// Map n8n format to UI format
-				const savedFeedback: AdminFeedbackData = {
+				const rowKey =
+					savedFeedbackN8N.id != null ? `feedback-${savedFeedbackN8N.id}` : requestId
+				const savedFeedback: AdminFeedbackRow = {
 					id: savedFeedbackN8N.id,
 					request_id: requestId,
+					chat_id: requestId,
 					feedback_verdict: savedFeedbackN8N.feedback_verdict || 'bad',
 					feedback_text: savedFeedbackN8N.feedback_text || '',
 					corrected_response: savedFeedbackN8N.corrected_response || null,
+					corrected_message: savedFeedbackN8N.corrected_message || null,
 					prompt_apply: savedFeedbackN8N.apply !== undefined ? savedFeedbackN8N.apply : true,
 					created_at: savedFeedbackN8N.created_at,
 					updated_at: savedFeedbackN8N.updated_at || undefined
 				}
-				setAdminFeedback(prev => ({
+				setAdminFeedback((prev) => ({
 					...prev,
-					[requestId]: savedFeedback
+					[rowKey]: savedFeedback
 				}))
 			} else {
 				await deleteAdminFeedback(requestId)
@@ -2411,10 +2457,12 @@ export default function Content({
 						aiResponse || undefined
 					)
 				}
-				// Map n8n format to UI format, preserve corrected_message
-				const savedFeedback: AdminFeedbackData & { corrected_message?: string | null } = {
+				const rowKey =
+					savedFeedbackN8N.id != null ? `feedback-${savedFeedbackN8N.id}` : requestId
+				const savedFeedback: AdminFeedbackRow = {
 					id: savedFeedbackN8N.id,
 					request_id: requestId,
+					chat_id: requestId,
 					feedback_verdict: savedFeedbackN8N.feedback_verdict || verdict,
 					feedback_text: savedFeedbackN8N.feedback_text || '',
 					corrected_response: savedFeedbackN8N.corrected_response || null,
@@ -2423,12 +2471,11 @@ export default function Content({
 					created_at: savedFeedbackN8N.created_at,
 					updated_at: savedFeedbackN8N.updated_at || undefined
 				}
-				setAdminFeedback(prev => ({
+				setAdminFeedback((prev) => ({
 					...prev,
-					[requestId]: savedFeedback
+					[rowKey]: savedFeedback
 				}))
 			} else {
-				// Ensure chat data exists first (required for foreign key constraint)
 				const requestDetail = requestDetails[requestId]
 				if (requestDetail) {
 					// Find the session ID for this request
@@ -2496,17 +2543,21 @@ export default function Content({
 			if (!existingFeedback) return
 
 			if (isN8NRoute) {
+				const row = existingFeedback as AdminFeedbackRow
+				const chatIdForApi = resolveAdminFeedbackChatId(row) || ''
 				const updatedFeedbackN8N = await updateAdminFeedbackN8N(
-					requestId,
+					chatIdForApi,
 					existingFeedback.feedback_verdict,
 					editData.text,
 					editData.correctedResponse.trim() || undefined,
 					editData.correctedMessage?.trim() || undefined,
-					existingFeedback.id // Use id to avoid duplicate chat_id issues
+					existingFeedback.id
 				)
-				const updatedFeedback: AdminFeedbackData & { corrected_message?: string } = {
+				const stableChat = resolveAdminFeedbackChatId(row) || row.request_id || requestId
+				const updatedFeedback: AdminFeedbackRow = {
 					id: updatedFeedbackN8N.id,
-					request_id: requestId,
+					request_id: stableChat,
+					chat_id: row.chat_id ?? resolveAdminFeedbackChatId(row),
 					feedback_verdict: updatedFeedbackN8N.feedback_verdict || existingFeedback.feedback_verdict,
 					feedback_text: updatedFeedbackN8N.feedback_text || '',
 					corrected_response: updatedFeedbackN8N.corrected_response || null,
@@ -2515,7 +2566,7 @@ export default function Content({
 					created_at: updatedFeedbackN8N.created_at,
 					updated_at: updatedFeedbackN8N.updated_at || undefined
 				}
-				setAdminFeedback(prev => ({
+				setAdminFeedback((prev) => ({
 					...prev,
 					[requestId]: updatedFeedback
 				}))
@@ -2570,17 +2621,21 @@ export default function Content({
 			if (!existingFeedback) return
 
 			if (isN8NRoute) {
+				const row = existingFeedback as AdminFeedbackRow
+				const chatIdForApi = resolveAdminFeedbackChatId(row) || ''
 				const updatedFeedbackN8N = await updateAdminFeedbackN8N(
-					requestId,
+					chatIdForApi,
 					existingFeedback.feedback_verdict,
 					newText.trim(),
 					existingFeedback.corrected_response || undefined,
 					(existingFeedback as any).corrected_message || undefined,
 					existingFeedback.id
 				)
-				const updatedFeedback: AdminFeedbackData & { corrected_message?: string } = {
+				const stableChat = resolveAdminFeedbackChatId(row) || row.request_id || requestId
+				const updatedFeedback: AdminFeedbackRow = {
 					id: updatedFeedbackN8N.id,
-					request_id: requestId,
+					request_id: stableChat,
+					chat_id: row.chat_id ?? resolveAdminFeedbackChatId(row),
 					feedback_verdict: updatedFeedbackN8N.feedback_verdict || existingFeedback.feedback_verdict,
 					feedback_text: updatedFeedbackN8N.feedback_text || '',
 					corrected_response: updatedFeedbackN8N.corrected_response || null,
@@ -2589,7 +2644,7 @@ export default function Content({
 					created_at: updatedFeedbackN8N.created_at,
 					updated_at: updatedFeedbackN8N.updated_at || undefined
 				}
-				setAdminFeedback(prev => ({
+				setAdminFeedback((prev) => ({
 					...prev,
 					[requestId]: updatedFeedback
 				}))
@@ -2763,15 +2818,14 @@ export default function Content({
 
 	// Table view controls for Recent Conversations - declare before useMemo
 	const [conversationsViewMode, setConversationsViewMode] = useState<'grid' | 'table'>('table')
-	const [conversationsSortBy, setConversationsSortBy] = useState<'date' | 'session'>('date')
+	const [conversationsSortBy, setConversationsSortBy] = useState<'date' | 'dateAsc' | 'session'>('date')
 	const [conversationsSearch, setConversationsSearch] = useState('')
 	const [conversationsFontSize, setConversationsFontSize] = useState<'small' | 'medium' | 'large'>('medium')
 	const [conversationsCurrentPage, setConversationsCurrentPage] = useState(1)
 
-	// Reset conversations page when search changes
 	useEffect(() => {
 		setConversationsCurrentPage(1)
-	}, [conversationsSearch])
+	}, [conversationsSearch, conversationsSortBy])
 
 	// Flatten conversations for table view
 	const flattenedConversations = useMemo(() => {
@@ -2814,7 +2868,7 @@ export default function Content({
 					}
 				}
 				
-				const feedback = adminFeedback[requestId]
+				const feedback = getAdminFeedbackForChatRow(adminFeedback as Record<string, AdminFeedbackRow>, requestId)
 				const userFb = feedback?.feedback_verdict === 'good' ? 'positive' : 
 				              feedback?.feedback_verdict === 'bad' ? 'negative' : null
 				
@@ -2845,7 +2899,7 @@ export default function Content({
 				requests.forEach((request: any) => {
 					const requestId = request.requestId || request.id
 					const detail = requestDetails[requestId] || {}
-					const feedback = adminFeedback[requestId]
+					const feedback = getAdminFeedbackForChatRow(adminFeedback as Record<string, AdminFeedbackRow>, requestId)
 					
 					const userFb = feedback?.feedback_verdict === 'good' ? 'positive' : 
 					              feedback?.feedback_verdict === 'bad' ? 'negative' : null
@@ -2870,13 +2924,14 @@ export default function Content({
 			})
 		}
 
-		// Sort by date (newest first) or session
 		conversations.sort((a, b) => {
 			if (conversationsSortBy === 'date') {
 				return b.timestamp - a.timestamp
-			} else {
-				return a.sessionId.localeCompare(b.sessionId)
 			}
+			if (conversationsSortBy === 'dateAsc') {
+				return a.timestamp - b.timestamp
+			}
+			return a.sessionId.localeCompare(b.sessionId)
 		})
 
 		// Filter by search
@@ -2898,22 +2953,36 @@ export default function Content({
 		return flattenedConversations.some(conv => conv.userId && conv.userId.trim() !== '')
 	}, [flattenedConversations])
 
-	// Filter and sort admin instructions - only show feedback with feedback_text
+	// Administrator Instruction: feedback_text present, optional search / sort
 	const filteredAdminInstructions = useMemo(() => {
-		return Object.entries(adminFeedback)
-			.filter(([requestId, feedback]) => {
-				// Only show feedback where feedback_text is not empty or null
-				if (!feedback.feedback_text || feedback.feedback_text.trim() === '') {
-					return false;
-				}
-				return true;
-			})
-			.sort((a, b) => {
-				const dateA = a[1].created_at ? new Date(a[1].created_at).getTime() : 0
-				const dateB = b[1].created_at ? new Date(b[1].created_at).getTime() : 0
-				return dateB - dateA // Sort by newest first
-			})
-	}, [adminFeedback])
+		const rows = Object.entries(adminFeedback).filter(([requestId, feedback]) => {
+			if (!feedback.feedback_text || feedback.feedback_text.trim() === '') {
+				return false
+			}
+			if (!adminInstructionFilter.trim()) return true
+			const q = adminInstructionFilter.toLowerCase()
+			if (requestId.toLowerCase().includes(q)) return true
+			if (feedback.feedback_text.toLowerCase().includes(q)) return true
+			const cid = resolveAdminFeedbackChatId(feedback as AdminFeedbackRow)
+			if (cid?.toLowerCase().includes(q)) return true
+			const chatId = cid || requestId
+			const rd = requestDetails[chatId] || requestDetails[requestId] || {}
+			if (rd.inputText?.toLowerCase().includes(q)) return true
+			if (rd.outputText?.toLowerCase().includes(q)) return true
+			return false
+		})
+		return rows.sort(([idA, fa], [idB, fb]) => {
+			if (adminInstructionSortBy === 'requestId') {
+				return idA.localeCompare(idB)
+			}
+			const dateA = new Date(fa.created_at || 0).getTime()
+			const dateB = new Date(fb.created_at || 0).getTime()
+			if (adminInstructionSortBy === 'dateAsc') {
+				return dateA - dateB
+			}
+			return dateB - dateA
+		})
+	}, [adminFeedback, adminInstructionFilter, adminInstructionSortBy, requestDetails])
 
 	// Filter and sort admin feedback - only show feedback with corrected_response
 	const filteredAndSortedAdminFeedback = useMemo(() => {
@@ -2945,14 +3014,16 @@ export default function Content({
 				// Check if corrected response matches
 				if (feedback.corrected_response?.toLowerCase().includes(filterLower)) return true;
 				
-				// Check if request detail text matches
-				const requestDetail = requestDetails[requestId] || {};
+				const chatId = resolveAdminFeedbackChatId(feedback as AdminFeedbackRow) || requestId;
+				const requestDetail = (chatId && requestDetails[chatId]) || requestDetails[requestId] || {};
 				if (requestDetail.inputText?.toLowerCase().includes(filterLower)) return true;
 				if (requestDetail.outputText?.toLowerCase().includes(filterLower)) return true;
 				
-				// Check if sessionId matches - find which session this requestId belongs to
 				for (const [sessionId, requests] of Object.entries(sessionRequests)) {
-					if (requests.some(r => (r.requestId || r.id) === requestId)) {
+					if (requests.some(r => {
+						const rid = r.requestId || r.id
+						return rid === requestId || rid === chatId
+					})) {
 						if (sessionId.toLowerCase().includes(filterLower)) return true;
 						break;
 					}
@@ -2963,11 +3034,13 @@ export default function Content({
 			.sort(([requestIdA, feedbackA], [requestIdB, feedbackB]) => {
 				if (adminFeedbackSortBy === 'requestId') {
 					return requestIdA.localeCompare(requestIdB);
-				} else {
-					const dateA = new Date(feedbackA.created_at || 0).getTime();
-					const dateB = new Date(feedbackB.created_at || 0).getTime();
-					return dateB - dateA; // Most recent first
 				}
+				const dateA = new Date(feedbackA.created_at || 0).getTime();
+				const dateB = new Date(feedbackB.created_at || 0).getTime();
+				if (adminFeedbackSortBy === 'dateAsc') {
+					return dateA - dateB;
+				}
+				return dateB - dateA;
 			});
 		
 		return allFeedback;
@@ -2975,6 +3048,8 @@ export default function Content({
 
 	const [isExportingAdminFeedback, setIsExportingAdminFeedback] = useState(false)
 	const [adminFeedbackExportFormat, setAdminFeedbackExportFormat] = useState<'csv' | 'excel' | 'json'>('csv')
+	const [isExportingAdminInstruction, setIsExportingAdminInstruction] = useState(false)
+	const [adminInstructionExportFormat, setAdminInstructionExportFormat] = useState<'csv' | 'excel' | 'json'>('csv')
 
 	const handleAdminFeedbackExport = async () => {
 		setIsExportingAdminFeedback(true)
@@ -2986,11 +3061,30 @@ export default function Content({
 				requestDetail: requestDetails[requestId] || null
 			}))
 			
-			await downloadAdminFeedbackData(adminFeedbackArray, adminFeedbackExportFormat)
+			await downloadAdminFeedbackData(adminFeedbackArray, adminFeedbackExportFormat, 'admin-feedback')
 		} catch (error) {
 			console.error('Admin feedback export failed:', error)
 		} finally {
 			setIsExportingAdminFeedback(false)
+		}
+	}
+
+	const handleAdminInstructionExport = async () => {
+		setIsExportingAdminInstruction(true)
+		try {
+			const rows = filteredAdminInstructions.map(([requestId, feedback]) => {
+				const cid = resolveAdminFeedbackChatId(feedback as AdminFeedbackRow) || requestId
+				return {
+					...feedback,
+					requestId,
+					requestDetail: requestDetails[cid] || requestDetails[requestId] || null
+				}
+			})
+			await downloadAdminFeedbackData(rows, adminInstructionExportFormat, 'administrator-instruction')
+		} catch (error) {
+			console.error('Administrator instruction export failed:', error)
+		} finally {
+			setIsExportingAdminInstruction(false)
 		}
 	}
 
@@ -3210,7 +3304,7 @@ export default function Content({
 								<div id="recent-conv-title" className="section-title conversations-title">
 									<span className="section-title-text">
 										{language === 'ko' ? '최근 대화' : 'Recent Conversations'}
-										<span className="section-counter">({flattenedConversations.length})</span>
+										<span className="section-count-badge">{flattenedConversations.length}</span>
 									</span>
 									<button 
 										className="refresh-btn section-refresh-btn"
@@ -3232,9 +3326,10 @@ export default function Content({
 										<select 
 											className="input select-input"
 											value={conversationsSortBy}
-											onChange={(e) => setConversationsSortBy(e.target.value as 'date' | 'session')}
+											onChange={(e) => setConversationsSortBy(e.target.value as 'date' | 'dateAsc' | 'session')}
 										>
 											<option value="date">{t('dateTimeNewest')}</option>
+											<option value="dateAsc">{t('dateTimeOldest')}</option>
 											<option value="session">{t('sessionIdSort')}</option>
 										</select>
 									</div>
@@ -3316,12 +3411,12 @@ export default function Content({
 																</div>
 															</div>
 															<div className="conversation-card-footer">
-																<span className="admin-label">{language === 'ko' ? '감독자 응답' : "Supervisor's Response"}:</span>
+																<span className="admin-label">{language === 'ko' ? 'FAQ (고우선 FAQ)' : 'FAQ (High Priority FAQ)'}:</span>
 																<div className="admin-actions">
 																	{adminFb && adminFb.corrected_response ? (
 																		<button 
 																			className="supervisor-response-btn completed"
-																			title={language === 'ko' ? '감독자 응답 수정' : "Edit Supervisor's Response"}
+																			title={language === 'ko' ? 'FAQ (고우선 FAQ) 편집' : 'Edit FAQ (High Priority FAQ)'}
 																			onClick={(e) => {
 																				e.preventDefault()
 																				e.stopPropagation()
@@ -3355,7 +3450,7 @@ export default function Content({
 																	) : (
 																		<button 
 																			className="supervisor-response-btn add"
-																			title={language === 'ko' ? '감독자 응답 추가' : "Add Supervisor's Response"}
+																			title={language === 'ko' ? 'FAQ (고우선 FAQ) 추가' : 'Add FAQ (High Priority FAQ)'}
 																			onClick={(e) => {
 																				e.preventDefault()
 																				e.stopPropagation()
@@ -3403,7 +3498,7 @@ export default function Content({
 														<th>{t('sessionId')}</th>
 														<th>{t('userMessage')}</th>
 														<th>{t('aiResponse')}</th>
-														<th style={{ textAlign: 'center' }}><span style={{ display: 'block' }}>{language === 'ko' ? "감독자" : "Supervisor's"}</span><span style={{ display: 'block' }}>{language === 'ko' ? '응답' : 'Response'}</span></th>
+														<th style={{ textAlign: 'center' }}>{language === 'ko' ? 'FAQ (고우선 FAQ)' : 'FAQ (High Priority FAQ)'}</th>
 													</tr>
 												</thead>
 												<tbody>
@@ -3468,7 +3563,7 @@ export default function Content({
 																		{adminFb && adminFb.corrected_response ? (
 																			<button 
 																				className="supervisor-response-btn completed"
-																				title={language === 'ko' ? '감독자 응답 수정' : "Edit Supervisor's Response"}
+																				title={language === 'ko' ? 'FAQ (고우선 FAQ) 편집' : 'Edit FAQ (High Priority FAQ)'}
 																				onClick={(e) => {
 																					e.preventDefault()
 																					e.stopPropagation()
@@ -3502,7 +3597,7 @@ export default function Content({
 																		) : (
 																			<button 
 																				className="supervisor-response-btn add"
-																				title={language === 'ko' ? '감독자 응답 추가' : "Add Supervisor's Response"}
+																				title={language === 'ko' ? 'FAQ (고우선 FAQ) 추가' : 'Add FAQ (High Priority FAQ)'}
 																				onClick={(e) => {
 																					e.preventDefault()
 																					e.stopPropagation()
@@ -3592,7 +3687,10 @@ export default function Content({
 								const requestDetail = requestDetails[requestId] || {}
 								const userMessage = requestDetail.inputText || ''
 								const formData = feedbackFormData[requestId] || { text: '', preferredResponse: '', correctedMessage: userMessage }
-								const existingFeedback = adminFeedback[requestId]
+								const existingFeedback = getAdminFeedbackForChatRow(
+									adminFeedback as Record<string, AdminFeedbackRow>,
+									requestId
+								)
 								
 								return (
 									<div key={requestId} className={`inline-feedback-form-modal ${closingFeedbackForms.has(requestId) ? 'closing' : ''}`}>
@@ -3685,7 +3783,8 @@ export default function Content({
 							<div className="section-header">
 								<div id="admin-feedback-title" className="section-title">
 									<span className="section-title-text">
-										{language === 'ko' ? '감독자 응답' : "Supervisor's Response"} ({filteredAndSortedAdminFeedback.length} {t('feedbackItems')})
+										{language === 'ko' ? 'FAQ (고우선 FAQ)' : 'FAQ (High Priority FAQ)'}
+										<span className="section-count-badge">{filteredAndSortedAdminFeedback.length}</span>
 									</span>
 									<button 
 										className="refresh-btn section-refresh-btn"
@@ -3707,9 +3806,10 @@ export default function Content({
 										<select 
 											className="input select-input"
 											value={adminFeedbackSortBy}
-											onChange={(e) => setAdminFeedbackSortBy(e.target.value as 'requestId' | 'date')}
+											onChange={(e) => setAdminFeedbackSortBy(e.target.value as 'requestId' | 'date' | 'dateAsc')}
 										>
 											<option value="date">{t('dateTimeNewest')}</option>
+											<option value="dateAsc">{t('dateTimeOldest')}</option>
 											<option value="requestId">Request ID</option>
 										</select>
 									</div>
@@ -4263,15 +4363,19 @@ export default function Content({
 							</div>
 					</div>
 
-					{/* Admin Instruction Section */}
+					{/* Administrator Instruction Section — hidden; remove leading `false && (` and trailing `)}` to restore */}
+					{false && (
 					<div className="card section content-section" aria-labelledby="admin-instruction-title" data-section="admin-instruction">
 						<div className="section-header">
-							<div id="admin-instruction-title" className="section-title" style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
-								{language === 'ko' ? '관리자 지침' : 'Admin Instruction'} ({filteredAdminInstructions.length})
+							<div id="admin-instruction-title" className="section-title" style={{ display: 'flex', alignItems: 'center', gap: '24px', flexWrap: 'wrap' }}>
+								<span className="section-title-text">
+									{language === 'ko' ? '행정 지침' : 'Administrator Instruction'}
+									<span className="section-count-badge">{filteredAdminInstructions.length}</span>
+								</span>
 								<button 
 									className="btn-outline-light"
 									onClick={() => setAddAdminInstructionModal({ isOpen: true, text: '' })}
-									title={language === 'ko' ? '관리자 지침 추가' : 'Add Admin Instruction'}
+									title={language === 'ko' ? '행정 지침 추가' : 'Add Administrator Instruction'}
 									style={{
 										background: 'transparent',
 										border: '1px solid rgba(255, 255, 255, 0.3)',
@@ -4296,11 +4400,79 @@ export default function Content({
 									{language === 'ko' ? '+ 추가' : '+ Add'}
 								</button>
 							</div>
+							<div className="conversations-controls">
+								<div className="sort-control">
+									<label>{t('sort')}</label>
+									<select
+										className="input select-input"
+										value={adminInstructionSortBy}
+										onChange={(e) => setAdminInstructionSortBy(e.target.value as 'requestId' | 'date' | 'dateAsc')}
+									>
+										<option value="date">{t('dateTimeNewest')}</option>
+										<option value="dateAsc">{t('dateTimeOldest')}</option>
+										<option value="requestId">Request ID</option>
+									</select>
+								</div>
+								<div className="search-control">
+									<label>{t('search')}</label>
+									<div className="search-input-wrapper">
+										<input
+											type="text"
+											className="input"
+											placeholder={t('searchFeedback')}
+											value={adminInstructionFilter}
+											onChange={(e) => setAdminInstructionFilter(e.target.value)}
+										/>
+										{adminInstructionFilter && (
+											<button
+												className="search-clear-btn"
+												onClick={() => setAdminInstructionFilter('')}
+												title={language === 'ko' ? '지우기' : 'Clear'}
+											>
+												<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+													<path d="M18 6L6 18M6 6l12 12"/>
+												</svg>
+											</button>
+										)}
+									</div>
+								</div>
+								<div className="export-control">
+									<select
+										value={adminInstructionExportFormat}
+										onChange={(e) => setAdminInstructionExportFormat(e.target.value as 'csv' | 'excel' | 'json')}
+										className="input select-input"
+									>
+										<option value="csv">CSV</option>
+										<option value="excel">Excel</option>
+										<option value="json">JSON</option>
+									</select>
+								</div>
+								<button
+									className="btn btn-primary export-btn"
+									onClick={handleAdminInstructionExport}
+									disabled={isExportingAdminInstruction || filteredAdminInstructions.length === 0}
+								>
+									<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+										<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+										<polyline points="7 10 12 15 17 10"/>
+										<line x1="12" y1="15" x2="12" y2="3"/>
+									</svg>
+									{isExportingAdminInstruction ? (language === 'ko' ? '내보내는 중...' : 'Exporting...') : t('export')}
+								</button>
+							</div>
 						</div>
 						<div className={`admin-feedback-table-container font-size-${adminFeedbackFontSize}`}>
 							{filteredAdminInstructions.length === 0 ? (
 								<p className="muted">
-									{language === 'ko' ? '관리자 지침이 없습니다.' : 'No admin instructions found.'}
+									{Object.values(adminFeedback).some(
+										(f) => f.feedback_text && f.feedback_text.trim() !== ''
+									)
+										? language === 'ko'
+											? '검색 조건에 맞는 행정 지침이 없습니다.'
+											: 'No administrator instructions match your search.'
+										: language === 'ko'
+											? '행정 지침이 없습니다.'
+											: 'No administrator instructions found.'}
 								</p>
 							) : (
 								<>
@@ -4464,6 +4636,7 @@ export default function Content({
 							)}
 						</div>
 					</div>
+					)}
 
 					{/* User Feedback Section */}
 					<div className="content-section">
@@ -4507,7 +4680,7 @@ export default function Content({
 				<div className="modal-backdrop" onClick={closeFeedbackModal}>
 					<div className="modal card feedback-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '800px', width: '90%', zIndex: 9999 }}>
 						<div className="modal-header">
-							<h2 className="h1 modal-title">{feedbackModal.mode === 'edit' ? (language === 'ko' ? '감독자 응답 수정' : "Edit Supervisor's Response") : (language === 'ko' ? '감독자 응답 추가' : "Add Supervisor's Response")}</h2>
+							<h2 className="h1 modal-title">{feedbackModal.mode === 'edit' ? (language === 'ko' ? 'FAQ (고우선 FAQ) 편집' : 'Edit FAQ (High Priority FAQ)') : (language === 'ko' ? 'FAQ (고우선 FAQ) 추가' : 'Add FAQ (High Priority FAQ)')}</h2>
 							<button className="icon-btn" onClick={closeFeedbackModal}>
 								<IconX />
 							</button>
@@ -4981,7 +5154,7 @@ export default function Content({
 				<div className="modal-backdrop" onClick={handleCancelManualFeedback}>
 					<div className="modal card feedback-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '800px', width: '90%', zIndex: 9999 }}>
 						<div className="modal-header">
-							<h2 className="h1 modal-title">{language === 'ko' ? '감독자 응답 추가' : "Add Supervisor's Response"}</h2>
+							<h2 className="h1 modal-title">{language === 'ko' ? 'FAQ (고우선 FAQ) 추가' : 'Add FAQ (High Priority FAQ)'}</h2>
 							<button className="icon-btn" onClick={handleCancelManualFeedback}>
 								<IconX />
 							</button>
@@ -5071,12 +5244,12 @@ export default function Content({
 				</div>
 			)}
 
-			{/* Add Admin Instruction Modal */}
-			{addAdminInstructionModal.isOpen && (
+			{/* Add Administrator Instruction Modal — hidden; remove leading `false &&` to restore */}
+			{false && addAdminInstructionModal.isOpen && (
 				<div className="modal-backdrop" onClick={() => setAddAdminInstructionModal({ isOpen: false, text: '' })}>
 					<div className="modal card feedback-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px', width: '90%', zIndex: 9999 }}>
 						<div className="modal-header">
-							<h2 className="h1 modal-title">{language === 'ko' ? '관리자 지침 추가' : 'Add Admin Instruction'}</h2>
+							<h2 className="h1 modal-title">{language === 'ko' ? '행정 지침 추가' : 'Add Administrator Instruction'}</h2>
 							<button className="icon-btn" onClick={() => setAddAdminInstructionModal({ isOpen: false, text: '' })}>
 								<IconX />
 							</button>
@@ -5090,7 +5263,7 @@ export default function Content({
 									className="feedback-textarea"
 									value={addAdminInstructionModal.text}
 									onChange={(e) => setAddAdminInstructionModal(prev => ({ ...prev, text: e.target.value }))}
-									placeholder={language === 'ko' ? '관리자 지침을 입력하세요...' : 'Enter admin instruction...'}
+									placeholder={language === 'ko' ? '행정 지침을 입력하세요...' : 'Enter administrator instruction...'}
 									rows={5}
 									style={{ width: '100%', resize: 'vertical' }}
 									autoFocus

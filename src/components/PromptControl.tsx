@@ -11,6 +11,129 @@ import { AdminFeedbackDataN8N } from '../services/adminFeedbackN8N'
 import { fetchRequestDetailN8N } from '../services/conversationsN8N'
 import { getChatData } from '../services/chatData'
 
+type PromptControlFaqItem = {
+	question: string
+	answer: string
+	metadata?: Array<{ date: string; createdAtMs?: number; feedbackId: string; chatId?: string }>
+}
+
+type PromptControlFeedbackItem = {
+	text: string
+	metadata?: Array<{ date: string; createdAtMs?: number; feedbackId: string; chatId?: string }>
+}
+
+function isAdminFeedbackApplied(
+	feedback: AdminFeedbackData | AdminFeedbackDataN8N,
+	isN8NRoute: boolean
+): boolean {
+	if (isN8NRoute) {
+		return (feedback as AdminFeedbackDataN8N).apply === true
+	}
+	return (feedback as AdminFeedbackData).prompt_apply === true
+}
+
+async function loadAppliedFaqAndFeedbackItems(
+	allFeedback: Record<string, AdminFeedbackData | AdminFeedbackDataN8N>,
+	isN8NRoute: boolean
+): Promise<{ faqItems: PromptControlFaqItem[]; feedbackItems: PromptControlFeedbackItem[] }> {
+	const appliedEntries = Object.entries(allFeedback).filter(([, f]) => isAdminFeedbackApplied(f, isN8NRoute))
+
+	const chatDataMap: Record<string, { inputText: string }> = {}
+	const feedbackKeys = appliedEntries.map(([k]) => k).filter((k) => !k.startsWith('feedback-'))
+
+	for (let i = 0; i < feedbackKeys.length; i += 10) {
+		const batch = feedbackKeys.slice(i, i + 10)
+		await Promise.all(
+			batch.map(async (key) => {
+				try {
+					if (isN8NRoute) {
+						const detail = await fetchRequestDetailN8N(key)
+						if (detail?.request) {
+							chatDataMap[key] = { inputText: detail.request.inputText || '' }
+						}
+					} else {
+						const chatData = await getChatData(key)
+						if (chatData) {
+							chatDataMap[key] = { inputText: chatData.input_text || '' }
+						}
+					}
+				} catch (error) {
+					console.warn(`Could not fetch chat data for ${key}:`, error)
+				}
+			})
+		)
+	}
+
+	const faqMap = new Map<
+		string,
+		{ question: string; answer: string; metadata: Array<{ date: string; createdAtMs?: number; feedbackId: string; chatId?: string }> }
+	>()
+
+	appliedEntries.forEach(([key, feedback]) => {
+		const correctedMessage = (feedback as AdminFeedbackDataN8N).corrected_message?.trim() || ''
+		const userMessage = chatDataMap[key]?.inputText?.trim() || ''
+		const question = correctedMessage || userMessage
+		const answer = feedback.corrected_response?.trim() || ''
+
+		if (question && answer) {
+			const faqKey = `${question}|${answer}`
+			const createdAtMs = feedback.created_at ? new Date(feedback.created_at).getTime() : undefined
+			const metadata = {
+				date: feedback.created_at ? new Date(feedback.created_at).toLocaleString() : 'N/A',
+				createdAtMs,
+				feedbackId: feedback.id?.toString() || key,
+				chatId: key.startsWith('feedback-') ? undefined : key,
+			}
+			const existing = faqMap.get(faqKey)
+			if (existing) {
+				existing.metadata.push(metadata)
+			} else {
+				faqMap.set(faqKey, { question, answer, metadata: [metadata] })
+			}
+		}
+	})
+
+	const feedbackMap = new Map<
+		string,
+		{ text: string; metadata: Array<{ date: string; createdAtMs?: number; feedbackId: string; chatId?: string }> }
+	>()
+
+	appliedEntries.forEach(([key, feedback]) => {
+		if (feedback.feedback_text && feedback.feedback_text.trim() !== '') {
+			const feedbackText = feedback.feedback_text.trim()
+			const createdAtMs = feedback.created_at ? new Date(feedback.created_at).getTime() : undefined
+			const metadata = {
+				date: feedback.created_at ? new Date(feedback.created_at).toLocaleString() : 'N/A',
+				createdAtMs,
+				feedbackId: feedback.id?.toString() || key,
+				chatId: key.startsWith('feedback-') ? undefined : key,
+			}
+			const existing = feedbackMap.get(feedbackText)
+			if (existing) {
+				existing.metadata.push(metadata)
+			} else {
+				feedbackMap.set(feedbackText, { text: feedbackText, metadata: [metadata] })
+			}
+		}
+	})
+
+	const faqItems = Array.from(faqMap.values()).sort((a, b) => {
+		const aKey =
+			a.metadata?.reduce((min, m) => (typeof m.createdAtMs === 'number' ? Math.min(min, m.createdAtMs) : min), Infinity) ??
+			Infinity
+		const bKey =
+			b.metadata?.reduce((min, m) => (typeof m.createdAtMs === 'number' ? Math.min(min, m.createdAtMs) : min), Infinity) ??
+			Infinity
+
+		return aKey - bKey // oldest -> newest
+	})
+
+	return {
+		faqItems,
+		feedbackItems: Array.from(feedbackMap.values()),
+	}
+}
+
 interface PromptControlProps {
 	onNavigateToAdminFeedback?: (requestId: string, feedbackDate?: string) => void
 }
@@ -88,96 +211,9 @@ export default function PromptControl({ onNavigateToAdminFeedback }: PromptContr
 					allFeedback = await getAllAdminFeedback()
 				}
 				setAdminFeedback(allFeedback)
-				
-				// Build FAQ format: Q1, Q2... from User Message + Corrected Message, Answer from Corrected Response
-				const faqItems: string[] = []
-				let qNumber = 1
-				
-				// Load chat data for each feedback to get user messages
-				const chatDataMap: Record<string, { inputText: string }> = {}
-				const feedbackKeys = Object.keys(allFeedback).filter(key => !key.startsWith('feedback-'))
-				
-				// Load chat data in batches
-				for (let i = 0; i < feedbackKeys.length; i += 10) {
-					const batch = feedbackKeys.slice(i, i + 10)
-					await Promise.all(batch.map(async (key) => {
-						try {
-							if (isN8NRoute) {
-								const detail = await fetchRequestDetailN8N(key)
-								if (detail && detail.request) {
-									chatDataMap[key] = { inputText: detail.request.inputText || '' }
-								}
-							} else {
-								const chatData = await getChatData(key)
-								if (chatData) {
-									chatDataMap[key] = { inputText: chatData.input_text || '' }
-								}
-							}
-						} catch (error) {
-							console.warn(`Could not fetch chat data for ${key}:`, error)
-						}
-					}))
-				}
-				
-				// Build FAQ items array (with deduplication and metadata)
-				const faqItemsArray: Array<{ question: string, answer: string, metadata?: Array<{ date: string, feedbackId: string, chatId?: string }> }> = []
-				const faqMap = new Map<string, { question: string, answer: string, metadata: Array<{ date: string, feedbackId: string, chatId?: string }> }>()
-				
-				Object.entries(allFeedback).forEach(([key, feedback]) => {
-					// Get user message (corrected_message or original inputText)
-					const correctedMessage = (feedback as any).corrected_message?.trim() || ''
-					const userMessage = chatDataMap[key]?.inputText?.trim() || ''
-					const question = correctedMessage || userMessage
-					
-					// Get corrected response for answer
-					const answer = feedback.corrected_response?.trim() || ''
-					
-					if (question && answer) {
-						// Create a unique key for this Q&A pair
-						const faqKey = `${question}|${answer}`
-						const metadata = {
-							date: feedback.created_at ? new Date(feedback.created_at).toLocaleString() : 'N/A',
-							feedbackId: feedback.id?.toString() || key,
-							chatId: key.startsWith('feedback-') ? undefined : key
-						}
-						
-						if (faqMap.has(faqKey)) {
-							// Add metadata to existing entry
-							faqMap.get(faqKey)!.metadata.push(metadata)
-						} else {
-							faqMap.set(faqKey, { question, answer, metadata: [metadata] })
-						}
-					}
-				})
-				
-				faqItemsArray.push(...Array.from(faqMap.values()))
-				
-				// Build feedback texts array (with deduplication and metadata)
-				const feedbackItemsArray: Array<{ text: string, metadata?: Array<{ date: string, feedbackId: string, chatId?: string }> }> = []
-				const feedbackMap = new Map<string, { text: string, metadata: Array<{ date: string, feedbackId: string, chatId?: string }> }>()
-				
-				Object.entries(allFeedback).forEach(([key, feedback]) => {
-					if (feedback.feedback_text && feedback.feedback_text.trim() !== '') {
-						const feedbackText = feedback.feedback_text.trim()
-						const metadata = {
-							date: feedback.created_at ? new Date(feedback.created_at).toLocaleString() : 'N/A',
-							feedbackId: feedback.id?.toString() || key,
-							chatId: key.startsWith('feedback-') ? undefined : key
-						}
-						
-						if (feedbackMap.has(feedbackText)) {
-							// Add metadata to existing entry
-							feedbackMap.get(feedbackText)!.metadata.push(metadata)
-						} else {
-							feedbackMap.set(feedbackText, { text: feedbackText, metadata: [metadata] })
-						}
-					}
-				})
-				
-				feedbackItemsArray.push(...Array.from(feedbackMap.values()))
-				
-				setFaqItems(faqItemsArray)
-				setFeedbackItems(feedbackItemsArray)
+				const { faqItems, feedbackItems } = await loadAppliedFaqAndFeedbackItems(allFeedback, isN8NRoute)
+				setFaqItems(faqItems)
+				setFeedbackItems(feedbackItems)
 			} catch (error) {
 				console.error('Failed to load admin feedback:', error)
 			} finally {
@@ -242,96 +278,10 @@ export default function PromptControl({ onNavigateToAdminFeedback }: PromptContr
 					allFeedback = await getAllAdminFeedback()
 				}
 				setAdminFeedback(allFeedback)
-				
-				// Build FAQ format: Q1, Q2... from User Message + Corrected Message, Answer from Corrected Response
-				const faqItems: string[] = []
-				let qNumber = 1
-				
-				// Load chat data for each feedback to get user messages
-				const chatDataMap: Record<string, { inputText: string }> = {}
-				const feedbackKeys = Object.keys(allFeedback).filter(key => !key.startsWith('feedback-'))
-				
-				// Load chat data in batches
-				for (let i = 0; i < feedbackKeys.length; i += 10) {
-					const batch = feedbackKeys.slice(i, i + 10)
-					await Promise.all(batch.map(async (key) => {
-						try {
-							if (isN8NRoute) {
-								const detail = await fetchRequestDetailN8N(key)
-								if (detail && detail.request) {
-									chatDataMap[key] = { inputText: detail.request.inputText || '' }
-								}
-							} else {
-								const chatData = await getChatData(key)
-								if (chatData) {
-									chatDataMap[key] = { inputText: chatData.input_text || '' }
-								}
-							}
-						} catch (error) {
-							console.warn(`Could not fetch chat data for ${key}:`, error)
-						}
-					}))
-				}
-				
-				// Build FAQ items array (with deduplication and metadata)
-				const faqItemsArray: Array<{ question: string, answer: string, metadata?: Array<{ date: string, feedbackId: string, chatId?: string }> }> = []
-				const faqMap = new Map<string, { question: string, answer: string, metadata: Array<{ date: string, feedbackId: string, chatId?: string }> }>()
-				
-				Object.entries(allFeedback).forEach(([key, feedback]) => {
-					// Get user message (corrected_message or original inputText)
-					const correctedMessage = (feedback as any).corrected_message?.trim() || ''
-					const userMessage = chatDataMap[key]?.inputText?.trim() || ''
-					const question = correctedMessage || userMessage
-					
-					// Get corrected response for answer
-					const answer = feedback.corrected_response?.trim() || ''
-					
-					if (question && answer) {
-						// Create a unique key for this Q&A pair
-						const faqKey = `${question}|${answer}`
-						const metadata = {
-							date: feedback.created_at ? new Date(feedback.created_at).toLocaleString() : 'N/A',
-							feedbackId: feedback.id?.toString() || key,
-							chatId: key.startsWith('feedback-') ? undefined : key
-						}
-						
-						if (faqMap.has(faqKey)) {
-							// Add metadata to existing entry
-							faqMap.get(faqKey)!.metadata.push(metadata)
-						} else {
-							faqMap.set(faqKey, { question, answer, metadata: [metadata] })
-						}
-					}
-				})
-				
-				faqItemsArray.push(...Array.from(faqMap.values()))
-				
-				// Build feedback texts array (with deduplication and metadata)
-				const feedbackItemsArray: Array<{ text: string, metadata?: Array<{ date: string, feedbackId: string, chatId?: string }> }> = []
-				const feedbackMap = new Map<string, { text: string, metadata: Array<{ date: string, feedbackId: string, chatId?: string }> }>()
-				
-				Object.entries(allFeedback).forEach(([key, feedback]) => {
-					if (feedback.feedback_text && feedback.feedback_text.trim() !== '') {
-						const feedbackText = feedback.feedback_text.trim()
-						const metadata = {
-							date: feedback.created_at ? new Date(feedback.created_at).toLocaleString() : 'N/A',
-							feedbackId: feedback.id?.toString() || key,
-							chatId: key.startsWith('feedback-') ? undefined : key
-						}
-						
-						if (feedbackMap.has(feedbackText)) {
-							// Add metadata to existing entry
-							feedbackMap.get(feedbackText)!.metadata.push(metadata)
-						} else {
-							feedbackMap.set(feedbackText, { text: feedbackText, metadata: [metadata] })
-						}
-					}
-				})
-				
-				feedbackItemsArray.push(...Array.from(feedbackMap.values()))
-				
-				setFaqItems(faqItemsArray)
-				setFeedbackItems(feedbackItemsArray)
+				const { faqItems: refreshedFaq, feedbackItems: refreshedFeedback } =
+					await loadAppliedFaqAndFeedbackItems(allFeedback, isN8NRoute)
+				setFaqItems(refreshedFaq)
+				setFeedbackItems(refreshedFeedback)
 			} catch (error) {
 				console.error('Failed to refresh admin feedback:', error)
 			} finally {
@@ -436,22 +386,22 @@ export default function PromptControl({ onNavigateToAdminFeedback }: PromptContr
 					}
 				}
 
-				// Update Feedback items (feedback_text)
-				for (const item of feedbackItems) {
-					if (item.metadata && item.metadata.length > 0) {
-						const feedbackId = parseInt(item.metadata[0].feedbackId)
-						if (!isNaN(feedbackId)) {
-							await updateAdminFeedbackN8N(
-								feedbackId,
-								'bad',
-								item.text,
-								undefined,
-								undefined,
-								feedbackId
-							)
-						}
-					}
-				}
+				// Update Feedback items (feedback_text) — disabled while Administrator Instruction subsection is hidden
+				// for (const item of feedbackItems) {
+				// 	if (item.metadata && item.metadata.length > 0) {
+				// 		const feedbackId = parseInt(item.metadata[0].feedbackId)
+				// 		if (!isNaN(feedbackId)) {
+				// 			await updateAdminFeedbackN8N(
+				// 				feedbackId,
+				// 				'bad',
+				// 				item.text,
+				// 				undefined,
+				// 				undefined,
+				// 				feedbackId
+				// 			)
+				// 		}
+				// 	}
+				// }
 
 				setResponseModal({
 					isOpen: true,
@@ -567,7 +517,7 @@ export default function PromptControl({ onNavigateToAdminFeedback }: PromptContr
 		<div className="card section" aria-labelledby="prompt-control-title">
 			<div className="section-header">
 				<div id="prompt-control-title" className="section-title">
-					<span className="section-title-text">{t('systemPromptControl')}</span>
+					<span className="section-title-text">{t('promptControl')}</span>
 					<button 
 						className="refresh-btn section-refresh-btn"
 						onClick={handleRefresh}
@@ -645,14 +595,12 @@ export default function PromptControl({ onNavigateToAdminFeedback }: PromptContr
 					></div>
 				</div>
 
-				{/* Section 2: All Corrected Responses (FAQ) */}
+				{/* Section 2: FAQ (High Priority FAQ) — same source as main dashboard */}
 				<div className="faq-section-wrapper">
 					<div className="section-header-with-toggle">
 						<label className="prompt-section-label">
-							{language === 'ko' ? '2. 모든 수정된 응답 (Admin Feedback)' : '2. All Corrected Responses (Admin Feedback)'}
-							<span style={{ marginLeft: '8px', fontSize: '0.875rem', color: 'var(--text-muted)' }}>
-								({faqItems.length} {language === 'ko' ? '개' : 'items'})
-							</span>
+							{language === 'ko' ? '2. FAQ (고우선 FAQ)' : '2. FAQ (High Priority FAQ)'}
+							<span className="section-count-badge">{faqItems.length}</span>
 							{isLoadingAdminFeedback && <span style={{ marginLeft: '8px', fontSize: '0.875rem', color: 'var(--text-muted)' }}>({language === 'ko' ? '로딩 중...' : 'Loading...'})</span>}
 						</label>
 						<button
@@ -786,14 +734,13 @@ export default function PromptControl({ onNavigateToAdminFeedback }: PromptContr
 					)}
 				</div>
 
-				{/* Section 3: All Feedback Texts */}
+				{/* Section 3: Administrator Instruction — hidden; remove `false && (` … `)}` wrapper to restore */}
+				{false && (
 				<div className="feedback-section-wrapper">
 					<div className="section-header-with-toggle">
 						<label className="prompt-section-label">
-							{language === 'ko' ? '3. 모든 피드백 텍스트 (Admin Feedback)' : '3. All Feedback Texts (Admin Feedback)'}
-							<span style={{ marginLeft: '8px', fontSize: '0.875rem', color: 'var(--text-muted)' }}>
-								({feedbackItems.length} {language === 'ko' ? '개' : 'items'})
-							</span>
+							{language === 'ko' ? '3. 행정 지침' : '3. Administrator Instruction'}
+							<span className="section-count-badge">{feedbackItems.length}</span>
 							{isLoadingAdminFeedback && <span style={{ marginLeft: '8px', fontSize: '0.875rem', color: 'var(--text-muted)' }}>({language === 'ko' ? '로딩 중...' : 'Loading...'})</span>}
 						</label>
 						<button
@@ -889,6 +836,7 @@ export default function PromptControl({ onNavigateToAdminFeedback }: PromptContr
 						</div>
 					)}
 				</div>
+				)}
 			</div>
 
 			{showHistory && isN8NRoute && (
