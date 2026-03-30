@@ -494,12 +494,12 @@ export default function PromptControl({ onNavigateToAdminFeedback }: PromptContr
 		e.preventDefault()
 		setIsResizing(true)
 		const startY = e.clientY
-		const startHeight = textareaRef.current?.offsetHeight || 200
+		const startHeight = textareaRef.current?.offsetHeight || 600
 
 		const handleMouseMove = (e: MouseEvent) => {
 			if (!textareaRef.current) return
 			const deltaY = e.clientY - startY
-			const newHeight = Math.max(200, startHeight + deltaY)
+			const newHeight = Math.max(600, startHeight + deltaY)
 			textareaRef.current.style.height = `${newHeight}px`
 		}
 
@@ -540,6 +540,7 @@ export default function PromptControl({ onNavigateToAdminFeedback }: PromptContr
 						</svg>
 					</button>
 				</div>
+				{/* Hidden for now — restore History + Expand toolbar if needed
 				<div className="conversations-controls">
 					{isN8NRoute && (
 						<button
@@ -569,6 +570,7 @@ export default function PromptControl({ onNavigateToAdminFeedback }: PromptContr
 						<span style={{ marginLeft: '6px' }}>{t('expand')}</span>
 					</button>
 				</div>
+				*/}
 			</div>
 			
 			<div className="prompt-content">
@@ -584,7 +586,7 @@ export default function PromptControl({ onNavigateToAdminFeedback }: PromptContr
 						value={promptText}
 						onChange={(e) => setPromptText(e.target.value)}
 						readOnly={false}
-						rows={isExpanded ? 20 : 8}
+						rows={isExpanded ? 60 : 24}
 						disabled={isLoading}
 						style={{ fontSize: promptFontSize === 'small' ? '12px' : promptFontSize === 'medium' ? '14px' : '16px' }}
 					/>
