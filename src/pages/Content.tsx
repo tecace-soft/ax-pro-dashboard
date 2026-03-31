@@ -1844,7 +1844,7 @@ export default function Content({
 		// Store userMessage and aiResponse directly in modal state so they're available immediately
 		setFeedbackModal({
 			isOpen: true,
-			type: existingFeedback?.feedback_verdict === 'good' ? 'positive' : existingFeedback?.feedback_verdict === 'bad' ? 'negative' : null,
+			type: existingFeedback?.feedback_verdict === 'good' ? 'positive' : 'negative',
 			requestId: normalizedRequestId,
 			mode: existingFeedback ? 'edit' : 'submit',
 			existingFeedback: existingFeedback || null,
@@ -3498,7 +3498,7 @@ export default function Content({
 														<th>{t('sessionId')}</th>
 														<th>{t('userMessage')}</th>
 														<th>{t('aiResponse')}</th>
-														<th style={{ textAlign: 'center' }}>{language === 'ko' ? 'FAQ (고우선 FAQ)' : 'FAQ (High Priority FAQ)'}</th>
+														<th style={{ textAlign: 'center' }}>FAQ</th>
 													</tr>
 												</thead>
 												<tbody>

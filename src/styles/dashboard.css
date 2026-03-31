@@ -6241,11 +6241,14 @@ input:checked + .toggle-slider::before {
   max-width: 600px;
 }
 
+/* FAQ column (last column, when User ID is shown) */
 .conversations-table.has-user-id th:nth-child(7),
 .conversations-table.has-user-id td:nth-child(7) {
-  width: 30%;
-  min-width: 400px;
-  max-width: 600px;
+  width: 90px;
+  padding: 10px 4px;
+  text-align: center;
+  box-sizing: border-box;
+  white-space: normal;
 }
 
 /* User Message and AI Response columns - equal size, flexible but constrained (when User ID is hidden) */
@@ -6261,6 +6264,16 @@ input:checked + .toggle-slider::before {
   width: 30%;
   min-width: 400px;
   max-width: 600px;
+}
+
+/* FAQ column (last column, when User ID is hidden) */
+.conversations-table.no-user-id th:nth-child(6),
+.conversations-table.no-user-id td:nth-child(6) {
+  width: 80px;
+  padding: 10px 4px;
+  text-align: center;
+  box-sizing: border-box;
+  white-space: normal;
 }
 
 [data-theme="light"] .conversations-table th,
