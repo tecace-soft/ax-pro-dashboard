@@ -15,7 +15,7 @@ interface IndexDocsProps {
 export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
   const navigate = useNavigate()
   const location = useLocation()
-  const isN8NRoute = location.pathname === '/rag-n8n'
+  const isN8NRoute = location.pathname === '/knowledge-management'
   
   // 전체 수집본 & 현재 페이지 조각
   const [allDocs, setAllDocs] = useState<IndexRow[]>([])
@@ -744,12 +744,7 @@ export default function IndexDocs({ language = 'en' }: IndexDocsProps) {
     const status = getSyncStatus(parentId)
     
     const handleSyncClick = () => {
-      // Navigate to Knowledge Management page with sync overview tab
-      if (isN8NRoute) {
-        navigate('/rag-n8n?tab=sync')
-      } else {
-        navigate('/rag-management?tab=sync')
-      }
+      navigate('/knowledge-management?tab=sync')
     }
 
     return (

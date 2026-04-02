@@ -43,7 +43,7 @@ const SelectAllCheckbox = ({ checked, indeterminate, onChange }: { checked: bool
 
 export default function BlobFiles({ language = 'en', onUploadComplete, syncRows = [], onNavigateToSync }: BlobFilesProps) {
   const location = useLocation()
-  const isN8NRoute = location.pathname === '/rag-n8n'
+  const isN8NRoute = location.pathname === '/knowledge-management'
   
   const [blobs, setBlobs] = useState<BlobItem[]>([])
   const [syncStates, setSyncStates] = useState<Record<string, "synced" | "unsynced">>({})

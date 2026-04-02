@@ -78,7 +78,7 @@ export default function DashboardN8N() {
 	const location = useLocation()
 	const [searchParams] = useSearchParams()
 	
-	const isDashboardPage = location.pathname === '/dashboard-n8n'
+	const isDashboardPage = location.pathname === '/dashboard'
 	
 	const [isSettingsOpen, setIsSettingsOpen] = useState(false)
 	const [authToken, setAuthToken] = useState<string | null>(null)
@@ -335,7 +335,7 @@ export default function DashboardN8N() {
 				})
 			}
 		} else {
-			navigate('/dashboard-n8n?section=recent-conversations')
+			navigate('/dashboard?section=recent-conversations')
 		}
 	}
 
@@ -406,7 +406,7 @@ export default function DashboardN8N() {
 				}
 			}
 		} else {
-			navigate(`/dashboard-n8n?section=${sectionId}`)
+			navigate(`/dashboard?section=${sectionId}`)
 		}
 	}
 

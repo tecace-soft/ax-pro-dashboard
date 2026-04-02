@@ -17,7 +17,7 @@ const DailyMessageActivity: React.FC<DailyMessageActivityProps> = ({
   startDate, endDate, sessions = [], sessionRequests = {}
 }) => {
   const location = useLocation()
-  const isN8NRoute = location.pathname === '/dashboard-n8n' || location.pathname === '/rag-n8n'
+  const isN8NRoute = location.pathname === '/dashboard' || location.pathname === '/knowledge-management'
 
   // 컴포넌트 렌더링 확인
   console.log('🎯 DailyMessageActivity rendered with:', {

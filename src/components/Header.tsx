@@ -1,5 +1,5 @@
 import { IconBell, IconMoon, IconUser, IconLogout } from '../ui/icons'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 
 interface HeaderProps {
   performanceScore: number
@@ -10,7 +10,6 @@ interface HeaderProps {
 
 export default function Header({ performanceScore, performanceDate, currentTime, onSignOut }: HeaderProps) {
   const navigate = useNavigate()
-  const location = useLocation()
   
   const getPerformanceLabel = (score: number) => {
     if (score >= 90) return 'Excellent'
@@ -20,9 +19,7 @@ export default function Header({ performanceScore, performanceDate, currentTime,
   }
 
   const handleLogoClick = () => {
-    // 현재 경로가 n8n 경로인지 확인
-    const isN8NRoute = location.pathname === '/dashboard-n8n' || location.pathname === '/rag-n8n'
-    navigate(isN8NRoute ? '/dashboard-n8n' : '/dashboard')
+    navigate('/dashboard')
   }
 
   return (

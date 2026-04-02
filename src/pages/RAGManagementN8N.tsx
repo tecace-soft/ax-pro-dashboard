@@ -127,7 +127,7 @@ const computeSyncStatus = (blob: Document | undefined, idxDocs: IndexDocument[])
 const buildSyncRows = (blobs: Document[], idxs: IndexDocument[]): SyncRow[] => {
   // For n8n route: Match by fileName directly from metadata
   const location = window.location
-  const isN8NRoute = location.pathname === '/rag-n8n'
+  const isN8NRoute = location.pathname === '/knowledge-management'
   
   if (isN8NRoute) {
     // Create blob map by filename (not path)
@@ -255,7 +255,7 @@ export default function RAGManagementN8N() {
   const [includeSimulatedData, setIncludeSimulatedData] = useState(true)
   const [estimationMode, setEstimationMode] = useState<EstimationMode>('simple')
 
-  const isRAGManagementPage = location.pathname === '/rag-n8n'
+  const isRAGManagementPage = location.pathname === '/knowledge-management'
 
   useEffect(() => { window.scrollTo(0, 0) }, [])
 
@@ -286,7 +286,7 @@ export default function RAGManagementN8N() {
 
   // Auto-refresh sync status periodically for n8n route
   useEffect(() => {
-    if (location.pathname !== '/rag-n8n') return
+    if (location.pathname !== '/knowledge-management') return
     
     const interval = setInterval(() => {
       // Only refresh if we're on sync overview tab or file library tab
@@ -325,7 +325,7 @@ export default function RAGManagementN8N() {
 
   const scrollToSection = (sectionId: string) => {
     if (isRAGManagementPage) {
-      navigate(`/dashboard-n8n?section=${sectionId}`)
+      navigate(`/dashboard?section=${sectionId}`)
     } else {
       const el = document.getElementById(sectionId)
       el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -337,7 +337,7 @@ export default function RAGManagementN8N() {
 
   const scrollToConversations = () => {
     if (isRAGManagementPage) {
-      navigate('/dashboard-n8n?section=recent-conversations')
+      navigate('/dashboard?section=recent-conversations')
     } else {
       document.querySelector('.conversations-module')
         ?.scrollIntoView({ behavior: 'smooth', block: 'start' })

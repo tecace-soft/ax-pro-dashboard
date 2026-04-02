@@ -9,14 +9,9 @@ export default function Login() {
 	function onSubmit(e: FormEvent) {
 		e.preventDefault()
 		const normalized = code.trim().toLowerCase()
-		if (normalized === 'tecace') {
-			sessionStorage.setItem('axAccess', 'tecace')
-			navigate('/dashboard', { replace: true })
-			return
-		}
 		if (normalized === 'n8n') {
 			sessionStorage.setItem('axAccess', 'n8n')
-			navigate('/dashboard-n8n', { replace: true })
+			navigate('/dashboard', { replace: true })
 			return
 		}
 		setError('Invalid access code')

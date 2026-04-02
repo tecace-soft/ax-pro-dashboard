@@ -141,7 +141,7 @@ interface PromptControlProps {
 export default function PromptControl({ onNavigateToAdminFeedback }: PromptControlProps = {}) {
 	const location = useLocation()
 	const navigate = useNavigate()
-	const isN8NRoute = location.pathname === '/dashboard-n8n' || location.pathname === '/rag-n8n'
+	const isN8NRoute = location.pathname === '/dashboard' || location.pathname === '/knowledge-management'
 	const { language, t } = useLanguage()
 	const [promptText, setPromptText] = useState('')
 	const [correctedResponsesText, setCorrectedResponsesText] = useState('')
@@ -696,7 +696,7 @@ export default function PromptControl({ onNavigateToAdminFeedback }: PromptContr
 														onNavigateToAdminFeedback(requestId, feedbackDate)
 													} else {
 														// Fallback: navigate to admin feedback section with filter
-														const targetPath = isN8NRoute ? '/dashboard-n8n' : '/dashboard'
+														const targetPath = '/dashboard'
 														navigate(`${targetPath}?section=admin-feedback&filter=${encodeURIComponent(requestId)}`)
 													}
 												}}
@@ -803,7 +803,7 @@ export default function PromptControl({ onNavigateToAdminFeedback }: PromptContr
 														onNavigateToAdminFeedback(requestId, feedbackDate)
 													} else {
 														// Fallback: navigate to admin feedback section with filter
-														const targetPath = isN8NRoute ? '/dashboard-n8n' : '/dashboard'
+														const targetPath = '/dashboard'
 														navigate(`${targetPath}?section=admin-feedback&filter=${encodeURIComponent(requestId)}`)
 													}
 												}}

@@ -217,7 +217,7 @@ export default function Content({
 	onEstimationModeChange
 }: ContentProps) {
 	const location = useLocation()
-	const isN8NRoute = location.pathname === '/dashboard-n8n' || location.pathname === '/rag-n8n'
+	const isN8NRoute = location.pathname === '/dashboard' || location.pathname === '/knowledge-management'
 	const { language, setLanguage, t } = useLanguage()
 	const { theme } = useTheme()
 	const [authToken, setAuthToken] = useState<string | null>(null)

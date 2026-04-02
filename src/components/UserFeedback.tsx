@@ -61,7 +61,7 @@ function formatDateNarrow(date: Date): string {
 
 export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionIdClick, onMessageClick, startDate, endDate, onDateChange }: UserFeedbackProps = {}) {
 	const location = useLocation()
-	const isN8NRoute = location.pathname === '/dashboard-n8n'
+	const isN8NRoute = location.pathname === '/dashboard'
 	const { language, t } = useLanguage()
 	
 	const [userFeedbacks, setUserFeedbacks] = useState<UserFeedback[]>([])
