@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
 import { useLanguage } from '../contexts/LanguageContext'
+import type { EmailWorkflowTestResponse } from '../services/emailWorkflowTestN8N'
 import { triggerEmailWorkflowTestGet } from '../services/emailWorkflowTestN8N'
 import {
-	fetchLatestEmailExtractionPromptN8N,
-	saveEmailExtractionPromptN8N,
-} from '../services/promptEmailControlN8N'
+	fetchLatestEmailAgentPromptN8N,
+	saveEmailAgentPromptN8N,
+} from '../services/emailAgentPromptN8N'
+import '../styles/emailAgent.css'
 import '../styles/prompt.css'
 
 export default function EmailAgentPromptControl() {
@@ -25,12 +27,15 @@ export default function EmailAgentPromptControl() {
 		message: '',
 		isSuccess: false,
 	})
+	const [workflowPreview, setWorkflowPreview] = useState<EmailWorkflowTestResponse | null>(
+		null,
+	)
 
 	useEffect(() => {
 		let cancelled = false
 		;(async () => {
 			try {
-				const content = await fetchLatestEmailExtractionPromptN8N()
+				const content = await fetchLatestEmailAgentPromptN8N()
 				if (!cancelled) setPromptText(content)
 			} catch (e) {
 				console.error(e)
@@ -47,7 +52,7 @@ export default function EmailAgentPromptControl() {
 	const handleRefresh = async () => {
 		setIsRefreshing(true)
 		try {
-			const content = await fetchLatestEmailExtractionPromptN8N()
+			const content = await fetchLatestEmailAgentPromptN8N()
 			setPromptText(content)
 		} catch (error) {
 			console.error('Failed to refresh email extraction prompt:', error)
@@ -59,7 +64,7 @@ export default function EmailAgentPromptControl() {
 	const handleSave = async () => {
 		setIsSaving(true)
 		try {
-			await saveEmailExtractionPromptN8N(promptText.trim())
+			await saveEmailAgentPromptN8N(promptText.trim())
 			setResponseModal({
 				isOpen: true,
 				message:
@@ -86,16 +91,10 @@ export default function EmailAgentPromptControl() {
 
 	const handleTestEmailWorkflow = async () => {
 		setIsTestingWorkflow(true)
+		setWorkflowPreview(null)
 		try {
-			await triggerEmailWorkflowTestGet()
-			setResponseModal({
-				isOpen: true,
-				message:
-					language === 'ko'
-						? '테스트 워크플로가 실행되었습니다.'
-						: 'Test email workflow was triggered.',
-				isSuccess: true,
-			})
+			const preview = await triggerEmailWorkflowTestGet()
+			setWorkflowPreview(preview)
 		} catch (error) {
 			console.error('Email workflow test failed:', error)
 			const detail =
@@ -228,6 +227,34 @@ export default function EmailAgentPromptControl() {
 							: t('saveChanges')}
 				</button>
 			</div>
+
+			{workflowPreview !== null && (
+				<div className="email-agent-workflow-preview" aria-live="polite">
+					<div className="email-agent-workflow-preview__field">
+						<span className="email-agent-workflow-preview__label">
+							{language === 'ko' ? '제목' : 'Subject'}
+						</span>
+						<input
+							type="text"
+							className="email-agent-workflow-preview__subject-input"
+							value={
+								workflowPreview.subject.trim() ? workflowPreview.subject : '—'
+							}
+							readOnly
+							aria-readonly="true"
+							aria-label={language === 'ko' ? '제목' : 'Subject'}
+						/>
+					</div>
+					<div className="email-agent-workflow-preview__field">
+						<span className="email-agent-workflow-preview__label">
+							{language === 'ko' ? '본문' : 'Content'}
+						</span>
+						<pre className="email-agent-workflow-preview__content">
+							{workflowPreview.content.trim() ? workflowPreview.content : '—'}
+						</pre>
+					</div>
+				</div>
+			)}
 
 			{responseModal.isOpen && (
 				<div className="modal-backdrop" role="dialog" aria-modal="true">

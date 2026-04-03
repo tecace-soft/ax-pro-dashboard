@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import Header from '../components/Header'
 import Sidebar from '../components/Sidebar'
 import EmailAgentPromptControl from '../components/EmailAgentPromptControl'
+import EmailAgentRecipients from '../components/EmailAgentRecipients'
 import { useLanguage } from '../contexts/LanguageContext'
 import '../styles/dashboard.css'
 
@@ -83,6 +84,9 @@ export default function EmailAgent() {
 								? '어제의 채팅 메시지와 아래에 정의된 추출 프롬프트를 바탕으로 수신자, 제목, 본문이 포함된 이메일이 생성되어 매일 발송됩니다.'
 								: "Based on yesterday's chat messages and the extraction prompt defined below an email (recipient, subject, and content) will be generated and sent daily."}
 						</p>
+						<div className="content-section">
+							<EmailAgentRecipients />
+						</div>
 						<div className="content-section">
 							<EmailAgentPromptControl />
 						</div>

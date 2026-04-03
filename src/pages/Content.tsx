@@ -907,11 +907,11 @@ export default function Content({
 		}
 
 		// 2. 캐시에 없으면 API 호출
-		setIsLoadingSessions(true)
+			setIsLoadingSessions(true)
 		setLoadingState(prev => ({ ...prev, sessions: true, progress: 10 }))
 		
-		const apiStartDate = getApiStartDate(startDate)
-		const apiEndDate = getApiEndDate(endDate)
+			const apiStartDate = getApiStartDate(startDate)
+			const apiEndDate = getApiEndDate(endDate)
 		
 		try {
 			// 1. Sessions만 먼저 로드
@@ -921,38 +921,38 @@ export default function Content({
 			setLoadingState(prev => ({ ...prev, sessions: false, requests: true, progress: 30 }))
 			
 			// 2. Session Requests 병렬 로드
-			const requestPromises = sessions
-				.filter(session => session.sessionId)
-				.map(session => 
+					const requestPromises = sessions
+						.filter(session => session.sessionId)
+						.map(session => 
 					fetchSessionRequests(authToken, session.sessionId, apiStartDate, apiEndDate)
 						.catch(error => {
 							console.error(`Failed to fetch requests for session ${session.sessionId}:`, error)
 							return { requests: [] }
 						})
-				)
+						)
 
-			const requestResponses = await Promise.all(requestPromises)
+					const requestResponses = await Promise.all(requestPromises)
 			setLoadingState(prev => ({ ...prev, requests: false, details: true, progress: 50 }))
-			
+					
 			// 3. Session Requests 저장 및 Request ID 수집
-			const sessionRequestsMap: Record<string, any[]> = {}
-			const allRequestIds: string[] = []
-			
-			requestResponses.forEach((requestResponse, index) => {
-				const sessionId = sessions[index]?.sessionId
+					const sessionRequestsMap: Record<string, any[]> = {}
+					const allRequestIds: string[] = []
+					
+					requestResponses.forEach((requestResponse, index) => {
+						const sessionId = sessions[index]?.sessionId
 				if (requestResponse?.requests && sessionId) {
-					sessionRequestsMap[sessionId] = requestResponse.requests
-					requestResponse.requests.forEach((request: any) => {
+							sessionRequestsMap[sessionId] = requestResponse.requests
+							requestResponse.requests.forEach((request: any) => {
 						const requestId = request.requestId || request.id
 						if (requestId) {
 							allRequestIds.push(requestId)
+								}
+							})
 						}
 					})
-				}
-			})
-			
+					
 			// 4. 세션 데이터를 먼저 표시 (사용자가 바로 볼 수 있게)
-			setSessionRequests(sessionRequestsMap)
+					setSessionRequests(sessionRequestsMap)
 			setIsLoadingSessions(false) // 세션 로딩 완료
 			setLoadingState(prev => ({ 
 				...prev, 
@@ -962,7 +962,7 @@ export default function Content({
 			}))
 
 			// 5. Request Details를 개별적으로 로딩 (각각 완료되면 바로 표시)
-			if (allRequestIds.length > 0) {
+					if (allRequestIds.length > 0) {
 				const requestDetailsMap: Record<string, any> = {}
 				let loadedCount = 0
 				
@@ -1421,7 +1421,7 @@ export default function Content({
 											})
 										}
 									}
-								} catch (error) {
+						} catch (error) {
 									console.warn(`Could not fetch detail for ${chatId}:`, error)
 								}
 							}))
@@ -1434,10 +1434,10 @@ export default function Content({
 							if (Object.keys(sessionRequestsMap).length > 0) {
 								setSessionRequests(prev => ({ ...prev, ...sessionRequestsMap }))
 							}
-						}
 					}
-				} catch (error) {
-					if (!cancelled) {
+				}
+			} catch (error) {
+				if (!cancelled) {
 						console.error('Failed to load n8n admin feedback:', error)
 					}
 				}
@@ -1767,7 +1767,7 @@ export default function Content({
 		// Open modal popup with User Message and AI Response
 		// Store userMessage and aiResponse directly in modal state so they're available immediately
 		setFeedbackModal({
-			isOpen: true,
+					isOpen: true,
 			type: type,
 			requestId: normalizedRequestId,
 			mode: existingFeedback ? 'edit' : 'submit',
@@ -1781,15 +1781,15 @@ export default function Content({
 		// Set corrected message - use existing if editing, otherwise default to User Message
 		// Corrected response stays empty by default (only use existing if editing)
 		const existingCorrectedMessage = (existingFeedback as any)?.corrected_message
-		setFeedbackFormData(prev => ({
-			...prev,
+				setFeedbackFormData(prev => ({
+					...prev,
 			[normalizedRequestId]: {
 				text: existingFeedback?.feedback_text || '',
 				preferredResponse: existingFeedback?.corrected_response || '',
 				correctedMessage: existingCorrectedMessage || userMessage
+					}
+				}))
 			}
-		}))
-	}
 
 	const handleMessageClick = (requestId: string, showThumbsButtons: boolean = true) => {
 		// Normalize requestId - ensure it's a string and trim whitespace
@@ -1816,7 +1816,7 @@ export default function Content({
 					
 					// Update requestDetails so the modal can access it
 					setRequestDetails(prev => ({
-						...prev,
+					...prev,
 						[normalizedRequestId]: {
 							inputText: userMessage,
 							outputText: aiResponse,
@@ -1926,11 +1926,11 @@ export default function Content({
 		const previousFeedback = row
 
 		setAdminFeedback((prev) => {
-			const newState = { ...prev }
+				const newState = { ...prev }
 			delete newState[mapKey]
-			return newState
-		})
-
+				return newState
+			})
+			
 		try {
 			if (isN8NRoute) {
 				await deleteAdminFeedbackN8N(deleteArg)
@@ -1998,12 +1998,12 @@ export default function Content({
 					[rowKey]: savedFeedback
 				}))
 			} else {
-				await deleteAdminFeedback(requestId)
-				const savedFeedback = await saveAdminFeedback(requestId, 'good', '')
-				setAdminFeedback(prev => ({
-					...prev,
-					[requestId]: savedFeedback
-				}))
+			await deleteAdminFeedback(requestId)
+			const savedFeedback = await saveAdminFeedback(requestId, 'good', '')
+			setAdminFeedback(prev => ({
+				...prev,
+				[requestId]: savedFeedback
+			}))
 			}
 			
 			// Update system prompt to reflect the deletion of negative feedback
@@ -2058,18 +2058,18 @@ export default function Content({
 			if (isN8NRoute) {
 				await deleteAdminFeedbackN8N(n8nAdminFeedbackDeleteArg(requestId, af))
 			} else {
-				await deleteAdminFeedback(requestId)
+			await deleteAdminFeedback(requestId)
 			}
-
+			
 			setAdminFeedback((prev) => {
 				const newState = { ...prev }
 				delete newState[mapKey]
 				return newState
 			})
-
+			
 			await updatePromptWithFeedback()
 			triggerPromptRefresh()
-
+			
 			closeFeedbackForm(requestId)
 			setConfirmationModal({
 				isOpen: false,
@@ -2141,41 +2141,41 @@ export default function Content({
 					[rowKey]: savedFeedback
 				}))
 			} else {
-				await deleteAdminFeedback(requestId)
-				
-				// Ensure chat data exists first
-				const requestDetail = requestDetails[requestId]
-				if (requestDetail) {
-					// Find the session ID for this request
-					let sessionId = ''
-					for (const [sId, requests] of Object.entries(sessionRequests)) {
-						if (requests.some(r => (r.requestId || r.id) === requestId)) {
-							sessionId = sId
-							break
-						}
-					}
-					
-					if (sessionId) {
-						await ensureChatDataExists(
-							requestId,
-							sessionId,
-							requestDetail.inputText || '',
-							requestDetail.outputText || ''
-						)
+			await deleteAdminFeedback(requestId)
+			
+			// Ensure chat data exists first
+			const requestDetail = requestDetails[requestId]
+			if (requestDetail) {
+				// Find the session ID for this request
+				let sessionId = ''
+				for (const [sId, requests] of Object.entries(sessionRequests)) {
+					if (requests.some(r => (r.requestId || r.id) === requestId)) {
+						sessionId = sId
+						break
 					}
 				}
 				
-				// Save negative feedback
-				const savedFeedback = await saveAdminFeedback(
-					requestId, 
-					'bad', 
-					formData.text,
-					formData.preferredResponse.trim() || undefined
-				)
-				setAdminFeedback(prev => ({
-					...prev,
-					[requestId]: savedFeedback
-				}))
+				if (sessionId) {
+					await ensureChatDataExists(
+						requestId,
+						sessionId,
+						requestDetail.inputText || '',
+						requestDetail.outputText || ''
+					)
+				}
+			}
+			
+			// Save negative feedback
+			const savedFeedback = await saveAdminFeedback(
+				requestId, 
+				'bad', 
+				formData.text,
+				formData.preferredResponse.trim() || undefined
+			)
+			setAdminFeedback(prev => ({
+				...prev,
+				[requestId]: savedFeedback
+			}))
 			}
 			
 			// Close the form and modal
@@ -2247,34 +2247,34 @@ export default function Content({
 					[requestId]: savedFeedback
 				}))
 			} else {
-				// Ensure chat data exists first
-				const requestDetail = requestDetails[requestId]
-				if (requestDetail) {
-					// Find the session ID for this request
-					let sessionId = ''
-					for (const [sId, requests] of Object.entries(sessionRequests)) {
-						if (requests.some(r => (r.requestId || r.id) === requestId)) {
-							sessionId = sId
-							break
-						}
-					}
-					
-					if (sessionId) {
-						await ensureChatDataExists(
-							requestId,
-							sessionId,
-							requestDetail.inputText || '',
-							requestDetail.outputText || ''
-						)
+			// Ensure chat data exists first
+			const requestDetail = requestDetails[requestId]
+			if (requestDetail) {
+				// Find the session ID for this request
+				let sessionId = ''
+				for (const [sId, requests] of Object.entries(sessionRequests)) {
+					if (requests.some(r => (r.requestId || r.id) === requestId)) {
+						sessionId = sId
+						break
 					}
 				}
 				
-				// Save positive feedback with empty text (no corrected response for positive feedback)
-				const savedFeedback = await saveAdminFeedback(requestId, 'good', '')
-				setAdminFeedback(prev => ({
-					...prev,
-					[requestId]: savedFeedback
-				}))
+				if (sessionId) {
+					await ensureChatDataExists(
+						requestId,
+						sessionId,
+						requestDetail.inputText || '',
+						requestDetail.outputText || ''
+					)
+				}
+			}
+			
+			// Save positive feedback with empty text (no corrected response for positive feedback)
+			const savedFeedback = await saveAdminFeedback(requestId, 'good', '')
+			setAdminFeedback(prev => ({
+				...prev,
+				[requestId]: savedFeedback
+			}))
 			}
 			
 		} catch (error) {
@@ -2334,39 +2334,39 @@ export default function Content({
 					[requestId]: savedFeedback
 				}))
 			} else {
-				// Ensure chat data exists first
-				const requestDetail = requestDetails[requestId]
-				if (requestDetail) {
-					// Find the session ID for this request
-					let sessionId = ''
-					for (const [sId, requests] of Object.entries(sessionRequests)) {
-						if (requests.some(r => (r.requestId || r.id) === requestId)) {
-							sessionId = sId
-							break
-						}
-					}
-					
-					if (sessionId) {
-						await ensureChatDataExists(
-							requestId,
-							sessionId,
-							requestDetail.inputText || '',
-							requestDetail.outputText || ''
-						)
+			// Ensure chat data exists first
+			const requestDetail = requestDetails[requestId]
+			if (requestDetail) {
+				// Find the session ID for this request
+				let sessionId = ''
+				for (const [sId, requests] of Object.entries(sessionRequests)) {
+					if (requests.some(r => (r.requestId || r.id) === requestId)) {
+						sessionId = sId
+						break
 					}
 				}
 				
+				if (sessionId) {
+					await ensureChatDataExists(
+						requestId,
+						sessionId,
+						requestDetail.inputText || '',
+						requestDetail.outputText || ''
+					)
+				}
+			}
+			
 				// Save feedback with separate fields
-				const savedFeedback = await saveAdminFeedback(
-					requestId, 
+			const savedFeedback = await saveAdminFeedback(
+				requestId, 
 					verdict, 
-					formData.text,
-					formData.preferredResponse.trim() || undefined
-				)
-				setAdminFeedback(prev => ({
-					...prev,
-					[requestId]: savedFeedback
-				}))
+				formData.text,
+				formData.preferredResponse.trim() || undefined
+			)
+			setAdminFeedback(prev => ({
+				...prev,
+				[requestId]: savedFeedback
+			}))
 			}
 			
 			// Close the inline form with animation
@@ -2374,7 +2374,7 @@ export default function Content({
 			
 			// Update prompt with new feedback (only for bad feedback)
 			if (verdict === 'bad') {
-				await updatePromptWithFeedback()
+			await updatePromptWithFeedback()
 			}
 			
 			// Trigger prompt refresh in PromptControl component
@@ -2477,38 +2477,38 @@ export default function Content({
 				}))
 			} else {
 				const requestDetail = requestDetails[requestId]
-				if (requestDetail) {
-					// Find the session ID for this request
-					let sessionId = ''
-					for (const [sId, requests] of Object.entries(sessionRequests)) {
+			if (requestDetail) {
+				// Find the session ID for this request
+				let sessionId = ''
+				for (const [sId, requests] of Object.entries(sessionRequests)) {
 						if (requests.some(r => (r.requestId || r.id) === requestId)) {
-							sessionId = sId
-							break
-						}
-					}
-					
-					if (sessionId) {
-						await ensureChatDataExists(
-							requestId,
-							sessionId,
-							requestDetail.inputText || '',
-							requestDetail.outputText || ''
-						)
+						sessionId = sId
+						break
 					}
 				}
 				
-				let savedFeedback: AdminFeedbackData
-				if (feedbackModal.mode === 'edit' || feedbackModal.existingFeedback) {
+				if (sessionId) {
+					await ensureChatDataExists(
+							requestId,
+						sessionId,
+						requestDetail.inputText || '',
+						requestDetail.outputText || ''
+					)
+				}
+			}
+			
+			let savedFeedback: AdminFeedbackData
+			if (feedbackModal.mode === 'edit' || feedbackModal.existingFeedback) {
 					// Update existing feedback
 					savedFeedback = await updateAdminFeedback(requestId, verdict, feedbackText, preferredResponse.trim() || undefined)
-				} else {
+			} else {
 					// Save new feedback
 					savedFeedback = await saveAdminFeedback(requestId, verdict, feedbackText, preferredResponse.trim() || undefined)
-				}
-				setAdminFeedback(prev => ({
-					...prev,
+			}
+			setAdminFeedback(prev => ({
+				...prev,
 					[requestId]: savedFeedback
-				}))
+			}))
 			}
 			
 			closeFeedbackModal()
@@ -3332,7 +3332,7 @@ export default function Content({
 											<option value="dateAsc">{t('dateTimeOldest')}</option>
 											<option value="session">{t('sessionIdSort')}</option>
 										</select>
-									</div>
+								</div>
 									<div className="search-control">
 										<label>{t('search')}</label>
 										<div className="search-input-wrapper">
@@ -3354,7 +3354,7 @@ export default function Content({
 													</svg>
 												</button>
 											)}
-										</div>
+							</div>
 									</div>
 									<div className="export-control">
 										<select 
@@ -3392,24 +3392,24 @@ export default function Content({
 												{flattenedConversations.slice((conversationsCurrentPage - 1) * ITEMS_PER_PAGE, conversationsCurrentPage * ITEMS_PER_PAGE).map((conv) => {
 													const date = conv.date ? new Date(conv.date) : null
 													const adminFb = conv.adminFeedback
-													
-													return (
+											
+											return (
 														<div key={conv.requestId} className="conversation-card">
 															<div className="conversation-card-header">
 																<div className="conversation-card-info">
 																	<span><strong>{t('chatId')}:</strong> {conv.requestId || ''}</span>
 																	<span><strong>Session:</strong> {formatSessionId(conv.sessionId)}</span>
 																	{date && <span>{date.toLocaleString()}</span>}
-																</div>
+															</div>
 															</div>
 															<div className="conversation-card-body">
 																<div className="conversation-message">
 																	<strong>{t('userMessage')}:</strong> {conv.userMessage || ''}
-																</div>
+														</div>
 																<div className="conversation-response">
 																	<strong>{t('aiResponse')}:</strong> {conv.aiResponse || ''}
-																</div>
 															</div>
+														</div>
 															<div className="conversation-card-footer">
 																<span className="admin-label">{language === 'ko' ? 'FAQ (고우선 FAQ)' : 'FAQ (High Priority FAQ)'}:</span>
 																<div className="admin-actions">
@@ -3482,7 +3482,7 @@ export default function Content({
 																			</svg>
 																		</button>
 																	)}
-																</div>
+													</div>
 															</div>
 														</div>
 													)
@@ -3505,8 +3505,8 @@ export default function Content({
 													{flattenedConversations.slice((conversationsCurrentPage - 1) * ITEMS_PER_PAGE, conversationsCurrentPage * ITEMS_PER_PAGE).map((conv) => {
 														const date = conv.date ? new Date(conv.date) : null
 														const adminFb = conv.adminFeedback
-														
-														return (
+																	
+																	return (
 															<tr key={conv.requestId} data-request-id={conv.requestId}>
 																<td className="date-cell">
 																	{date ? (
@@ -3547,7 +3547,7 @@ export default function Content({
 																		onClick={() => handleMessageClick(conv.requestId)}
 																	>
 																		{conv.userMessage || ''}
-																	</div>
+																							</div>
 																</td>
 																<td className="message-cell" title={conv.aiResponse || ''}>
 																	<div 
@@ -3556,7 +3556,7 @@ export default function Content({
 																		onClick={() => handleMessageClick(conv.requestId)}
 																	>
 																		{conv.aiResponse || ''}
-																	</div>
+																							</div>
 																</td>
 																<td style={{ textAlign: 'center' }}>
 																	<div className="admin-actions" style={{ justifyContent: 'center' }}>
@@ -3628,8 +3628,8 @@ export default function Content({
 																					<path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
 																				</svg>
 																			</button>
-																		)}
-																	</div>
+																					)}
+																				</div>
 																</td>
 															</tr>
 														)
@@ -3639,7 +3639,7 @@ export default function Content({
 										)}
 										{flattenedConversations.length > ITEMS_PER_PAGE && (
 											<div className="pagination-container">
-												<button 
+																					<button 
 													className="pagination-btn pagination-nav"
 													onClick={() => setConversationsCurrentPage(prev => Math.max(1, prev - 1))}
 													disabled={conversationsCurrentPage === 1}
@@ -3647,14 +3647,14 @@ export default function Content({
 												>
 													<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
 														<polyline points="15 18 9 12 15 6"></polyline>
-													</svg>
-												</button>
+																						</svg>
+																					</button>
 												<div className="pagination-pages">
 													{getPageNumbers(conversationsCurrentPage, Math.ceil(flattenedConversations.length / ITEMS_PER_PAGE)).map((page, index) => 
 														page === 'ellipsis' ? (
 															<span key={`ellipsis-${index}`} className="pagination-ellipsis">...</span>
 														) : (
-															<button
+																					<button 
 																key={page}
 																className={`pagination-btn pagination-page ${conversationsCurrentPage === page ? 'active' : ''}`}
 																onClick={() => setConversationsCurrentPage(page)}
@@ -3672,16 +3672,16 @@ export default function Content({
 												>
 													<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
 														<polyline points="9 18 15 12 9 6"></polyline>
-													</svg>
-												</button>
-											</div>
+																						</svg>
+																					</button>
+																				</div>
 										)}
 									</>
 								) : (
 									<p className="muted">No conversations found for the selected date range.</p>
 								)}
-							</div>
-							
+																			</div>
+																			
 							{/* Inline feedback form modal - appears when Edit is clicked or thumbs down is clicked */}
 							{expandedFeedbackForms.size > 0 && Array.from(expandedFeedbackForms).map(requestId => {
 								const requestDetail = requestDetails[requestId] || {}
@@ -3702,77 +3702,77 @@ export default function Content({
 													<IconX />
 												</button>
 											</div>
-											<div className="feedback-form-fields">
-												<div className="feedback-field">
-													<label htmlFor={`feedback-text-${requestId}`}>Supervisor Feedback:</label>
-													<textarea
-														id={`feedback-text-${requestId}`}
-														className="feedback-input"
+																					<div className="feedback-form-fields">
+																						<div className="feedback-field">
+																							<label htmlFor={`feedback-text-${requestId}`}>Supervisor Feedback:</label>
+																							<textarea
+																								id={`feedback-text-${requestId}`}
+																								className="feedback-input"
 														value={formData.text}
-														onChange={(e) => setFeedbackFormData(prev => ({
-															...prev,
-															[requestId]: {
-																...prev[requestId],
-																text: e.target.value
-															}
-														}))}
-														placeholder="Explain what was wrong with this response..."
-														rows={3}
-													/>
-												</div>
-												<div className="feedback-field">
-													<label htmlFor={`preferred-response-${requestId}`}>Corrected Response:</label>
-													<textarea
-														id={`preferred-response-${requestId}`}
-														className="feedback-input"
+																								onChange={(e) => setFeedbackFormData(prev => ({
+																									...prev,
+																									[requestId]: {
+																										...prev[requestId],
+																										text: e.target.value
+																									}
+																								}))}
+																								placeholder="Explain what was wrong with this response..."
+																								rows={3}
+																							/>
+																						</div>
+																						<div className="feedback-field">
+																							<label htmlFor={`preferred-response-${requestId}`}>Corrected Response:</label>
+																							<textarea
+																								id={`preferred-response-${requestId}`}
+																								className="feedback-input"
 														value={formData.preferredResponse}
-														onChange={(e) => setFeedbackFormData(prev => ({
-															...prev,
-															[requestId]: {
-																...prev[requestId],
-																preferredResponse: e.target.value
-															}
-														}))}
-														placeholder="Enter the corrected response..."
-														rows={4}
-													/>
-												</div>
-											</div>
-											<div className="feedback-form-actions">
+																								onChange={(e) => setFeedbackFormData(prev => ({
+																									...prev,
+																									[requestId]: {
+																										...prev[requestId],
+																										preferredResponse: e.target.value
+																									}
+																								}))}
+																								placeholder="Enter the corrected response..."
+																								rows={4}
+																							/>
+																						</div>
+																					</div>
+																					<div className="feedback-form-actions">
 												{existingFeedback?.feedback_verdict === 'bad' ? (
-													<button 
-														className="btn btn-ghost delete-feedback-btn"
-														onClick={() => setConfirmationModal({
-															isOpen: true,
-															type: 'deleteNegative',
-															requestId: requestId,
-															onConfirm: () => deleteFeedback(requestId)
-														})}
-														disabled={submittingFeedbackRequests.has(requestId)}
-													>
-														Delete
-													</button>
-												) : (
-													<button 
-														className="btn btn-ghost cancel-feedback-btn"
-														onClick={() => closeFeedbackForm(requestId)}
-														disabled={submittingFeedbackRequests.has(requestId)}
-													>
-														Cancel
-													</button>
-												)}
-												<button 
-													className="btn submit-inline-feedback-btn"
-													onClick={() => submitInlineFeedback(requestId)}
+																							<button 
+																								className="btn btn-ghost delete-feedback-btn"
+																								onClick={() => setConfirmationModal({
+																									isOpen: true,
+																									type: 'deleteNegative',
+																									requestId: requestId,
+																									onConfirm: () => deleteFeedback(requestId)
+																								})}
+																								disabled={submittingFeedbackRequests.has(requestId)}
+																							>
+																								Delete
+																							</button>
+																						) : (
+																							<button 
+																								className="btn btn-ghost cancel-feedback-btn"
+																								onClick={() => closeFeedbackForm(requestId)}
+																								disabled={submittingFeedbackRequests.has(requestId)}
+																							>
+																								Cancel
+																							</button>
+																						)}
+																																				<button 
+															className="btn submit-inline-feedback-btn"
+															onClick={() => submitInlineFeedback(requestId)}
 													disabled={(!formData.text?.trim() && !formData.preferredResponse?.trim()) || submittingFeedbackRequests.has(requestId)}
-												>
-													{submittingFeedbackRequests.has(requestId) ? 
+														>
+															{submittingFeedbackRequests.has(requestId) ? 
 														(existingFeedback?.feedback_verdict === 'bad' ? 'Updating...' : 'Submitting...') : 
 														(existingFeedback?.feedback_verdict === 'bad' ? 'Update' : 'Submit')
-													}
-												</button>
-											</div>
-										</div>
+															}
+														</button>
+																					</div>
+																				</div>
 									</div>
 								)
 							})}
@@ -3906,7 +3906,7 @@ export default function Content({
 																		</svg>
 																	)}
 																	<span>{language === 'ko' ? '사용자: Unknown' : 'User: Unknown'}</span>
-																</div>
+																					</div>
 																<div className="admin-feedback-card-actions">
 																	{date && <span className="admin-feedback-card-date">{date.toLocaleString()}</span>}
 																	<div className="admin-feedback-card-toggle">
@@ -3921,7 +3921,7 @@ export default function Content({
 																		>
 																			<span className="toggle-slider"></span>
 																		</button>
-																	</div>
+																					</div>
 															<button
 																className="admin-feedback-delete-btn"
 																onClick={(e) => {
@@ -3967,8 +3967,8 @@ export default function Content({
 																		>
 																			{requestId}
 																		</button>
-																	)}
-																</div>
+																			)}
+																		</div>
 																<div className="admin-feedback-card-field">
 																	<strong>{language === 'ko' ? '원본 AI 응답:' : 'Original AI Response:'}</strong>
 																	<div 
@@ -4215,8 +4215,8 @@ export default function Content({
 																		style={{ cursor: 'pointer' }}
 																	>
 																		{(feedback as any).corrected_message || '-'}
-																	</div>
-																)}
+														</div>
+													)}
 															</td>
 															<td className="feedback-cell">
 																{isEditing ? (
@@ -4251,7 +4251,7 @@ export default function Content({
 																		style={{ cursor: 'pointer' }}
 																	>
 																		{feedback.corrected_response || '-'}
-																	</div>
+												</div>
 																)}
 															</td>
 														<td style={{ verticalAlign: 'bottom' }}>
@@ -4345,7 +4345,7 @@ export default function Content({
 															</button>
 														)
 													)}
-												</div>
+									</div>
 												<button 
 													className="pagination-btn pagination-nav"
 													onClick={() => setAdminFeedbackCurrentPage(prev => Math.min(Math.ceil(filteredAndSortedAdminFeedback.length / ITEMS_PER_PAGE), prev + 1))}
@@ -4552,7 +4552,7 @@ export default function Content({
 																>
 																	✕
 																</button>
-															</div>
+							</div>
 														) : (
 															<button
 																className={`toggle-btn ${feedback.prompt_apply !== false ? 'active' : ''}`}
@@ -4619,7 +4619,7 @@ export default function Content({
 													</button>
 												)
 											)}
-										</div>
+						</div>
 										<button 
 											className="pagination-btn pagination-nav"
 											onClick={() => setAdminInstructionCurrentPage(prev => Math.min(Math.ceil(filteredAdminInstructions.length / ITEMS_PER_PAGE), prev + 1))}
@@ -4630,7 +4630,7 @@ export default function Content({
 												<polyline points="9 18 15 12 9 6"></polyline>
 											</svg>
 										</button>
-									</div>
+					</div>
 								)}
 								</>
 							)}
@@ -4842,8 +4842,8 @@ export default function Content({
 										<label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: 'var(--text)' }}>
 											{language === 'ko' ? '수정된 사용자 메시지' : 'Corrected User Message'}:
 										</label>
-										<textarea
-											className="feedback-textarea"
+									<textarea
+										className="feedback-textarea"
 											value={feedbackFormData[feedbackModal.requestId]?.correctedMessage || requestDetails[feedbackModal.requestId]?.inputText || ''}
 											onChange={(e) => setFeedbackFormData(prev => ({
 												...prev,
@@ -4853,8 +4853,8 @@ export default function Content({
 												}
 											}))}
 											placeholder={language === 'ko' ? '수정된 메시지를 입력하세요...' : 'Enter the corrected message...'}
-											rows={4}
-											disabled={isSubmittingFeedback}
+										rows={4}
+										disabled={isSubmittingFeedback}
 											style={{ width: '100%', resize: 'vertical' }}
 										/>
 									</div>
@@ -4879,13 +4879,13 @@ export default function Content({
 										/>
 									</div>
 									<div className="feedback-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-										<button 
+											<button 
 											className="btn btn-ghost" 
 											onClick={closeFeedbackModal}
-											disabled={isSubmittingFeedback}
-										>
+												disabled={isSubmittingFeedback}
+											>
 											{language === 'ko' ? '취소' : 'Cancel'}
-										</button>
+											</button>
 										{(() => {
 											const requestId = feedbackModal.requestId?.trim() || ''
 											const preferredResponse = requestId ? (feedbackFormData[requestId]?.preferredResponse || '') : ''
@@ -4896,7 +4896,7 @@ export default function Content({
 												: ''
 											
 											return (
-												<button 
+										<button 
 													className="btn btn-primary" 
 													onClick={(e) => {
 														e.preventDefault()
@@ -4914,7 +4914,7 @@ export default function Content({
 													}}
 												>
 													{isSubmittingFeedback ? (language === 'ko' ? '제출 중...' : 'Submitting...') : (language === 'ko' ? '제출' : 'Submit')}
-												</button>
+										</button>
 											)
 										})()}
 									</div>
