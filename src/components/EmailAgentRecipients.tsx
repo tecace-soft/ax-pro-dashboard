@@ -139,7 +139,10 @@ export default function EmailAgentRecipients() {
 	}
 
 	return (
-		<div className="card section email-agent-recipients" aria-labelledby="email-agent-recipients-heading">
+		<div
+			className={`card section email-agent-recipients${expanded ? '' : ' email-agent-recipients--collapsed'}`}
+			aria-labelledby="email-agent-recipients-heading"
+		>
 			<div className="section-header">
 				<div
 					id="email-agent-recipients-heading"
@@ -170,93 +173,89 @@ export default function EmailAgentRecipients() {
 			</div>
 
 			<div
-				className={`email-agent-recipients__collapse${expanded ? ' is-open' : ''}`}
 				id="email-agent-recipients-panel"
+				className={`email-agent-recipients__collapse${expanded ? ' is-open' : ''}`}
 				role="region"
 				aria-labelledby="email-agent-recipients-heading"
+				aria-hidden={!expanded}
 			>
-				<div
-					className="email-agent-recipients__collapse-inner"
-					aria-hidden={!expanded}
-				>
-					<div className="email-agent-recipients__body">
-						{error ? <p className="email-agent-recipients__error">{error}</p> : null}
+				<div className="email-agent-recipients__collapse-inner">
+					<div className="email-agent-recipients__panel">
+						<div className="email-agent-recipients__body">
+							{error ? <p className="email-agent-recipients__error">{error}</p> : null}
 
-						{loading ? (
-							<p className="email-agent-recipients__loading">{t.loading}</p>
-						) : (
-							<>
-								{items.map((item) => (
-									<div key={String(item.id)} className="email-agent-recipients__row">
+							{loading ? (
+								<p className="email-agent-recipients__loading">{t.loading}</p>
+							) : (
+								<>
+									{items.map((item) => (
+										<div key={String(item.id)} className="email-agent-recipients__row">
+											<input
+												type="text"
+												className="email-agent-recipients__input"
+												value={item.email_address}
+												onChange={(e) => updateSavedValue(item.id, e.target.value)}
+												onBlur={(e) =>
+													void handleBlurSaved(item, e.currentTarget.value)
+												}
+												placeholder={t.placeholder}
+												disabled={mutating}
+												aria-label={t.placeholder}
+											/>
+											<button
+												type="button"
+												className="email-agent-recipients__icon-btn email-agent-recipients__icon-btn--delete"
+												onClick={() => void handleDelete(item)}
+												disabled={mutating}
+												title={t.del}
+												aria-label={t.del}
+											>
+												<svg
+													width="16"
+													height="16"
+													viewBox="0 0 24 24"
+													fill="none"
+													stroke="currentColor"
+													strokeWidth="2"
+													aria-hidden
+												>
+													<path d="M3 6h18M8 6V4h8v2M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+													<path d="M10 11v6M14 11v6" />
+												</svg>
+											</button>
+										</div>
+									))}
+
+									<div className="email-agent-recipients__row">
 										<input
 											type="text"
 											className="email-agent-recipients__input"
-											value={item.email_address}
-											onChange={(e) => updateSavedValue(item.id, e.target.value)}
-											onBlur={(e) =>
-												void handleBlurSaved(item, e.currentTarget.value)
-											}
+											value={newRowValue}
+											onChange={(e) => setNewRowValue(e.target.value)}
+											onKeyDown={(e) => {
+												if (e.key === 'Enter') {
+													e.preventDefault()
+													void handleAddNew()
+												}
+											}}
 											placeholder={t.placeholder}
 											disabled={mutating}
-											tabIndex={expanded ? 0 : -1}
-											aria-label={t.placeholder}
+											aria-label={t.add}
 										/>
 										<button
 											type="button"
-											className="email-agent-recipients__icon-btn email-agent-recipients__icon-btn--delete"
-											onClick={() => void handleDelete(item)}
-											disabled={mutating}
-											title={t.del}
-											aria-label={t.del}
-											tabIndex={expanded ? 0 : -1}
+											className="email-agent-recipients__icon-btn email-agent-recipients__icon-btn--add"
+											onClick={() => void handleAddNew()}
+											disabled={mutating || !newRowValue.trim()}
+											title={t.add}
+											aria-label={t.add}
 										>
-											<svg
-												width="16"
-												height="16"
-												viewBox="0 0 24 24"
-												fill="none"
-												stroke="currentColor"
-												strokeWidth="2"
-												aria-hidden
-											>
-												<path d="M3 6h18M8 6V4h8v2M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-												<path d="M10 11v6M14 11v6" />
-											</svg>
+											<Plus size={16} strokeWidth={2} aria-hidden />
 										</button>
 									</div>
-								))}
-
-								<div className="email-agent-recipients__row">
-									<input
-										type="text"
-										className="email-agent-recipients__input"
-										value={newRowValue}
-										onChange={(e) => setNewRowValue(e.target.value)}
-										onKeyDown={(e) => {
-											if (e.key === 'Enter') {
-												e.preventDefault()
-												void handleAddNew()
-											}
-										}}
-										placeholder={t.placeholder}
-										disabled={mutating}
-										tabIndex={expanded ? 0 : -1}
-										aria-label={t.add}
-									/>
-									<button
-										type="button"
-										className="email-agent-recipients__icon-btn email-agent-recipients__icon-btn--add"
-										onClick={() => void handleAddNew()}
-										disabled={mutating || !newRowValue.trim()}
-										title={t.add}
-										aria-label={t.add}
-										tabIndex={expanded ? 0 : -1}
-									>
-										<Plus size={16} strokeWidth={2} aria-hidden />
-									</button>
-								</div>
-							</>
-						)}
+								</>
+							)}
+						</div>
 					</div>
 				</div>
 			</div>

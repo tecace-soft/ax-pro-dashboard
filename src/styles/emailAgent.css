@@ -3,6 +3,46 @@
 	margin-bottom: 24px;
 }
 
+/* Remove global .section-header margin-bottom (e.g. 20px) */
+.email-agent-recipients .section-header {
+	margin-bottom: 0 !important;
+}
+
+/* Tight header / content split: no extra margin under title row */
+.email-agent-recipients .section-header .section-title {
+	margin-bottom: 0 !important;
+}
+
+/* Collapsed: no bottom border or padding under title (border only when open, above list) */
+.email-agent-recipients.email-agent-recipients--collapsed .section-header .section-title {
+	border-bottom: none !important;
+	padding-bottom: 0 !important;
+}
+
+.email-agent-recipients__collapse {
+	display: grid;
+	grid-template-rows: 0fr;
+	transition: grid-template-rows 0.35s ease;
+	min-height: 0;
+}
+
+.email-agent-recipients__collapse.is-open {
+	grid-template-rows: 1fr;
+}
+
+.email-agent-recipients__collapse-inner {
+	overflow: hidden;
+	min-height: 0;
+}
+
+.email-agent-recipients__collapse:not(.is-open) .email-agent-recipients__collapse-inner {
+	pointer-events: none;
+}
+
+.email-agent-recipients__panel {
+	padding-top: 16px;
+}
+
 /* Full header row toggles expand; chevron sits in a refresh-btn-style chip on the right */
 .email-agent-recipients__header-trigger {
 	cursor: pointer;
@@ -39,21 +79,6 @@
 
 .email-agent-recipients__chevron-surface .email-agent-recipients__chevron.is-open {
 	transform: rotate(180deg);
-}
-
-.email-agent-recipients__collapse {
-	display: grid;
-	grid-template-rows: 0fr;
-	transition: grid-template-rows 0.35s ease;
-}
-
-.email-agent-recipients__collapse.is-open {
-	grid-template-rows: 1fr;
-}
-
-.email-agent-recipients__collapse-inner {
-	overflow: hidden;
-	min-height: 0;
 }
 
 .email-agent-recipients__body {
