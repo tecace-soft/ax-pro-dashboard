@@ -1,8 +1,13 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
-import { fetchUserFeedback } from '../services/userFeedback'
+import { fetchUserFeedback, updateUserFeedbackRead } from '../services/userFeedback'
 import { UserFeedbackData } from '../services/supabase'
-import { fetchUserFeedbackN8N, deleteUserFeedbackN8N, UserFeedbackDataN8N } from '../services/userFeedbackN8N'
+import {
+	fetchUserFeedbackN8N,
+	deleteUserFeedbackN8N,
+	UserFeedbackDataN8N,
+	updateUserFeedbackReadN8N,
+} from '../services/userFeedbackN8N'
 import { getChatData } from '../services/chatData'
 import { fetchRequestDetailN8N } from '../services/conversationsN8N'
 import { useLanguage } from '../contexts/LanguageContext'
@@ -10,14 +15,24 @@ import * as XLSX from 'xlsx'
 
 type UserFeedback = UserFeedbackData | UserFeedbackDataN8N
 
+function userFeedbackNumericId(fb: UserFeedback): number | null {
+	const id = fb.id
+	if (id == null) return null
+	const n = typeof id === 'number' ? id : Number(id)
+	return Number.isFinite(n) ? n : null
+}
+
+function isUserFeedbackUnread(fb: UserFeedback): boolean {
+	return fb.read === false
+}
+
 interface UserFeedbackProps {
 	onChatIdClick?: (chatId: string) => void
 	onUserIdClick?: (userId: string) => void
 	onSessionIdClick?: (sessionId: string) => void
 	onMessageClick?: (chatId: string, userMessage: string, aiResponse: string, comments: string, reaction: string) => void
-	startDate?: string
-	endDate?: string
-	onDateChange?: (startDate: string, endDate: string) => void
+	/** Fires when local list changes so parent can show nav unread indicator. */
+	onUnreadStateChange?: (hasUnread: boolean) => void
 }
 
 function formatUserId(userId: string): string {
@@ -59,13 +74,20 @@ function formatDateNarrow(date: Date): string {
 	return `${month}/${day}/${year}...`
 }
 
-export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionIdClick, onMessageClick, startDate, endDate, onDateChange }: UserFeedbackProps = {}) {
+export default function UserFeedback({
+	onChatIdClick,
+	onUserIdClick,
+	onSessionIdClick,
+	onMessageClick,
+	onUnreadStateChange,
+}: UserFeedbackProps = {}) {
 	const location = useLocation()
 	const isN8NRoute = location.pathname === '/dashboard'
 	const { language, t } = useLanguage()
 	
 	const [userFeedbacks, setUserFeedbacks] = useState<UserFeedback[]>([])
-	const [isLoading, setIsLoading] = useState(false)
+	/** Start true so we do not broadcast unread=false from [] before the first fetch (avoids nav dot flicker). */
+	const [isLoading, setIsLoading] = useState(true)
 	const [error, setError] = useState<string | null>(null)
 	const [chatDataMap, setChatDataMap] = useState<Record<string, { inputText: string, outputText: string }>>({})
 	const chatDataMapRef = useRef<Record<string, { inputText: string, outputText: string }>>({})
@@ -75,6 +97,7 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 	const [userFeedbackSearch, setUserFeedbackSearch] = useState('')
 	const [userFeedbackFontSize, setUserFeedbackFontSize] = useState<'small' | 'medium' | 'large'>('medium')
 	const [userFeedbackCurrentPage, setUserFeedbackCurrentPage] = useState(1)
+	/** Rows per page in table/grid (client-side slice of fully fetched list). */
 	const ITEMS_PER_PAGE = 10
 
 	// Helper function to generate page numbers for pagination
@@ -135,7 +158,42 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 
 	useEffect(() => {
 		loadUserFeedback()
-	}, [isN8NRoute, startDate, endDate])
+	}, [isN8NRoute])
+
+	useEffect(() => {
+		if (isLoading) return
+		onUnreadStateChange?.(userFeedbacks.some((fb) => fb.read === false))
+	}, [userFeedbacks, isLoading, onUnreadStateChange])
+
+	const openUserFeedbackModal = useCallback(
+		(
+			feedback: UserFeedback,
+			chatId: string,
+			chatMessage: string,
+			chatResponse: string,
+			feedbackText: string,
+			reaction: string
+		) => {
+			onMessageClick?.(chatId, chatMessage, chatResponse, feedbackText, reaction)
+			const idNum = userFeedbackNumericId(feedback)
+			if (idNum == null || !isUserFeedbackUnread(feedback)) return
+			setUserFeedbacks((prev) =>
+				prev.map((f) => (userFeedbackNumericId(f) === idNum ? { ...f, read: true } : f))
+			)
+			;(async () => {
+				try {
+					if (isN8NRoute) await updateUserFeedbackReadN8N(idNum)
+					else await updateUserFeedbackRead(idNum)
+				} catch (err) {
+					console.warn('Failed to mark user feedback as read:', err)
+					setUserFeedbacks((prev) =>
+						prev.map((f) => (userFeedbackNumericId(f) === idNum ? { ...f, read: false } : f))
+					)
+				}
+			})()
+		},
+		[isN8NRoute, onMessageClick]
+	)
 
 	const loadUserFeedback = async (bypassCache = false) => {
 		setIsLoading(true)
@@ -143,7 +201,11 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 		
 		try {
 			if (isN8NRoute) {
-				const data = await fetchUserFeedbackN8N(startDate, endDate)
+				const data = await fetchUserFeedbackN8N()
+				console.log('[UserFeedback] rows from API (n8n /dashboard)', {
+					count: data.length,
+					entries: data,
+				})
 				setUserFeedbacks(data)
 				
 				// For N8N route: Load chat data for entries missing chat_message/chat_response
@@ -204,7 +266,11 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 					setChatDataMap(prev => ({ ...prev, ...chatDataMap }))
 				}
 			} else {
-				const data = await fetchUserFeedback(startDate, endDate)
+				const data = await fetchUserFeedback()
+				console.log('[UserFeedback] rows from API (default supabase)', {
+					count: data.length,
+					entries: data,
+				})
 				setUserFeedbacks(data)
 				
 				// For tecace route: Load chat_data for entries missing chat_message/chat_response
@@ -257,7 +323,7 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 		setIsRefreshingUserFeedback(true)
 		await loadUserFeedback(true)
 		setIsRefreshingUserFeedback(false)
-	}, [startDate, endDate, isN8NRoute])
+	}, [isN8NRoute])
 
 	// Load missing chat data for user feedback entries on-demand (similar to Admin Feedback)
 	useEffect(() => {
@@ -668,7 +734,10 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 									const chatResponse = feedback.chat_response || chatData?.outputText || ''
 									
 									return (
-										<div key={feedbackId} className="user-feedback-card">
+										<div
+											key={feedbackId}
+											className={`user-feedback-card${isUserFeedbackUnread(feedback) ? ' user-feedback-card--unread' : ''}`}
+										>
 											<div className="user-feedback-card-header">
 												<div className="user-feedback-card-rating">
 													{hasReaction(reaction) ? (
@@ -742,9 +811,7 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 														<div 
 															style={{ cursor: 'pointer' }}
 															onClick={() => {
-																if (onMessageClick) {
-																	onMessageClick(chatId, chatMessage, chatResponse, feedbackText, reaction)
-																}
+																openUserFeedbackModal(feedback, chatId, chatMessage, chatResponse, feedbackText, reaction)
 															}}
 														>
 															{feedbackText}
@@ -757,9 +824,7 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 														<div 
 															style={{ cursor: 'pointer' }}
 															onClick={() => {
-																if (onMessageClick) {
-																	onMessageClick(chatId, chatMessage, chatResponse, feedbackText, reaction)
-																}
+																openUserFeedbackModal(feedback, chatId, chatMessage, chatResponse, feedbackText, reaction)
 															}}
 														>
 															{chatMessage}
@@ -772,9 +837,7 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 														<div 
 															style={{ cursor: 'pointer' }}
 															onClick={() => {
-																if (onMessageClick) {
-																	onMessageClick(chatId, chatMessage, chatResponse, feedbackText, reaction)
-																}
+																openUserFeedbackModal(feedback, chatId, chatMessage, chatResponse, feedbackText, reaction)
 															}}
 														>
 															{chatResponse}
@@ -788,16 +851,24 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 							</div>
 						) : (
 							<table className={`user-feedback-table ${hasAnyUserId ? 'has-user-id' : 'no-user-id'}`}>
+								<colgroup>
+									<col className="uf-col-date" />
+									{hasAnyUserId && <col className="uf-col-userid" />}
+									<col className="uf-col-rating" />
+									<col className="uf-col-comments" />
+									<col className="uf-col-usermsg" />
+									<col className="uf-col-ai" />
+									<col className="user-feedback-col-delete" />
+								</colgroup>
 								<thead>
 									<tr>
 										<th>{t('date')}</th>
 										{hasAnyUserId && <th>{t('userId')}</th>}
-										<th>{t('chatId')}</th>
 										<th>{t('rating')}</th>
 										<th>{t('comments')}</th>
 										<th>{t('userMessage')}</th>
 										<th>{t('aiResponse')}</th>
-										<th>{t('delete')}</th>
+										<th className="user-feedback-col-delete">{t('delete')}</th>
 									</tr>
 								</thead>
 								<tbody>
@@ -816,8 +887,24 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 										const chatResponse = feedback.chat_response || chatData?.outputText || ''
 										
 										return (
-											<tr key={feedbackId}>
-												<td className="date-cell">
+											<tr
+												key={feedbackId}
+												className={isUserFeedbackUnread(feedback) ? 'user-feedback-row--unread' : undefined}
+											>
+												<td
+													className="date-cell"
+													style={{ cursor: 'pointer' }}
+													onClick={() =>
+														openUserFeedbackModal(
+															feedback,
+															chatId,
+															chatMessage,
+															chatResponse,
+															feedbackText,
+															reaction
+														)
+													}
+												>
 													{date ? (
 														<span className="date-display" title={date.toLocaleString()}>
 															{date.toLocaleString()}
@@ -846,25 +933,19 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 														)}
 													</td>
 												)}
-												<td>
-													{chatId ? (
-														<button
-															className="chat-id-link"
-															onClick={() => {
-																if (onChatIdClick) {
-																	onChatIdClick(chatId)
-																}
-																setUserFeedbackSearch(chatId)
-															}}
-															title={chatId}
-														>
-															<span className="chat-id-display">{formatChatId(chatId)}</span>
-														</button>
-													) : (
-														<span>-</span>
-													)}
-												</td>
-												<td>
+												<td
+													style={{ cursor: 'pointer' }}
+													onClick={() =>
+														openUserFeedbackModal(
+															feedback,
+															chatId,
+															chatMessage,
+															chatResponse,
+															feedbackText,
+															reaction
+														)
+													}
+												>
 													{hasReaction(reaction) ? (
 														isPositiveFeedback(reaction) ? (
 															<svg fill="#22c55e" viewBox="0 0 24 24" width="20" height="20">
@@ -885,9 +966,7 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 														title={feedbackText}
 														style={{ cursor: 'pointer' }}
 														onClick={() => {
-															if (onMessageClick) {
-																onMessageClick(chatId, chatMessage, chatResponse, feedbackText, reaction)
-															}
+															openUserFeedbackModal(feedback, chatId, chatMessage, chatResponse, feedbackText, reaction)
 														}}
 													>
 														{feedbackText || '-'}
@@ -899,9 +978,7 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 														title={chatMessage}
 														style={{ cursor: 'pointer' }}
 														onClick={() => {
-															if (onMessageClick) {
-																onMessageClick(chatId, chatMessage, chatResponse, feedbackText, reaction)
-															}
+															openUserFeedbackModal(feedback, chatId, chatMessage, chatResponse, feedbackText, reaction)
 														}}
 													>
 														{chatMessage || '-'}
@@ -913,15 +990,13 @@ export default function UserFeedback({ onChatIdClick, onUserIdClick, onSessionId
 														title={chatResponse}
 														style={{ cursor: 'pointer' }}
 														onClick={() => {
-															if (onMessageClick) {
-																onMessageClick(chatId, chatMessage, chatResponse, feedbackText, reaction)
-															}
+															openUserFeedbackModal(feedback, chatId, chatMessage, chatResponse, feedbackText, reaction)
 														}}
 													>
 														{chatResponse || '-'}
 													</div>
 												</td>
-												<td>
+												<td className="user-feedback-col-delete">
 													<button
 														className="user-feedback-delete-btn"
 														onClick={(e) => {

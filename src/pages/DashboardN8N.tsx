@@ -1,85 +1,21 @@
 import { useState, useEffect } from 'react'
-import { useNavigate, useSearchParams, useLocation } from 'react-router-dom'
-import { IconLogout, IconX } from '../ui/icons'
+import { useNavigate } from 'react-router-dom'
 import { getAuthToken } from '../services/auth'
-import { fetchSessions } from '../services/sessions'
-import { fetchSessionRequests } from '../services/requests'
-import { fetchRequestDetail } from '../services/requestDetails'
 import { fetchSessionsN8N, fetchSessionRequestsN8N } from '../services/conversationsN8N'
-import { fetchDailyMessageActivity, fetchMessageCounts } from '../services/dailyMessageActivity'
 
 import { fetchDailyAggregatesWithMode, DailyRow, filterSimulatedData, EstimationMode } from '../services/dailyAggregates'
 
 import Header from '../components/Header'
-import Sidebar from '../components/Sidebar'
-import PerformanceRadar from '../components/PerformanceRadar'
-import PerformanceTimeline from '../components/PerformanceTimeline'
 
 import Content from './Content'
-import DailyMessageActivity from '../components/DailyMessageActivity'
 
 import '../styles/dashboard.css'
 import '../styles/performance-radar.css'
 import '../styles/performance-timeline.css'
 
-function formatDate(d: Date): string {
-	const year = d.getFullYear()
-	const month = String(d.getMonth() + 1).padStart(2, '0')
-	const day = String(d.getDate()).padStart(2, '0')
-	return `${year}-${month}-${day}`
-}
-
-function localDateKey(d: Date): string {
-	const y = d.getFullYear();
-	const m = String(d.getMonth() + 1).padStart(2, '0');
-	const day = String(d.getDate()).padStart(2, '0');
-	return `${y}-${m}-${day}`;
-}
-
-function buildDailyMessageData(
-	startDate: string,
-	endDate: string,
-	sessionRequests: Record<string, any[]>
-): { data: { date: string; count: number }[]; total: number } {
-	if (!startDate || !endDate) return { data: [], total: 0 };
-
-	const start = new Date(`${startDate}T00:00:00`);
-	start.setDate(start.getDate() + 1)
-	const end = new Date(`${endDate}T23:59:59`);
-	end.setDate(end.getDate() + 1)
-
-	const counts: Record<string, number> = {};
-	let total = 0;
-
-	Object.values(sessionRequests).forEach((reqs = []) => {
-		reqs.forEach((r: any) => {
-			if (!r?.createdAt) return;
-			const t = new Date(r.createdAt);
-			if (t < start || t > end) return;
-			const key = localDateKey(t);
-			counts[key] = (counts[key] || 0) + 1;
-			total += 1;
-		});
-	});
-
-	const out: { date: string; count: number }[] = [];
-	const cur = new Date(start);
-	while (cur <= end) {
-		const key = localDateKey(cur);
-		out.push({ date: key, count: counts[key] || 0 });
-		cur.setDate(cur.getDate() + 1);
-	}
-
-	return { data: out, total };
-}
-
 export default function DashboardN8N() {
 	const navigate = useNavigate()
-	const location = useLocation()
-	const [searchParams] = useSearchParams()
-	
-	const isDashboardPage = location.pathname === '/dashboard'
-	
+
 	const [isSettingsOpen, setIsSettingsOpen] = useState(false)
 	const [authToken, setAuthToken] = useState<string | null>(null)
 	const [sessions, setSessions] = useState<any[]>([])
@@ -132,12 +68,12 @@ export default function DashboardN8N() {
 		score: Math.floor(Math.random() * 20) + 70
 	}))
 
-	const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 	const [showCustomRangeModal, setShowCustomRangeModal] = useState(false)
 	const [customStartDate, setCustomStartDate] = useState('')
 	const [customEndDate, setCustomEndDate] = useState('')
 	const [showScrollTop, setShowScrollTop] = useState(false)
 	const [showPerformanceDetail, setShowPerformanceDetail] = useState(false)
+	const [userFeedbackHasUnread, setUserFeedbackHasUnread] = useState(false)
 
 	const [radarData, setRadarData] = useState<DailyRow[]>([])
 	const [selectedRadarDate, setSelectedRadarDate] = useState<string>('')
@@ -227,15 +163,6 @@ export default function DashboardN8N() {
 	// The default dates are now set correctly in useState initialization above
 
 	useEffect(() => {
-		const section = searchParams.get('section')
-		if (section) {
-			setTimeout(() => {
-				scrollToSection(section)
-			}, 500)
-		}
-	}, [searchParams])
-
-	useEffect(() => {
 		const loadRadarData = async () => {
 			setIsLoadingRadarData(true)
 			try {
@@ -286,8 +213,6 @@ export default function DashboardN8N() {
 
 	const radarDate = formatRadarDate(selectedRadarDate)
 
-	const { data: dailyData, total: dailyTotal } = buildDailyMessageData(startDate, endDate, sessionRequests);
-
 	const currentTime = new Date().toLocaleString('en-US', {
 		weekday: 'short',
 		month: 'short', 
@@ -296,12 +221,6 @@ export default function DashboardN8N() {
 		minute: '2-digit',
 		hour12: true
 	})
-
-	const totalMessages = sessions.reduce((total, session) => {
-		const sessionId = session.sessionId || session.id || `session-${Math.random()}`
-		const requests = sessionRequests[sessionId] || []
-		return total + requests.length
-	}, 0)
 
 	const signOut = () => {
 		localStorage.removeItem('authToken')
@@ -321,132 +240,22 @@ export default function DashboardN8N() {
 		setSearchQuery(query)
 	}
 
-	const toggleSidebar = () => {
-		setSidebarCollapsed(!sidebarCollapsed)
-	}
-
-	const scrollToConversations = () => {
-		if (isDashboardPage) {
-			const contentSections = document.querySelectorAll('.content-section')
-			if (contentSections[0]) {
-				contentSections[0].scrollIntoView({ 
-					behavior: 'smooth', 
-					block: 'start' 
-				})
-			}
-		} else {
-			navigate('/dashboard?section=recent-conversations')
-		}
-	}
-
-	const scrollToSection = (sectionId: string) => {
-		if (isDashboardPage) {
-			const contentSections = document.querySelectorAll('.content-section')
-			
-			if (sectionId === 'performance-radar') {
-				const performanceElement = document.querySelector('.performance-radar-section')
-				if (performanceElement) {
-					performanceElement.scrollIntoView({ 
-						behavior: 'smooth', 
-						block: 'start' 
-					})
-				}
-			} else if (sectionId === 'daily-message-activity') {
-				const dailyActivityElement = document.querySelector('.daily-message-section')
-				if (dailyActivityElement) {
-					dailyActivityElement.scrollIntoView({ 
-						behavior: 'smooth', 
-						block: 'start' 
-					})
-				}
-			} else if (sectionId === 'recent-conversations') {
-				if (contentSections[0]) {
-					contentSections[0].scrollIntoView({ 
-						behavior: 'smooth', 
-						block: 'start' 
-					})
-				}
-			} else if (sectionId === 'admin-feedback') {
-				if (contentSections[1]) {
-					contentSections[1].scrollIntoView({ 
-						behavior: 'smooth', 
-						block: 'start' 
-					})
-				}
-			/* Administrator Instruction section hidden in Content — restore branch when section returns
-			} else if (sectionId === 'admin-instruction') {
-				if (contentSections[2]) {
-					contentSections[2].scrollIntoView({ 
-						behavior: 'smooth', 
-						block: 'start' 
-					})
-				}
-			*/
-			} else if (sectionId === 'user-feedback') {
-				if (contentSections[2]) {
-					contentSections[2].scrollIntoView({ 
-						behavior: 'smooth', 
-						block: 'start' 
-					})
-				}
-			} else if (sectionId === 'prompt-control') {
-				if (contentSections[3]) {
-					contentSections[3].scrollIntoView({ 
-						behavior: 'smooth', 
-						block: 'start' 
-					})
-				}
-			} else {
-				const element = document.getElementById(sectionId)
-				if (element) {
-					element.scrollIntoView({ 
-						behavior: 'smooth', 
-						block: 'start' 
-					})
-				}
-			}
-		} else {
-			navigate(`/dashboard?section=${sectionId}`)
-		}
-	}
-
 	const handleRangeChange = (start: string, end: string) => {
 		setStartDate(start)
 		setEndDate(end)
 	}
 
-	console.log('🔍 Dashboard DailyMessageActivity Debug:', {
-		startDate,
-		endDate,
-		sessionsLength: sessions.length,
-		sessionRequestsKeys: Object.keys(sessionRequests).length,
-		authToken: !!authToken,
-		isLoadingSessions
-	});
-
 	return (
 		<div className="dashboard-layout">
-			<Header performanceScore={overallScore} performanceDate={radarDate} currentTime={currentTime} onSignOut={signOut} />
+			<Header
+				performanceScore={overallScore}
+				performanceDate={radarDate}
+				currentTime={currentTime}
+				onSignOut={signOut}
+				userFeedbackHasUnread={userFeedbackHasUnread}
+			/>
 			
 			<div className="dashboard-content">
-				<Sidebar
-					conversations={totalMessages}
-					satisfaction={94.5}
-					documents={156}
-					performanceScore={overallScore}
-					performanceDate={radarDate}
-					activeFilters={activeFilters}
-					onFilterChange={handleFilterChange}
-					onSearch={handleSearch}
-					isCollapsed={sidebarCollapsed}
-					onToggleCollapse={toggleSidebar}
-					onScrollToConversations={scrollToConversations}
-					onScrollToSection={scrollToSection}
-					sessions={sessions}
-					sessionRequests={sessionRequests}
-					requestDetails={requestDetails}
-				/>
-				
 				<main className="dashboard-main">
 					<div className="content-module">
 						<Content 
@@ -463,6 +272,8 @@ export default function DashboardN8N() {
 							onIncludeSimulatedDataChange={setIncludeSimulatedData}
 							estimationMode={estimationMode}
 							onEstimationModeChange={setEstimationMode}
+							userFeedbackHasUnread={userFeedbackHasUnread}
+							onUserFeedbackUnreadChange={setUserFeedbackHasUnread}
 						/>
 					</div>
 				</main>

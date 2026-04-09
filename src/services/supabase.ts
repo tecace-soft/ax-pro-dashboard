@@ -45,4 +45,5 @@ export interface UserFeedbackData {
   created_at?: string
   chat_message?: string | null
   chat_response?: string | null
+  read?: boolean
 } 

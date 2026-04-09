@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { IconX } from '../ui/icons'
 import PerformanceRadar from '../components/PerformanceRadar'
 import { DailyRow, EstimationMode } from '../services/dailyAggregates'
@@ -22,6 +22,7 @@ import { downloadAdminFeedbackData } from '../services/adminFeedbackExport'
 import { downloadConversationsData, ConversationExportData } from '../services/conversationsExport'
 import { conversationsCache } from '../services/conversationsCache'
 import { fetchFilesFromSupabase } from '../services/ragManagementN8N'
+import { fetchUserFeedbackN8N } from '../services/userFeedbackN8N'
 
 interface CacheData {
 	sessions: any[]
@@ -99,9 +100,26 @@ function mapN8nAdminFeedbackMapToUi(allFeedbackN8N: Record<string, AdminFeedback
 
 import PromptControl from '../components/PromptControl'
 import UserFeedback from '../components/UserFeedback'
+import DashboardChatSide from '../components/DashboardChatSide'
 import '../styles/dashboard.css'
 import '../styles/prompt.css'
 import '../styles/userFeedback.css'
+
+const DASHBOARD_SECTION_TABS = [
+	'recent-conversations',
+	'admin-feedback',
+	'user-feedback',
+	'prompt-control',
+	'performance-overview',
+] as const
+type DashboardSectionTabId = (typeof DASHBOARD_SECTION_TABS)[number]
+
+function normalizeDashboardSection(raw: string | null): DashboardSectionTabId {
+	if (!raw) return 'recent-conversations'
+	if (raw === 'performance-radar' || raw === 'daily-message-activity') return 'performance-overview'
+	if ((DASHBOARD_SECTION_TABS as readonly string[]).includes(raw)) return raw as DashboardSectionTabId
+	return 'recent-conversations'
+}
 
 function formatDate(d: Date): string {
 	const year = d.getFullYear()
@@ -143,6 +161,17 @@ function formatChatIdNarrow(chatId: string): string {
 		return chatId
 	}
 	return chatId.slice(-3)
+}
+
+function countThumbsUserFeedbackReactions(rows: { reaction?: string | null }[]): { up: number; down: number } {
+	let up = 0
+	let down = 0
+	for (const row of rows) {
+		const v = String(row.reaction ?? '').trim().toLowerCase()
+		if (v === 'thumbs_up') up += 1
+		else if (v === 'thumbs_down') down += 1
+	}
+	return { up, down }
 }
 
 function formatDateForAPI(d: Date, isEndDate: boolean = false): string {
@@ -199,6 +228,9 @@ interface ContentProps {
 	onIncludeSimulatedDataChange?: (include: boolean) => void
 	estimationMode?: EstimationMode
 	onEstimationModeChange?: (mode: EstimationMode) => void
+	/** From parent (e.g. Header) — unread user_feedback (read === false). */
+	userFeedbackHasUnread?: boolean
+	onUserFeedbackUnreadChange?: (hasUnread: boolean) => void
 }
 
 export default function Content({ 
@@ -214,10 +246,52 @@ export default function Content({
 	includeSimulatedData = true,
 	onIncludeSimulatedDataChange,
 	estimationMode = 'simple',
-	onEstimationModeChange
+	onEstimationModeChange,
+	userFeedbackHasUnread = false,
+	onUserFeedbackUnreadChange,
 }: ContentProps) {
 	const location = useLocation()
+	const navigate = useNavigate()
+	const [searchParams, setSearchParams] = useSearchParams()
 	const isN8NRoute = location.pathname === '/dashboard' || location.pathname === '/knowledge-management'
+	const isDashboardPage = location.pathname === '/dashboard'
+	const dashboardActiveTab: DashboardSectionTabId = isDashboardPage
+		? normalizeDashboardSection(searchParams.get('section'))
+		: 'performance-overview'
+
+	const setDashboardTab = useCallback(
+		(id: DashboardSectionTabId) => {
+			if (id === 'recent-conversations') setSearchParams({}, { replace: true })
+			else setSearchParams({ section: id }, { replace: true })
+		},
+		[setSearchParams]
+	)
+
+	const goOverviewRecentConversations = useCallback(() => {
+		if (isDashboardPage) setDashboardTab('recent-conversations')
+		else navigate('/dashboard')
+	}, [isDashboardPage, setDashboardTab, navigate])
+
+	const goOverviewUserFeedback = useCallback(() => {
+		if (isDashboardPage) setDashboardTab('user-feedback')
+		else navigate('/dashboard?section=user-feedback')
+	}, [isDashboardPage, setDashboardTab, navigate])
+
+	const goOverviewDocuments = useCallback(() => {
+		navigate('/knowledge-management')
+	}, [navigate])
+
+	const goOverviewPerformance = useCallback(() => {
+		if (isDashboardPage) setDashboardTab('performance-overview')
+		else navigate('/dashboard?section=performance-overview')
+	}, [isDashboardPage, setDashboardTab, navigate])
+
+	useEffect(() => {
+		if (!isDashboardPage) return
+		const main = document.querySelector('.screen-body > .content')
+		main?.scrollTo({ top: 0, behavior: 'smooth' })
+	}, [dashboardActiveTab, isDashboardPage])
+
 	const { language, setLanguage, t } = useLanguage()
 	const { theme } = useTheme()
 	const [authToken, setAuthToken] = useState<string | null>(null)
@@ -270,6 +344,7 @@ export default function Content({
 	const [adminInstructionFilter, setAdminInstructionFilter] = useState('')
 	const [isSubmittingAdminInstruction, setIsSubmittingAdminInstruction] = useState(false)
 	const [documentsCount, setDocumentsCount] = useState<number>(0)
+	const [userFeedbackThumbsCounts, setUserFeedbackThumbsCounts] = useState<{ up: number; down: number }>({ up: 0, down: 0 })
 	const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false)
 	const [expandedFeedbackForms, setExpandedFeedbackForms] = useState<Set<string>>(new Set())
 	const [closingFeedbackForms, setClosingFeedbackForms] = useState<Set<string>>(new Set())
@@ -376,6 +451,16 @@ export default function Content({
 		requestId: null,
 		feedbackText: ''
 	})
+	const [deleteConversationModal, setDeleteConversationModal] = useState<{
+		isOpen: boolean
+		requestId: string | null
+		previewSnippet: string
+	}>({
+		isOpen: false,
+		requestId: null,
+		previewSnippet: '',
+	})
+	const [isDeletingConversation, setIsDeletingConversation] = useState(false)
 	const [addAdminFeedbackModal, setAddAdminFeedbackModal] = useState({
 		isOpen: false
 	})
@@ -763,6 +848,39 @@ export default function Content({
 			setIsRefreshingAdminFeedback(false)
 		}
 	}, [isN8NRoute, authToken])
+
+	const handleConfirmDeleteConversation = useCallback(
+		async (requestId: string | null) => {
+			if (!requestId || !isN8NRoute) return
+			setIsDeletingConversation(true)
+			try {
+				const afMap = adminFeedback as Record<string, AdminFeedbackRow>
+				const mapKey = findAdminFeedbackMapKey(afMap, requestId)
+				if (mapKey && afMap[mapKey]) {
+					await deleteAdminFeedbackN8N(n8nAdminFeedbackDeleteArg(mapKey, afMap))
+					setAdminFeedback((prev) => {
+						const next = { ...prev }
+						delete next[mapKey]
+						return next
+					})
+				}
+				const { error } = await supabaseN8N
+					.from('chat')
+					.delete()
+					.or(`chat_id.eq.${requestId},id.eq.${requestId}`)
+				if (error) throw error
+				setDeleteConversationModal({ isOpen: false, requestId: null, previewSnippet: '' })
+				await refreshConversations()
+				await refreshAdminFeedback()
+			} catch (error) {
+				console.error('Failed to delete conversation:', error)
+				alert(language === 'ko' ? '대화 삭제에 실패했습니다.' : 'Failed to delete conversation.')
+			} finally {
+				setIsDeletingConversation(false)
+			}
+		},
+		[isN8NRoute, adminFeedback, refreshConversations, refreshAdminFeedback, language]
+	)
 
 	// 최적화된 데이터 로딩 함수
 	const loadConversationsOptimized = async (bypassCache: boolean = false) => {
@@ -1553,6 +1671,29 @@ export default function Content({
 		
 		loadDocumentsCount()
 	}, [isN8NRoute])
+
+	// User feedback thumbs (Satisfaction card on /dashboard)
+	useEffect(() => {
+		if (!isDashboardPage || !isN8NRoute) return
+		let cancelled = false
+		;(async () => {
+			try {
+				const rows = await fetchUserFeedbackN8N()
+				if (cancelled) return
+				setUserFeedbackThumbsCounts(countThumbsUserFeedbackReactions(rows))
+				onUserFeedbackUnreadChange?.(rows.some((r) => r.read === false))
+			} catch (error) {
+				console.error('Failed to load user feedback for satisfaction overview:', error)
+				if (!cancelled) {
+					setUserFeedbackThumbsCounts({ up: 0, down: 0 })
+					onUserFeedbackUnreadChange?.(false)
+				}
+			}
+		})()
+		return () => {
+			cancelled = true
+		}
+	}, [isDashboardPage, isN8NRoute, onUserFeedbackUnreadChange])
 
 	// Keep requestDetailsRef in sync with requestDetails state
 	useEffect(() => {
@@ -2701,17 +2842,22 @@ export default function Content({
 		}
 	}
 
-	// Scroll to conversation in Recent Conversations section
 	const scrollToConversation = (requestId: string) => {
-		// Find the conversation row in the table
-		const row = document.querySelector(`tr[data-request-id="${requestId}"]`)
-		if (row) {
-			row.scrollIntoView({ behavior: 'smooth', block: 'center' })
-			// Highlight the row temporarily
-			row.classList.add('highlight-row')
-			setTimeout(() => {
-				row.classList.remove('highlight-row')
-			}, 2000)
+		const highlight = () => {
+			const row = document.querySelector(`tr[data-request-id="${requestId}"]`)
+			if (row) {
+				row.scrollIntoView({ behavior: 'smooth', block: 'center' })
+				row.classList.add('highlight-row')
+				setTimeout(() => {
+					row.classList.remove('highlight-row')
+				}, 2000)
+			}
+		}
+		if (normalizeDashboardSection(searchParams.get('section')) !== 'recent-conversations') {
+			setSearchParams({ section: 'recent-conversations' }, { replace: true })
+			setTimeout(highlight, 250)
+		} else {
+			highlight()
 		}
 	}
 
@@ -2756,51 +2902,39 @@ export default function Content({
 				setAdminFeedbackFilter(requestId)
 			}
 		} else {
-			// No date provided, just set filter
 			setAdminFeedbackFilter(requestId)
 		}
-		
-		// Scroll to Admin Feedback section
-		const adminFeedbackSection = document.querySelector('.admin-feedback-section') || document.querySelector('[data-section="admin-feedback"]')
-		if (adminFeedbackSection) {
-			adminFeedbackSection.scrollIntoView({ behavior: 'smooth', block: 'start' })
-			
-			// After scrolling, try to find and highlight the specific row
-			setTimeout(() => {
-				// Try to find the row by requestId (could be in requestId, chat_id, or feedback-{id} format)
-				const possibleSelectors = [
-					`tr[data-request-id="${requestId}"]`,
-					`tr[data-chat-id="${requestId}"]`,
-					`tr[data-feedback-id="${requestId}"]`
-				]
-				
-				let row: Element | null = null
-				for (const selector of possibleSelectors) {
-					row = document.querySelector(selector)
-					if (row) break
-				}
-				
-				// If not found by data attributes, try to find by text content
-				if (!row) {
-					const allRows = document.querySelectorAll('.admin-feedback-table tbody tr')
-					for (const tr of Array.from(allRows)) {
-						const text = tr.textContent || ''
-						if (text.includes(requestId)) {
-							row = tr
-							break
-						}
+
+		setDashboardTab('admin-feedback')
+		setTimeout(() => {
+			const possibleSelectors = [
+				`tr[data-request-id="${requestId}"]`,
+				`tr[data-chat-id="${requestId}"]`,
+				`tr[data-feedback-id="${requestId}"]`,
+			]
+			let row: Element | null = null
+			for (const selector of possibleSelectors) {
+				row = document.querySelector(selector)
+				if (row) break
+			}
+			if (!row) {
+				const allRows = document.querySelectorAll('.admin-feedback-table tbody tr')
+				for (const tr of Array.from(allRows)) {
+					const text = tr.textContent || ''
+					if (text.includes(requestId)) {
+						row = tr
+						break
 					}
 				}
-				
-				if (row) {
-					row.scrollIntoView({ behavior: 'smooth', block: 'center' })
-					row.classList.add('highlight-row')
-					setTimeout(() => {
-						row?.classList.remove('highlight-row')
-					}, 3000)
-				}
-			}, 1000) // Increased timeout to allow data to reload
-		}
+			}
+			if (row) {
+				row.scrollIntoView({ behavior: 'smooth', block: 'center' })
+				row.classList.add('highlight-row')
+				setTimeout(() => {
+					row?.classList.remove('highlight-row')
+				}, 3000)
+			}
+		}, 400)
 	}
 
 	// 총 메시지 수 계산 (Recent Conversations용)
@@ -2827,8 +2961,8 @@ export default function Content({
 		setConversationsCurrentPage(1)
 	}, [conversationsSearch, conversationsSortBy])
 
-	// Flatten conversations for table view
-	const flattenedConversations = useMemo(() => {
+	// Flatten conversations for table view (unfiltered; search applied in derived list)
+	const flattenedConversationsBase = useMemo(() => {
 		const conversations: Array<{
 			date: string
 			userId: string
@@ -2934,19 +3068,37 @@ export default function Content({
 			return a.sessionId.localeCompare(b.sessionId)
 		})
 
-		// Filter by search
-		if (conversationsSearch.trim()) {
-			const searchLower = conversationsSearch.toLowerCase()
-			return conversations.filter(conv => 
+		return conversations
+	}, [sessions, sessionRequests, requestDetails, adminFeedback, conversationsSortBy, isN8NRoute])
+
+	const flattenedConversations = useMemo(() => {
+		if (!conversationsSearch.trim()) return flattenedConversationsBase
+		const searchLower = conversationsSearch.toLowerCase()
+		return flattenedConversationsBase.filter(
+			(conv) =>
 				conv.userMessage.toLowerCase().includes(searchLower) ||
 				conv.aiResponse.toLowerCase().includes(searchLower) ||
 				conv.sessionId.toLowerCase().includes(searchLower) ||
 				conv.requestId.toLowerCase().includes(searchLower)
-			)
-		}
+		)
+	}, [flattenedConversationsBase, conversationsSearch])
 
-		return conversations
-	}, [sessions, sessionRequests, requestDetails, adminFeedback, conversationsSortBy, conversationsSearch, isN8NRoute])
+	/** Local calendar day (matches chat.created_at instant interpreted in viewer's timezone). */
+	const todaysConversationsCount = useMemo(() => {
+		const now = new Date()
+		const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+		const endOfDay = startOfDay + 24 * 60 * 60 * 1000
+		return flattenedConversationsBase.filter(
+			(c) => c.timestamp > 0 && c.timestamp >= startOfDay && c.timestamp < endOfDay
+		).length
+	}, [flattenedConversationsBase])
+
+	const userFeedbackSatisfactionDisplay = useMemo(() => {
+		const { up, down } = userFeedbackThumbsCounts
+		const total = up + down
+		const pct = total > 0 ? Math.round((up / total) * 100) : null
+		return { up, down, total, pct }
+	}, [userFeedbackThumbsCounts])
 
 	// Check if any conversation has a userId (to conditionally show/hide User ID column)
 	const hasAnyUserId = useMemo(() => {
@@ -3147,27 +3299,41 @@ export default function Content({
 
 	return (
 		<div className="screen">
-			<main className="content">
+			<div className="screen-body">
+				<DashboardChatSide language={language} />
+				<main className="content">
 				<div className="content-sections">
-					{/* Performance Overview Section - N8N only */}
-					{isN8NRoute && (
-						<div className="performance-overview-section">
-							{/* Stat Cards Row */}
-							<div className="overview-stats-bar">
-								{/* Conversations Card */}
-								<div className="performance-stat-card">
+					{isDashboardPage && isN8NRoute && (
+						<>
+							<div className="overview-stats-bar dashboard-overview-stats">
+								<button
+									type="button"
+									className="performance-stat-card"
+									onClick={goOverviewRecentConversations}
+									aria-label={
+										language === 'ko'
+											? '최근 대화로 이동'
+											: 'Go to Recent Conversations'
+									}
+								>
 									<div className="prof-overview-icon">
 										<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
 											<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
 										</svg>
 									</div>
 									<div className="prof-overview-content">
-										<div className="prof-overview-label">Conversations</div>
-										<div className="prof-overview-value">{flattenedConversations.length}</div>
+										<div className="prof-overview-label">
+											{language === 'ko' ? '오늘의 대화' : "Today's Conversations"}
+										</div>
+										<div className="prof-overview-value">{todaysConversationsCount}</div>
 									</div>
-								</div>
-								{/* Satisfaction Card */}
-								<div className="performance-stat-card">
+								</button>
+								<button
+									type="button"
+									className="performance-stat-card"
+									onClick={goOverviewUserFeedback}
+									aria-label={language === 'ko' ? '사용자 피드백으로 이동' : 'Go to User Feedback'}
+								>
 									<div className="prof-overview-icon">
 										<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
 											<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
@@ -3175,12 +3341,65 @@ export default function Content({
 										</svg>
 									</div>
 									<div className="prof-overview-content">
-										<div className="prof-overview-label">Satisfaction</div>
-										<div className="prof-overview-value">100%</div>
+										<div className="prof-overview-label">
+											{language === 'ko' ? '만족도' : 'Satisfaction'}
+										</div>
+										<div className="prof-overview-value">
+											{userFeedbackSatisfactionDisplay.pct !== null
+												? `${userFeedbackSatisfactionDisplay.pct}%`
+												: '—'}
+										</div>
+										<div
+											className="prof-overview-subtext prof-overview-subtext--satisfaction"
+											aria-label={
+												language === 'ko'
+													? `좋아요 ${userFeedbackSatisfactionDisplay.up}, 싫어요 ${userFeedbackSatisfactionDisplay.down}`
+													: `${userFeedbackSatisfactionDisplay.up} thumbs up, ${userFeedbackSatisfactionDisplay.down} thumbs down`
+											}
+										>
+											<span
+												className="prof-overview-satisfaction-stat"
+												title={language === 'ko' ? '좋아요' : 'Thumbs up'}
+											>
+												<span className="prof-overview-satisfaction-count">{userFeedbackSatisfactionDisplay.up}</span>
+												<svg
+													className="prof-overview-satisfaction-thumb"
+													fill="#22c55e"
+													viewBox="0 0 24 24"
+													width="18"
+													height="18"
+													aria-hidden
+													focusable="false"
+												>
+													<path d="M20 8h-5.612l1.123-3.367c.202-.608.1-1.282-.275-1.802S14.253 2 13.612 2H12c-.297 0-.578.132-.769.36L6.531 8H4c-1.103 0-2 .897-2 2v9c0 1.103.897 2 2 2h13.307a2.01 2.01 0 0 0 1.873-1.298l2.757-7.351A1 1 0 0 0 22 12v-2c0-1.103-.897-2-2-2zM4 10h2v9H4v-9zm16 1.819L17.307 19H8V9.362L12.468 4h1.146l-1.562 4.683A.998.998 0 0 0 13 10h7v1.819z" />
+												</svg>
+											</span>
+											<span
+												className="prof-overview-satisfaction-stat"
+												title={language === 'ko' ? '싫어요' : 'Thumbs down'}
+											>
+												<span className="prof-overview-satisfaction-count">{userFeedbackSatisfactionDisplay.down}</span>
+												<svg
+													className="prof-overview-satisfaction-thumb"
+													fill="#ef4444"
+													viewBox="0 0 24 24"
+													width="18"
+													height="18"
+													aria-hidden
+													focusable="false"
+												>
+													<path d="M20 3H6.693A2.01 2.01 0 0 0 4.82 4.298l-2.757 7.351A1 1 0 0 0 2 12v2c0 1.103.897 2 2 2h5.612L8.49 19.367a2.004 2.004 0 0 0 .274 1.802c.376.52.982.831 1.624.831H12c.297 0 .578-.132.769-.360l4.7-5.64H20c1.103 0 2-.897 2-2V5c0-1.103-.897-2-2-2zm-8.469 17h-1.145l1.562-4.684A1 1 0 0 0 11 14H4v-1.819L6.693 5H16v9.638L11.531 20zM18 14V5h2l.001 9H18z" />
+												</svg>
+											</span>
+										</div>
 									</div>
-								</div>
-								{/* Documents Card */}
-								<div className="performance-stat-card">
+								</button>
+								<button
+									type="button"
+									className="performance-stat-card"
+									onClick={goOverviewDocuments}
+									aria-label={language === 'ko' ? '지식 관리로 이동' : 'Go to Knowledge Management'}
+								>
 									<div className="prof-overview-icon">
 										<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
 											<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -3191,9 +3410,13 @@ export default function Content({
 										<div className="prof-overview-label">Documents</div>
 										<div className="prof-overview-value">{documentsCount}</div>
 									</div>
-								</div>
-								{/* Performance Card */}
-								<div className="performance-stat-card">
+								</button>
+								<button
+									type="button"
+									className="performance-stat-card"
+									onClick={goOverviewPerformance}
+									aria-label={language === 'ko' ? '성능 개요로 이동' : 'Go to Performance Overview'}
+								>
 									<div className="prof-overview-icon">
 										<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
 											<line x1="18" y1="20" x2="18" y2="10"/>
@@ -3205,10 +3428,42 @@ export default function Content({
 										<div className="prof-overview-label">Performance</div>
 										<div className="prof-overview-value">89%</div>
 									</div>
-								</div>
+								</button>
 							</div>
 
-							{/* Performance Metrics */}
+							<div className="dashboard-section-tabs" role="tablist" aria-label={language === 'ko' ? '대시보드 섹션' : 'Dashboard sections'}>
+								{(
+									[
+										{ id: 'recent-conversations' as const, labelKo: '최근 대화', labelEn: 'Recent Conversations' },
+										{ id: 'admin-feedback' as const, labelKo: 'FAQ (고우선 FAQ)', labelEn: 'FAQ (High Priority FAQ)' },
+										{ id: 'user-feedback' as const, labelKo: '사용자 피드백', labelEn: 'User Feedback' },
+										{ id: 'prompt-control' as const, labelKo: '프롬프트 제어', labelEn: 'Prompt Control' },
+										{ id: 'performance-overview' as const, labelKo: '성능 개요', labelEn: 'Performance Overview' },
+									] as const
+								).map(({ id, labelKo, labelEn }) => (
+									<button
+										key={id}
+										type="button"
+										role="tab"
+										aria-selected={dashboardActiveTab === id}
+										className={`dashboard-section-tab${dashboardActiveTab === id ? ' dashboard-section-tab--active' : ''}${id === 'performance-overview' ? ' dashboard-section-tab--end' : ''}`}
+										onClick={() => setDashboardTab(id)}
+									>
+										<span className="dashboard-section-tab-label">
+											{language === 'ko' ? labelKo : labelEn}
+											{id === 'user-feedback' && userFeedbackHasUnread ? (
+												<span className="nav-unread-dot" title={language === 'ko' ? '읽지 않은 피드백' : 'Unread feedback'} aria-hidden />
+											) : null}
+										</span>
+									</button>
+								))}
+							</div>
+						</>
+					)}
+
+					{/* Performance metrics + radar (Performance Overview tab only) */}
+					{dashboardActiveTab === 'performance-overview' && isN8NRoute && (
+						<div className="performance-overview-section">
 							<div className="card section performance-metrics-card">
 								<div className="section-header">
 									<div className="section-title">
@@ -3299,6 +3554,7 @@ export default function Content({
 					)}
 
 					{/* Recent Conversations Section */}
+					{dashboardActiveTab === 'recent-conversations' && (
 					<div className="card section content-section" aria-labelledby="recent-conv-title">
 							<div className="section-header">
 								<div id="recent-conv-title" className="section-title conversations-title">
@@ -3482,6 +3738,26 @@ export default function Content({
 																			</svg>
 																		</button>
 																	)}
+																	{isN8NRoute && (
+																		<button
+																			type="button"
+																			className="admin-feedback-delete-btn"
+																			title={t('delete')}
+																			onClick={(e) => {
+																				e.preventDefault()
+																				e.stopPropagation()
+																				setDeleteConversationModal({
+																					isOpen: true,
+																					requestId: conv.requestId,
+																					previewSnippet: (conv.userMessage || '').slice(0, 200),
+																				})
+																			}}
+																		>
+																			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+																				<path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+																			</svg>
+																		</button>
+																	)}
 													</div>
 															</div>
 														</div>
@@ -3499,6 +3775,9 @@ export default function Content({
 														<th>{t('userMessage')}</th>
 														<th>{t('aiResponse')}</th>
 														<th style={{ textAlign: 'center' }}>FAQ</th>
+														{isN8NRoute && (
+															<th style={{ textAlign: 'center' }}>{t('delete')}</th>
+														)}
 													</tr>
 												</thead>
 												<tbody>
@@ -3631,6 +3910,28 @@ export default function Content({
 																					)}
 																				</div>
 																</td>
+																{isN8NRoute && (
+																	<td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
+																		<button
+																			type="button"
+																			className="admin-feedback-delete-btn"
+																			title={t('delete')}
+																			onClick={(e) => {
+																				e.preventDefault()
+																				e.stopPropagation()
+																				setDeleteConversationModal({
+																					isOpen: true,
+																					requestId: conv.requestId,
+																					previewSnippet: (conv.userMessage || '').slice(0, 200),
+																				})
+																			}}
+																		>
+																			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+																				<path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+																			</svg>
+																		</button>
+																	</td>
+																)}
 															</tr>
 														)
 													})}
@@ -3777,8 +4078,10 @@ export default function Content({
 								)
 							})}
 					</div>
+					)}
 
 					{/* Admin Feedback Section */}
+					{dashboardActiveTab === 'admin-feedback' && (
 					<div className="card section content-section admin-feedback-section" aria-labelledby="admin-feedback-title" data-section="admin-feedback">
 							<div className="section-header">
 								<div id="admin-feedback-title" className="section-title">
@@ -4362,6 +4665,7 @@ export default function Content({
 								)}
 							</div>
 					</div>
+					)}
 
 					{/* Administrator Instruction Section — hidden; remove leading `false && (` and trailing `)}` to restore */}
 					{false && (
@@ -4639,11 +4943,10 @@ export default function Content({
 					)}
 
 					{/* User Feedback Section */}
+					{dashboardActiveTab === 'user-feedback' && (
 					<div className="content-section">
-						<UserFeedback 
-							startDate={startDate}
-							endDate={endDate}
-							onDateChange={onDateChange}
+						<UserFeedback
+							onUnreadStateChange={onUserFeedbackUnreadChange}
 							onChatIdClick={(chatId) => {
 								setConversationsSearch(chatId)
 								setAdminFeedbackFilter(chatId)
@@ -4668,13 +4971,17 @@ export default function Content({
 							}}
 						/>
 					</div>
+					)}
 
 					{/* Prompt Control Section */}
+					{dashboardActiveTab === 'prompt-control' && (
 					<div className="content-section">
 						<PromptControl key={promptRefreshTrigger} onNavigateToAdminFeedback={navigateToAdminFeedback} />
 					</div>
+					)}
 				</div>
 			</main>
+			</div>
 
 			{feedbackModal.isOpen && feedbackModal.requestId && (
 				<div className="modal-backdrop" onClick={closeFeedbackModal}>
@@ -5144,6 +5451,78 @@ export default function Content({
 								}}
 							>
 								Delete
+							</button>
+						</div>
+					</div>
+				</div>
+			)}
+
+			{deleteConversationModal.isOpen && (
+				<div
+					className="modal-backdrop"
+					onClick={() =>
+						!isDeletingConversation &&
+						setDeleteConversationModal({ isOpen: false, requestId: null, previewSnippet: '' })
+					}
+				>
+					<div className="confirmation-modal card" onClick={(e) => e.stopPropagation()}>
+						<div className="modal-header">
+							<h2 className="h1 modal-title">
+								{language === 'ko' ? '대화 삭제' : 'Delete conversation'}
+							</h2>
+							<button
+								type="button"
+								className="icon-btn"
+								disabled={isDeletingConversation}
+								onClick={() =>
+									setDeleteConversationModal({ isOpen: false, requestId: null, previewSnippet: '' })
+								}
+							>
+								<IconX />
+							</button>
+						</div>
+						<div className="confirmation-content" style={{ padding: '24px', marginBottom: '32px' }}>
+							<p style={{ marginBottom: '16px' }}>
+								{language === 'ko'
+									? '이 대화를 삭제하시겠습니까? 되돌릴 수 없습니다.'
+									: 'Are you sure you want to delete this conversation? This cannot be undone.'}
+							</p>
+							{deleteConversationModal.previewSnippet ? (
+								<div className="feedback-preview">
+									<strong>{language === 'ko' ? '사용자 메시지 미리보기' : 'User message preview'}:</strong>
+									<div className="feedback-text-preview">{deleteConversationModal.previewSnippet}</div>
+								</div>
+							) : null}
+						</div>
+						<div
+							className="feedback-actions"
+							style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', padding: '0 24px 24px 24px' }}
+						>
+							<button
+								type="button"
+								className="btn btn-ghost confirmation-no-btn"
+								disabled={isDeletingConversation}
+								onClick={() =>
+									setDeleteConversationModal({ isOpen: false, requestId: null, previewSnippet: '' })
+								}
+							>
+								{language === 'ko' ? '취소' : 'Cancel'}
+							</button>
+							<button
+								type="button"
+								className="btn btn-primary confirmation-yes-btn"
+								disabled={isDeletingConversation}
+								onClick={(e) => {
+									e.preventDefault()
+									e.stopPropagation()
+									void handleConfirmDeleteConversation(deleteConversationModal.requestId)
+								}}
+							>
+								{isDeletingConversation
+									? language === 'ko'
+										? '삭제 중…'
+										: 'Deleting…'
+									: t('delete')}
 							</button>
 						</div>
 					</div>

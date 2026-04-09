@@ -33,6 +33,29 @@
   background: rgba(18, 27, 61, 0.5);
 }
 
+.user-feedback-card--unread .user-feedback-card-rating,
+.user-feedback-card--unread .user-feedback-card-date,
+.user-feedback-card--unread .user-feedback-card-field > div {
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.user-feedback-card--unread .user-feedback-card-field strong {
+  font-weight: 700;
+}
+
+.user-feedback-card--unread .user-id-link,
+.user-feedback-card--unread .chat-id-link {
+  font-weight: 600;
+  color: inherit;
+}
+
+[data-theme="light"] .user-feedback-card--unread .user-feedback-card-rating,
+[data-theme="light"] .user-feedback-card--unread .user-feedback-card-date,
+[data-theme="light"] .user-feedback-card--unread .user-feedback-card-field > div {
+  color: var(--text-primary, #0f172a);
+}
+
 [data-theme="light"] .user-feedback-card:hover {
   background: rgba(248, 250, 252, 0.8);
   border-color: rgba(59, 230, 255, 0.3);

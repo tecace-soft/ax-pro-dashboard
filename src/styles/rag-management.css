@@ -15,40 +15,10 @@
   flex: 1;
   padding: 24px;
   margin: 0;
-  transition: margin-left 0.3s ease, width 0.3s ease;
   color: var(--text);
-  width: calc(100% - 280px);
+  width: 100%;
   max-width: none;
-  margin-left: 280px;
-}
-
-/* 사이드바가 있을 때 */
-.rag-management.with-sidebar {
-  margin-left: 280px;
-  width: calc(100% - 280px);
-  max-width: none;
-}
-
-.rag-management.with-sidebar.collapsed {
-  margin-left: 60px;
-  width: calc(100% - 60px);
-  max-width: none;
-}
-
-/* 사이드바가 없을 때 (모바일 등) */
-@media (max-width: 768px) {
-  .rag-management {
-    margin-left: 0;
-    margin-right: 0;
-    max-width: 100%;
-  }
-  
-  .rag-management.with-sidebar,
-  .rag-management.with-sidebar.collapsed {
-    margin-left: 0;
-    margin-right: 0;
-    max-width: 100%;
-  }
+  box-sizing: border-box;
 }
 
 .rag-header {

@@ -1,7 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Header from '../components/Header'
-import Sidebar from '../components/Sidebar'
 import EmailAgentPromptControl from '../components/EmailAgentPromptControl'
 import EmailAgentRecipients from '../components/EmailAgentRecipients'
 import { useLanguage } from '../contexts/LanguageContext'
@@ -10,7 +9,6 @@ import '../styles/dashboard.css'
 export default function EmailAgent() {
 	const { language } = useLanguage()
 	const navigate = useNavigate()
-	const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 	const currentTime = new Date().toLocaleString('en-US', {
 		weekday: 'short',
 		month: 'short',
@@ -32,14 +30,6 @@ export default function EmailAgent() {
 		navigate('/', { replace: true })
 	}
 
-	const scrollToConversations = () => {
-		navigate('/dashboard?section=recent-conversations')
-	}
-
-	const scrollToSection = (sectionId: string) => {
-		navigate(`/dashboard?section=${sectionId}`)
-	}
-
 	return (
 		<div className="dashboard-layout">
 			<Header
@@ -49,23 +39,6 @@ export default function EmailAgent() {
 				onSignOut={signOut}
 			/>
 			<div className="dashboard-content">
-				<Sidebar
-					conversations={0}
-					satisfaction={94.5}
-					documents={0}
-					performanceScore={performanceScore}
-					performanceDate={performanceDate}
-					activeFilters={[]}
-					onFilterChange={() => {}}
-					onSearch={() => {}}
-					isCollapsed={sidebarCollapsed}
-					onToggleCollapse={() => setSidebarCollapsed((c) => !c)}
-					onScrollToConversations={scrollToConversations}
-					onScrollToSection={scrollToSection}
-					sessions={[]}
-					sessionRequests={{}}
-					requestDetails={{}}
-				/>
 				<main className="dashboard-main">
 					<div className="content-module" style={{ padding: '24px' }}>
 						<h1 className="h1" style={{ marginBottom: '8px' }}>

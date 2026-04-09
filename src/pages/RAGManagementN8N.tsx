@@ -24,7 +24,6 @@ import {
 } from '../services/ragManagementN8N'
 import { fetchDailyAggregatesWithMode, DailyRow, filterSimulatedData, EstimationMode } from '../services/dailyAggregates'
 import Header from '../components/Header'
-import Sidebar from '../components/Sidebar'
 import BlobFiles from './RagManagement/BlobFiles'
 import IndexDocs from './RagManagement/IndexDocs'
 import '../styles/rag-management.css'
@@ -243,7 +242,6 @@ export default function RAGManagementN8N() {
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set())
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({})
   const [language, setLanguage] = useState<'en' | 'ko'>('en')
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   
   const [isSyncLoading, setIsSyncLoading] = useState(false)
   const [lastSyncRefreshed, setLastSyncRefreshed] = useState<Date | null>(null)
@@ -254,8 +252,6 @@ export default function RAGManagementN8N() {
   const [isLoadingRadarData, setIsLoadingRadarData] = useState(false)
   const [includeSimulatedData, setIncludeSimulatedData] = useState(true)
   const [estimationMode, setEstimationMode] = useState<EstimationMode>('simple')
-
-  const isRAGManagementPage = location.pathname === '/knowledge-management'
 
   useEffect(() => { window.scrollTo(0, 0) }, [])
 
@@ -319,29 +315,6 @@ export default function RAGManagementN8N() {
     localStorage.removeItem('authToken')
     sessionStorage.removeItem('axAccess')
     navigate('/', { replace: true })
-  }
-
-  const toggleSidebar = () => setSidebarCollapsed(!sidebarCollapsed)
-
-  const scrollToSection = (sectionId: string) => {
-    if (isRAGManagementPage) {
-      navigate(`/dashboard?section=${sectionId}`)
-    } else {
-      const el = document.getElementById(sectionId)
-      el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    }
-  }
-
-  const handleFilterChange = (filter: string) => console.log('Filter changed:', filter)
-  const handleSearch = (_query: string) => {}
-
-  const scrollToConversations = () => {
-    if (isRAGManagementPage) {
-      navigate('/dashboard?section=recent-conversations')
-    } else {
-      document.querySelector('.conversations-module')
-        ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    }
   }
 
   const t = {
@@ -696,25 +669,7 @@ export default function RAGManagementN8N() {
     <div className="rag-management-layout">
       <Header performanceScore={performanceScore} performanceDate={performanceDate} currentTime={currentTime} onSignOut={signOut} />
       <div className="rag-content">
-        <Sidebar
-          conversations={0}
-          satisfaction={94.5}
-          documents={documents.length}
-          performanceScore={performanceScore}
-          performanceDate={performanceDate}
-          activeFilters={[]}
-          onFilterChange={handleFilterChange}
-          onSearch={handleSearch}
-          isCollapsed={sidebarCollapsed}
-          onToggleCollapse={toggleSidebar}
-          onScrollToConversations={scrollToConversations}
-          onScrollToSection={scrollToSection}
-          sessions={[]}
-          sessionRequests={{}}
-          requestDetails={{}}
-        />
-
-        <div className={`rag-management ${sidebarCollapsed ? 'with-sidebar collapsed' : 'with-sidebar'}`}>
+        <div className="rag-management">
           <div className="rag-header">
             <div className="header-content">
               <div>
