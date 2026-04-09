@@ -141,8 +141,8 @@ export default function DashboardChatSide({ language }: DashboardChatSideProps) 
 			id: uid(),
 			role: 'assistant',
 			text: isKo
-				? '안녕하세요. 대시보드 보조 채팅입니다. 질문을 입력해 보세요.'
-				: 'Hi — this is the dashboard assistant chat. Ask a question to get started.',
+				? '안녕하세요. TecAce의 HR AX PRO 챗 어시스턴트입니다. 질문을 입력하여 시작해 주세요.'
+				: 'Hi — this is the HR AX PRO chat assistant for TecAce. Ask a question to get started.',
 			createdAt: Date.now(),
 		},
 	])

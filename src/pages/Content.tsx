@@ -3095,9 +3095,7 @@ export default function Content({
 
 	const userFeedbackSatisfactionDisplay = useMemo(() => {
 		const { up, down } = userFeedbackThumbsCounts
-		const total = up + down
-		const pct = total > 0 ? Math.round((up / total) * 100) : null
-		return { up, down, total, pct }
+		return { up, down }
 	}, [userFeedbackThumbsCounts])
 
 	// Check if any conversation has a userId (to conditionally show/hide User ID column)
@@ -3332,7 +3330,11 @@ export default function Content({
 									type="button"
 									className="performance-stat-card"
 									onClick={goOverviewUserFeedback}
-									aria-label={language === 'ko' ? '사용자 피드백으로 이동' : 'Go to User Feedback'}
+									aria-label={
+										language === 'ko'
+											? `만족도 좋아요 ${userFeedbackSatisfactionDisplay.up}, 싫어요 ${userFeedbackSatisfactionDisplay.down}. 사용자 피드백으로 이동`
+											: `Satisfaction: ${userFeedbackSatisfactionDisplay.up} thumbs up, ${userFeedbackSatisfactionDisplay.down} thumbs down. Go to User Feedback`
+									}
 								>
 									<div className="prof-overview-icon">
 										<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -3344,19 +3346,7 @@ export default function Content({
 										<div className="prof-overview-label">
 											{language === 'ko' ? '만족도' : 'Satisfaction'}
 										</div>
-										<div className="prof-overview-value">
-											{userFeedbackSatisfactionDisplay.pct !== null
-												? `${userFeedbackSatisfactionDisplay.pct}%`
-												: '—'}
-										</div>
-										<div
-											className="prof-overview-subtext prof-overview-subtext--satisfaction"
-											aria-label={
-												language === 'ko'
-													? `좋아요 ${userFeedbackSatisfactionDisplay.up}, 싫어요 ${userFeedbackSatisfactionDisplay.down}`
-													: `${userFeedbackSatisfactionDisplay.up} thumbs up, ${userFeedbackSatisfactionDisplay.down} thumbs down`
-											}
-										>
+										<div className="prof-overview-value prof-overview-value--satisfaction">
 											<span
 												className="prof-overview-satisfaction-stat"
 												title={language === 'ko' ? '좋아요' : 'Thumbs up'}
@@ -3366,8 +3356,8 @@ export default function Content({
 													className="prof-overview-satisfaction-thumb"
 													fill="#22c55e"
 													viewBox="0 0 24 24"
-													width="18"
-													height="18"
+													width="22"
+													height="22"
 													aria-hidden
 													focusable="false"
 												>
@@ -3383,8 +3373,8 @@ export default function Content({
 													className="prof-overview-satisfaction-thumb"
 													fill="#ef4444"
 													viewBox="0 0 24 24"
-													width="18"
-													height="18"
+													width="22"
+													height="22"
 													aria-hidden
 													focusable="false"
 												>
@@ -3438,7 +3428,6 @@ export default function Content({
 										{ id: 'admin-feedback' as const, labelKo: 'FAQ (고우선 FAQ)', labelEn: 'FAQ (High Priority FAQ)' },
 										{ id: 'user-feedback' as const, labelKo: '사용자 피드백', labelEn: 'User Feedback' },
 										{ id: 'prompt-control' as const, labelKo: '프롬프트 제어', labelEn: 'Prompt Control' },
-										{ id: 'performance-overview' as const, labelKo: '성능 개요', labelEn: 'Performance Overview' },
 									] as const
 								).map(({ id, labelKo, labelEn }) => (
 									<button
@@ -3446,7 +3435,7 @@ export default function Content({
 										type="button"
 										role="tab"
 										aria-selected={dashboardActiveTab === id}
-										className={`dashboard-section-tab${dashboardActiveTab === id ? ' dashboard-section-tab--active' : ''}${id === 'performance-overview' ? ' dashboard-section-tab--end' : ''}`}
+										className={`dashboard-section-tab${dashboardActiveTab === id ? ' dashboard-section-tab--active' : ''}`}
 										onClick={() => setDashboardTab(id)}
 									>
 										<span className="dashboard-section-tab-label">

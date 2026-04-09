@@ -8182,23 +8182,19 @@ button.performance-stat-card:focus-visible {
   line-height: 1.2;
 }
 
+.prof-overview-value--satisfaction {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1.75rem;
+}
+
 /* Subtext for detailed view */
 .prof-overview-subtext {
   font-size: 9px;
   color: var(--text-muted);
   margin-top: 4px;
   opacity: 0.8;
-}
-
-.prof-overview-subtext--satisfaction {
-  font-size: 12px;
-  line-height: 1.35;
-  margin-top: 6px;
-  opacity: 1;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 1.35rem;
 }
 
 .prof-overview-satisfaction-stat {
@@ -8215,7 +8211,7 @@ button.performance-stat-card:focus-visible {
 
 .prof-overview-satisfaction-count {
   color: #fff;
-  font-weight: 600;
+  font-weight: inherit;
   font-size: inherit;
   line-height: 1;
 }
